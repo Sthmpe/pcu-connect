@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin Team</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Rubik',system-ui,sans-serif}
+a{text-decoration:none;color:inherit}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;background:#F3F4F7;color:#14213A;display:flex;flex-direction:column">
+
+<div style="background:#0B1F3A;padding:28px 20px 20px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px">
+<div>
+<div style="color:#fff;font-size:26px;font-weight:600">Team</div>
+<div style="color:#B9C4D8;font-size:14px;margin-top:2px">Ranked by guests who became members</div>
+</div>
+<a href="AddWorker.dc.html" style="height:44px;padding:0 16px;border-radius:14px;background:#E3B341;color:#0B1F3A;font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0B1F3A" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Worker
+</a>
+</div>
+
+<div style="padding:14px 16px 0;display:flex;flex-direction:column;gap:10px;flex-grow:1;min-height:0;overflow-y:auto;padding-bottom:12px">
+<sc-for list="{{workers}}" as="w" hint-placeholder-count="5">
+<a href="Worker.dc.html" style="background:#fff;border-radius:18px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 1px 3px rgba(11,31,58,0.08)">
+<div style="display:flex;align-items:center;gap:12px">
+<span style="width:20px;font-size:15px;font-weight:700;color:#5B6678">{{w.rank}}</span>
+<div style="width:40px;height:40px;border-radius:50%;background:#E6EBF4;display:flex;align-items:center;justify-content:center;font-weight:600;flex:none">{{w.initial}}</div>
+<div style="flex-grow:1;min-width:0">
+<div style="font-size:16px;font-weight:600">{{w.name}}</div>
+<div style="font-size:13px;color:#5B6678">{{w.line}}</div>
+</div>
+<span style="background:{{w.bg}};color:{{w.fg}};border-radius:999px;padding:4px 10px;font-size:12px;font-weight:600;white-space:nowrap">{{w.standing}}</span>
+</div>
+<div style="height:8px;border-radius:4px;background:#E6EBF4"><div style="width:{{w.pct}};height:8px;border-radius:4px;background:{{w.bar}}"></div></div>
+</a>
+</sc-for>
+</div>
+
+<div style="height:72px;flex:none;background:#fff;border-top:1px solid #E3E6EC;display:flex">
+<a href="Dashboard.dc.html" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#5B6678;font-size:12px;font-weight:500">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5B6678" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>Dashboard
+<span style="width:20px;height:3px"></span>
+</a>
+<a href="Team.dc.html" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#0B1F3A;font-size:12px;font-weight:600">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B1F3A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0V4zM8 6H4v1a3 3 0 0 0 4 2.8M16 6h4v1a3 3 0 0 1-4 2.8M12 13v4M8 20h8M10 17h4"/></svg>Team
+<span style="width:20px;height:3px;border-radius:2px;background:#E3B341"></span>
+</a>
+<a href="Guests.dc.html" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#5B6678;font-size:12px;font-weight:500">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5B6678" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>Guests
+<span style="width:20px;height:3px"></span>
+</a>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const G = { bg: '#E4F4EA', fg: '#1B7A46', bar: '#1B7A46' };
+    const B = { bg: '#E6EBF4', fg: '#0B1F3A', bar: '#2E5A99' };
+    const R = { bg: '#FBE5E3', fg: '#B3261E', bar: '#B3261E' };
+    const mk = (rank, initial, name, line, standing, pct, c) => ({ rank, initial, name, line, standing, pct, bg: c.bg, fg: c.fg, bar: c.bar });
+    return {
+      workers: [
+        mk(1, 'G', 'Grace', '9 guests · 9 contacted · 3 members', 'Outstanding', '100%', G),
+        mk(2, 'D', 'David', '8 guests · 7 contacted · 2 members', 'On track', '88%', B),
+        mk(3, 'T', 'Tolu', '8 guests · 6 contacted · 1 member', 'On track', '75%', B),
+        mk(4, 'S', 'Samuel', '9 guests · 5 contacted · 0 members', 'Behind', '56%', R),
+        mk(5, 'I', 'Ife', '8 guests · 3 contacted · 0 members', 'Behind', '38%', R),
+        mk('–', 'W', 'Worker C', 'No new guests while inactive', 'Inactive', '0%', { bg: '#E3E6EC', fg: '#3A455A', bar: '#9AA3B2' })
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

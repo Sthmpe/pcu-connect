@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
@@ -24,10 +23,13 @@ class CustomButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final effectiveBg = backgroundColor ?? AppColors.navy;
+    final effectiveText = textColor ?? Colors.white;
+
     return ElevatedButton(
       onPressed: isLoading ? null : onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: backgroundColor ?? AppColors.primary,
+        backgroundColor: effectiveBg,
         minimumSize: Size.fromHeight(AppSizes.buttonHeight),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppSizes.radiusMd),
@@ -37,26 +39,22 @@ class CustomButton extends StatelessWidget {
           ? SizedBox(
               height: AppSizes.iconMd,
               width: AppSizes.iconMd,
-              child: const CircularProgressIndicator(
+              child: CircularProgressIndicator(
                 strokeWidth: 2.5,
-                color: AppColors.textOnPrimary,
+                color: effectiveText,
               ),
             )
           : Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (icon != null) ...[
-                  Icon(
-                    icon,
-                    size: AppSizes.iconSm,
-                    color: textColor ?? AppColors.textOnPrimary,
-                  ),
+                  Icon(icon, size: AppSizes.iconSm, color: effectiveText),
                   SizedBox(width: AppSizes.p8),
                 ],
                 Text(
                   text,
-                  style: AppTextStyles.labelLarge.copyWith(
-                    color: textColor ?? AppColors.textOnPrimary,
+                  style: AppTextStyles.buttonPrimary.copyWith(
+                    color: effectiveText,
                   ),
                 ),
               ],

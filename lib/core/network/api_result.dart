@@ -1,58 +1,49 @@
-import 'package:equatable/equatable.dart';
+import '../errors/failures.dart';
 
-/// Failure categories a repository can surface to a bloc.
-/// Kept generic so UI code never needs to inspect raw exceptions
-/// (which could otherwise leak stack traces / query details to users).
-enum FailureType {
-  network,
-  unauthorized,
-  forbidden,
-  notFound,
-  validation,
-  server,
-  unknown,
+/// Clean Result monad for safe functional error handling
+abstract class ApiResult<T> {
+  const ApiResult();
+
+  const factory ApiResult.success(T data) = SuccessResult<T>;
+  const factory ApiResult.failure(Failure failure) = FailureResult<T>;
+
+  bool get isSuccess => this is SuccessResult<T>;
+  bool get isFailure => this is FailureResult<T>;
+
+  T? get data => isSuccess ? (this as SuccessResult<T>).value : null;
+  Failure? get failure => isFailure ? (this as FailureResult<T>).error : null;
 }
 
-class AppFailure extends Equatable {
-  final FailureType type;
-  final String message;
-
-  const AppFailure(this.type, this.message);
-
-  factory AppFailure.unknown([Object? error]) => AppFailure(
-    FailureType.unknown,
-    'Something went wrong. Please try again.',
-  );
+class SuccessResult<T> implements ApiResult<T> {
+  final T value;
+  const SuccessResult(this.value);
 
   @override
-  List<Object?> get props => [type, message];
+  bool get isSuccess => true;
+
+  @override
+  bool get isFailure => false;
+
+  @override
+  T? get data => value;
+
+  @override
+  Failure? get failure => null;
 }
 
-/// Either-style result. Repositories return this instead of throwing,
-/// so blocs handle failures explicitly and UI never shows raw errors.
-sealed class Result<T> {
-  const Result();
+class FailureResult<T> implements ApiResult<T> {
+  final Failure error;
+  const FailureResult(this.error);
 
-  factory Result.success(T data) = Success<T>;
-  factory Result.failure(AppFailure failure) = Failed<T>;
+  @override
+  bool get isSuccess => false;
 
-  R when<R>({
-    required R Function(T data) success,
-    required R Function(AppFailure failure) failure,
-  }) {
-    final self = this;
-    if (self is Success<T>) return success(self.data);
-    if (self is Failed<T>) return failure(self.failure);
-    throw StateError('Unreachable');
-  }
-}
+  @override
+  bool get isFailure => true;
 
-class Success<T> extends Result<T> {
-  final T data;
-  const Success(this.data);
-}
+  @override
+  T? get data => null;
 
-class Failed<T> extends Result<T> {
-  final AppFailure failure;
-  const Failed(this.failure);
+  @override
+  Failure? get failure => error;
 }

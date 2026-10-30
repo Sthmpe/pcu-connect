@@ -1,0 +1,94 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PCU Connect – Admin app</title><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet"><style>:root{--navy:#0B1F3A;--gold:#E3B341;--bg:#F3F4F7;--ink:#14213A;--mut:#5B6678;--line:#E3E6EC;--green:#1B7A46;--amber:#B26A00;--red:#B3261E;--blue:#2E5A99}
+*{box-sizing:border-box}body{margin:0;font-family:'Rubik',system-ui,sans-serif;background:#d9dde5;display:flex;justify-content:center;align-items:center;min-height:100vh;color:var(--ink)}
+button{font-family:inherit;cursor:pointer}input,textarea,select{font-family:inherit}
+#phone{width:390px;height:844px;background:var(--bg);position:relative;overflow:hidden;display:flex;flex-direction:column;border-radius:28px;box-shadow:0 20px 60px rgba(11,31,58,.3)}
+@media(max-width:430px){body{background:var(--bg);display:block}#phone{width:100%;height:100vh;border-radius:0;box-shadow:none}}
+.hdr{background:var(--navy);color:#fff;padding:26px 20px 18px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex:none}
+.hdr.round{border-radius:0 0 32px 32px;padding-bottom:22px}
+.hdr h1{margin:0;font-size:26px;font-weight:600}.hdr p{margin:2px 0 0;color:#B9C4D8;font-size:14px}
+.back{background:none;border:0;color:#B9C4D8;font-size:14px;font-weight:500;padding:0;display:flex;align-items:center;gap:4px;margin-bottom:10px}
+.body{flex:1;min-height:0;overflow-y:auto;padding:14px 16px 16px;display:flex;flex-direction:column;gap:10px}
+.tabs{height:72px;flex:none;background:#fff;border-top:1px solid var(--line);display:flex}
+.tab{flex:1;border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--mut);font-size:12px;font-weight:500}
+.tab.on{color:var(--navy);font-weight:600}.tab i{width:20px;height:3px;border-radius:2px;display:block}.tab.on i{background:var(--gold)}
+.tab svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.card{background:#fff;border-radius:18px;padding:14px;box-shadow:0 1px 3px rgba(11,31,58,.08)}
+.chip{border:1.5px solid #C3CAD6;background:#fff;color:#3A455A;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:500;white-space:nowrap}
+.chip.on{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:600}
+.chips{display:flex;gap:8px;overflow-x:auto;flex:none;padding-bottom:2px}
+.pill{border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;white-space:nowrap}
+.g{background:#E4F4EA;color:var(--green)}.a{background:#FFF0D6;color:#8A5300}.r{background:#FBE5E3;color:var(--red)}.b{background:#E6EBF4;color:var(--navy)}.go{background:#FFF3CC;color:#8A6A00}.n{background:#E3E6EC;color:#3A455A}
+.btn{height:50px;border-radius:14px;border:0;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;flex:1}
+.gold{background:var(--gold);color:var(--navy)}.out{background:#fff;border:1.5px solid #C3CAD6;color:var(--ink)}.wa{background:#E4F4EA;color:var(--green)}.call{background:var(--navy);color:#fff}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;flex:none}
+.tile{background:#fff;border:2px solid transparent;border-radius:16px;padding:12px;text-align:left;box-shadow:0 1px 3px rgba(11,31,58,.08)}
+.tile b{display:block;font-size:26px;font-weight:700}.tile span{font-size:12px;color:var(--mut)}.tile.on{border-color:var(--gold);background:#FFFAEB}
+.row{display:flex;align-items:center;gap:12px}.grow{flex:1;min-width:0}.mut{color:var(--mut);font-size:13px}
+.av{width:40px;height:40px;border-radius:50%;background:#E6EBF4;display:flex;align-items:center;justify-content:center;font-weight:600;flex:none}
+.bar{height:8px;border-radius:4px;background:#E6EBF4}.bar i{display:block;height:8px;border-radius:4px}
+.guest{border-left:6px solid var(--line);cursor:pointer}.guest.g{border-color:var(--green);background:#fff}.guest.a{border-color:#E39A1B;background:#fff}.guest.r{border-color:var(--red);background:#fff}.guest.b{border-color:#9AA3B2;background:#fff}
+.field label{display:block;font-size:15px;font-weight:600;margin-bottom:8px}
+textarea,input[type=text],input[type=email],input[type=date]{width:100%;border:1.5px solid #C3CAD6;border-radius:16px;padding:12px 14px;font-size:15px;background:#fff;color:var(--ink)}
+.sw{width:52px;height:30px;border-radius:15px;background:#C3CAD6;position:relative;border:0;flex:none}.sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:.15s}.sw.on{background:var(--green)}.sw.on::after{left:25px}
+.foot{flex:none;background:#fff;border-top:1px solid var(--line);padding:12px 16px 20px;display:flex;gap:10px}
+.sheet-bg{position:absolute;inset:0;background:rgba(11,31,58,.45);display:flex;align-items:flex-end;z-index:9}
+.sheet{background:#fff;width:100%;border-radius:24px 24px 0 0;padding:18px 16px 24px;max-height:70%;overflow:auto}
+.sheet h3{margin:0 0 12px;font-size:18px}.mi{display:block;width:100%;text-align:left;border:0;background:none;padding:14px 8px;font-size:16px;border-bottom:1px solid var(--line)}.mi.on{font-weight:700;color:var(--navy)}
+.calbtn{width:44px;height:44px;border-radius:14px;background:var(--gold);border:0;display:flex;align-items:center;justify-content:center;flex:none}
+.dots{display:flex;gap:8px}.dot{width:30px;height:30px;border-radius:50%;background:#E6EBF4;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--mut)}.dot.on{background:var(--green);color:#fff}
+.sect{font-size:13px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin:6px 2px 0}
+.empty{text-align:center;color:var(--mut);padding:30px 10px}
+</style></head><body><div id="phone"></div><script>const $=s=>document.querySelector(s);
+const MONTHS=['Oct 2026','Sep 2026','Aug 2026','Jul 2026','Jun 2026','May 2026','Apr 2026','Mar 2026','Feb 2026','Jan 2026','Dec 2025','Nov 2025'];
+let W=[{id:'W1',name:'Grace Okoro',email:'grace@gmail.com',active:true,guests:9,contacted:9,members:3,fu:24,teams:2},
+{id:'W2',name:'David Olanite',email:'davidolanite0@gmail.com',active:true,guests:8,contacted:7,members:2,fu:19,teams:2},
+{id:'W3',name:'Tolu Bello',email:'tolu@gmail.com',active:true,guests:8,contacted:6,members:1,fu:14,teams:1},
+{id:'W4',name:'Samuel Eze',email:'samuel@gmail.com',active:true,guests:9,contacted:5,members:0,fu:9,teams:0},
+{id:'W5',name:'Ife Johnson',email:'ife@gmail.com',active:true,guests:8,contacted:3,members:0,fu:5,teams:0},
+{id:'W6',name:'Worker C',email:'workerc@gmail.com',active:false,guests:0,contacted:0,members:0,fu:0,teams:0}];
+const names=['Chiamaka Obi','Tunde Bakare','Esther Adeyemi','Samuel Eze','Ngozi Umeh','Femi Ajayi','Bola Ogun','Dayo Balogun','Kemi Lawal','Sade Cole','Ibrahim Musa','Joy Ndu'];
+const sts=['New guest','Contacted','Returning','Member','Not interested','Unreachable'];
+let G=[];names.forEach((n,i)=>G.push({name:n,phone:'0803 555 01'+(10+i),status:sts[i%6],called:i%4!==0,team:i%5===0?'Workforce':i%7===0?'Evangelism':'',worker:W[i%5].name,month:MONTHS[i%3]}));
+const S={tab:'dash',month:'Oct 2026',sheet:false,view:null,gm:'Oct 2026',gchip:'all',wid:null,form:{name:'',email:'',role:'Worker',active:true}};
+const ICON={dash:'<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>',team:'<path d="M8 4h8v5a4 4 0 0 1-8 0V4zM8 6H4v1a3 3 0 0 0 4 2.8M16 6h4v1a3 3 0 0 1-4 2.8M12 13v4M8 20h8M10 17h4"/>',guests:'<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>'};
+const CAL='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0B1F3A" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>';
+const cls={'New guest':'b','Contacted':'a','Returning':'g','Member':'go','Not interested':'n','Unreachable':'r'};
+function tabs(){return `<div class="tabs">${[['dash','Dashboard'],['team','Team'],['guests','Guests']].map(([k,l])=>`<button class="tab ${S.tab===k&&!S.view?'on':''}" onclick="go('${k}')"><svg viewBox="0 0 24 24">${ICON[k]}</svg>${l}<i></i></button>`).join('')}</div>`}
+function go(t){S.tab=t;S.view=null;render()}
+const BACK=(t,to)=>`<button class="back" onclick="${to}">‹ ${t}</button>`;
+const standing=w=>!w.active?['Inactive','n']:w.members>=3?['Outstanding','g']:w.contacted/Math.max(w.guests,1)>=.7?['On track','b']:['Behind','r'];
+function monthStats(m){const k=MONTHS.indexOf(m);const f=Math.max(.5,1-k*.06);const guests=Math.round(34*f),called=Math.round(guests*.78),members=Math.round(guests*.14),teams=Math.round(guests*.2),notcalled=guests-called;return{guests,called,members,teams,notcalled}}
+function dash(){const s=monthStats(S.month);const pct=Math.round(100*s.called/s.guests);
+return `<div class="hdr"><div><h1>Dashboard</h1><p>${S.month} · guests who came this month</p></div></div><div class="body">
+<div class="chips">${MONTHS.map(m=>`<button class="chip ${S.month===m?'on':''}" onclick="S.month='${m}';render()">${m.slice(0,3)} ${m.slice(-2)}</button>`).join('')}</div>
+<div class="card"><div class="row"><b class="grow">Guests called</b><b>${pct}%</b></div><div class="bar" style="margin:8px 0 4px"><i style="width:${pct}%;background:var(--green)"></i></div><div class="mut">${s.called} of ${s.guests} guests called</div></div>
+<div class="tiles" style="grid-template-columns:1fr 1fr">${[['Guests',s.guests,'all','var(--ink)'],['Not called',s.notcalled,'notcalled','var(--red)'],['Members',s.members,'members','#8A6A00'],['In a team',s.teams,'teams','var(--blue)']].map(([l,n,k,c])=>`<button class="tile" onclick="S.gm=S.month;S.gchip='${k}';S.tab='guests';render()"><b style="color:${c}">${n}</b><span>${l} ›</span></button>`).join('')}</div>
+<div class="sect">Top workers this month</div>${W.filter(w=>w.active).slice(0,3).map((w,i)=>`<div class="card row" onclick="S.wid='${w.id}';S.view='worker';render()" style="cursor:pointer"><b style="width:20px;color:var(--mut)">${i+1}</b><div class="av">${w.name[0]}</div><b class="grow">${w.name.split(' ')[0]}</b><span class="mut">${w.members} members</span></div>`).join('')}</div>`}
+function team(){return `<div class="hdr"><div><h1>Team</h1><p>Ranked by guests who became members</p></div><button class="btn gold" style="flex:none;height:44px;padding:0 16px;font-size:14px" onclick="S.form={name:'',email:'',role:'Worker',active:true};S.view='add';render()">+ Worker</button></div>
+<div class="body">${W.map((w,i)=>{const[st,c]=standing(w);const pct=Math.round(100*w.contacted/Math.max(w.guests,1));return `<div class="card" style="cursor:pointer" onclick="S.wid='${w.id}';S.view='worker';render()"><div class="row"><span style="width:20px;font-weight:700;color:var(--mut)">${w.active?i+1:'–'}</span><div class="av">${w.name[0]}</div><div class="grow"><b style="font-size:16px">${w.name.split(' ')[0]}</b><div class="mut">${w.guests} guests · ${w.contacted} contacted · ${w.members} members</div></div><span class="pill ${c}">${st}</span></div><div class="bar" style="margin-top:10px"><i style="width:${pct}%;background:${c==='g'?'var(--green)':c==='r'?'var(--red)':c==='n'?'#9AA3B2':'var(--blue)'}"></i></div></div>`}).join('')}</div>`}
+function worker(){const w=W.find(x=>x.id===S.wid);const[st,c]=standing(w);const pct=Math.round(100*w.contacted/Math.max(w.guests,1));
+return `<div class="hdr round" style="flex-direction:column;align-items:stretch">${BACK('Team',"S.view=null;render()")}<div class="row"><div class="av" style="background:var(--gold);width:60px;height:60px;font-size:24px">${w.name[0]}</div><div class="grow"><div style="font-size:24px;font-weight:600">${w.name}</div><div style="color:#B9C4D8;font-size:13px">${w.email}</div></div><span class="pill ${c}">${st}</span></div></div>
+<div class="body"><div class="card row"><div class="grow"><b>Active</b><div class="mut">${w.active?'Gets new guests in the rotation':'Not getting new guests'}</div></div><button class="sw ${w.active?'on':''}" onclick="w_toggle('${w.id}')" aria-label="Active"></button></div>
+<div class="tiles">${[['Guests',w.guests],['Contacted',w.contacted],['Follow-ups',w.fu],['Members',w.members],['In a team',w.teams],['Called in 3 days',pct+'%']].map(([l,n])=>`<div class="card"><b style="font-size:22px">${n}</b><div class="mut" style="font-size:12px">${l}</div></div>`).join('')}</div>
+<button class="card row" style="border:0;font-size:15px;font-weight:600;cursor:pointer" onclick="S.gchip='all';S.tab='guests';S.view=null;render()"><span class="grow" style="text-align:left">See ${w.name.split(' ')[0]}'s guests</span>›</button></div>
+<div class="foot"><button class="btn out" style="border-color:var(--amber);color:#8A5300" onclick="w_toggle('${w.id}')">${w.active?'Make inactive':'Make active'}</button><button class="btn out" style="border-color:var(--red);color:var(--red)" onclick="S.sheet='remove';render()">Remove worker</button></div>`}
+function w_toggle(id){const w=W.find(x=>x.id===id);w.active=!w.active;render()}
+function add(){const f=S.form;return `<div class="hdr round" style="flex-direction:column;align-items:stretch">${BACK('Cancel',"S.view=null;render()")}<h1>Add a worker</h1><p>They get guests from the next one that comes in</p></div>
+<div class="body" style="gap:18px;padding-top:18px"><div class="field"><label>Full name</label><input type="text" placeholder="e.g. Ruth Adeyemi" value="${f.name}" oninput="S.form.name=this.value"></div>
+<div class="field"><label>Google email</label><input type="email" placeholder="ruth@gmail.com" value="${f.email}" oninput="S.form.email=this.value"><div class="mut" style="margin-top:6px">They sign in to the app with this email</div></div>
+<div class="field"><label>Role</label><div class="row">${['Worker','Admin'].map(r=>`<button class="chip grow ${f.role===r?'on':''}" style="height:46px;border-radius:14px" onclick="S.form.role='${r}';render()">${r==='Admin'?'Admin (HOD)':r}</button>`).join('')}</div><div class="mut" style="margin-top:6px">Admins see the dashboard and do not receive guests</div></div>
+<div class="card row"><div class="grow"><b>Active</b><div class="mut">Include in the guest rotation</div></div><button class="sw ${f.active?'on':''}" onclick="S.form.active=!S.form.active;render()" aria-label="Active"></button></div></div>
+<div class="foot"><button class="btn gold" onclick="addW()">Add worker</button></div>`}
+function addW(){const f=S.form;if(!f.name.trim()||!f.email.trim()){alert('Enter a name and Google email.');return}W.push({id:'W'+(W.length+1),name:f.name,email:f.email,active:f.active&&f.role==='Worker',guests:0,contacted:0,members:0,fu:0,teams:0});S.view=null;S.tab='team';render()}
+function guestsV(){const chips=[['all','All'],['notcalled','Not called'],['members','Members'],['teams','Teams']];
+const list=G.filter(g=>g.month===S.gm).filter(g=>S.gchip==='notcalled'?!g.called:S.gchip==='members'?g.status==='Member':S.gchip==='teams'?g.team:true);
+return `<div class="hdr"><div><h1>Guests</h1><p>${S.gm} · ${list.length} guests</p></div><button class="calbtn" onclick="S.sheet='month';render()" aria-label="Choose month">${CAL}</button></div>
+<div class="body"><div class="chips">${chips.map(([k,l])=>`<button class="chip ${S.gchip===k?'on':''}" onclick="S.gchip='${k}';render()">${l}</button>`).join('')}</div>
+${list.map(g=>`<div class="card" style="border-left:6px solid ${g.called?'var(--green)':'var(--red)'}"><div class="row"><div class="grow"><b>${g.name}</b><div class="mut">${g.phone} · ${g.worker.split(' ')[0]}</div></div><span class="pill ${cls[g.status]}">${g.status}</span></div>${g.team?`<div class="mut" style="margin-top:6px">Team: ${g.team}</div>`:''}</div>`).join('')||'<div class="empty">No guests for this view.</div>'}</div>`}
+function render(){const inner=S.view==='worker'?worker():S.view==='add'?add():{dash,team,guests:guestsV}[S.tab]();let h=inner+(S.view?'':tabs());
+if(S.sheet==='month')h+=`<div class="sheet-bg" onclick="S.sheet=false;render()"><div class="sheet" onclick="event.stopPropagation()"><h3>Choose a month</h3>${MONTHS.map(m=>`<button class="mi ${S.gm===m?'on':''}" onclick="S.gm='${m}';S.sheet=false;render()">${m}${S.gm===m?' ✓':''}</button>`).join('')}</div></div>`;
+if(S.sheet==='remove'){const w=W.find(x=>x.id===S.wid);h+=`<div class="sheet-bg" onclick="S.sheet=false;render()"><div class="sheet" onclick="event.stopPropagation()"><h3>Remove ${w.name.split(' ')[0]}?</h3><p class="mut">They are made inactive and stop getting guests. Their calls and history are kept.</p><div class="row" style="margin-top:14px"><button class="btn out" onclick="S.sheet=false;render()">Cancel</button><button class="btn" style="background:var(--red);color:#fff" onclick="w_remove()">Remove</button></div></div></div>`}
+$('#phone').innerHTML=h}
+function w_remove(){const w=W.find(x=>x.id===S.wid);w.active=false;S.sheet=false;S.view=null;S.tab='team';render()}
+render();
+</script></body></html>

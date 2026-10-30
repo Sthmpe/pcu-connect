@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-
-import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
 
@@ -35,9 +33,7 @@ class CustomTextField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: AppTextStyles.labelMedium.copyWith(
-            color: AppColors.textPrimary,
-          ),
+          style: AppTextStyles.formLabel,
         ),
         SizedBox(height: AppSizes.p8),
         TextFormField(
@@ -46,14 +42,10 @@ class CustomTextField extends StatelessWidget {
           keyboardType: keyboardType,
           validator: validator,
           onChanged: onChanged,
-          style: AppTextStyles.bodyMedium.copyWith(
-            color: AppColors.textPrimary,
-          ),
+          style: AppTextStyles.body,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: AppTextStyles.bodyMedium.copyWith(
-              color: AppColors.textMuted,
-            ),
+            hintStyle: AppTextStyles.bodyMuted,
             prefixIcon: prefixIcon,
             suffixIcon: suffixIcon,
           ),

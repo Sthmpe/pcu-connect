@@ -1,8 +1,8 @@
 /// Centralized String Constants for PCU Workflow
 abstract class AppStrings {
   // App Identifiers
-  static const String appName = 'Workflow';
-  static const String appDisplayName = 'PCU Workflow';
+  static const String appName = 'PCU Connect';
+  static const String appDisplayName = 'PCU Connect';
   static const String appTagline = 'Pastoral Care Unit Guest Management';
 
   // Auth & Roles

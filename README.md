@@ -1,171 +1,121 @@
-# Workflow
+# PCU Connect — Flutter Web + Google Sheet Backend
 
-Workflow is a modular people-and-work management platform. Its first configuration is **PCU Workflow**, used for guest intake, fair assignment, calling, follow-up, retention, and leadership reporting in a church Pastoral Care Unit.
+Guest follow-up, retention, and integration platform for the church Pastoral Care Unit (PCU). Built as a **Flutter Web** application backed directly by a Google Sheet database through a Google Apps Script web-app API (`backend/Api.gs`).
 
-The product uses neutral internal concepts so future organizations can supply their own display terminology:
+---
 
-| Internal concept | PCU label |
-| --- | --- |
-| organization owner | Pastor |
-| location | Campus |
-| unit manager | HOD |
-| operator | Worker |
-| contact | Guest |
-
-## Current implementation status
-
-The foundational naming migration and organization structure management are implemented:
-
-- Active data paths use `contacts`, `organizationId`, `locationId`, `unitId`, and `assignedOperatorId`.
-- A Pastor can create or edit the organization and create, edit, or soft-archive locations and units.
-- Google Sheet intake writes the neutral Firestore schema and assigns only active operator memberships.
-- Firebase rules and required composite indexes are versioned in the repository.
-- Assignment writes are server-only; manual reassignment will use the planned `assign-guest` Edge Function.
-- A Pastor can manage delegated access per unit from Manage Structure.
-- An HOD with `permissions.delegate` can appoint assistants from Home using permission presets or a custom subset.
-- The access list is sanitized and paginated by `manage-access`; Flutter never reads other users' memberships directly.
-- Removing delegated access restores an existing member's saved baseline or deactivates a delegation-only membership, with every change audited.
-- Android and Web are configured for Firebase project pcu-workflow; Firestore rules and committed indexes have been deployed.
-
-The old `team` feature is still on the deprecated Supabase/Postgres pattern and must not be treated as production-ready.
-
-## Architecture
+## 1. High-Level Architecture
 
 ```text
-Firebase Authentication  -> identity and login
-Cloud Firestore          -> application data and authorization source of truth
-Supabase Storage         -> media and files only
-Supabase Edge Functions  -> trusted intake, assignment, access, and integration workflows
-Flutter + BLoC           -> mobile application and presentation state
+Flutter Web (Firebase Hosting)
+   │
+   │  1. Google Sign-In -> ID token
+   │  2. HTTP POST (Content-Type: text/plain, JSON: { action, idToken, ...payload })
+   ▼
+Google Apps Script Web App (backend/Api.gs)
+   │
+   │  - Verifies token via oauth2.googleapis.com/tokeninfo
+   │  - Enforces access: worker email must exist in "Workers" tab with Active = "Yes"
+   │  - Evaluates business rules (Member rule, status transitions, points scoring)
+   ▼
+Google Sheet (Test Sheet ID: 1R9-l3GOw_NY8qIvn94mM3ZFxBpuuDl7lwSEnumdFU24)
+   ├── Form Responses 1 (Guest rows, assigned worker, status, attendance)
+   ├── Call Log (Detailed follow-up history)
+   ├── Workers (Worker directory, role, active status)
+   └── Leaderboard (Monthly points & rankings)
 ```
 
-The Flutter client never uses Supabase PostgREST for application data. Edge Functions verify a Firebase ID token sent in the request body before privileged work. The Google Sheet intake endpoint uses a separate shared intake secret.
+> **Why `text/plain`?** Browsers will not trigger a CORS preflight (`OPTIONS` request) when sending simple POST payloads as `text/plain`. Since Google Apps Script web apps cannot answer `OPTIONS` preflight calls, sending JSON strings with `Content-Type: text/plain` guarantees seamless cross-origin communication on the web.
 
-## Project layout
+---
+
+## 2. Roles & Automatic Role Routing
+
+Upon sign-in with Google, the app calls `api.me()` to determine the user's role:
+
+- **Worker**:
+  - Automatically routed to the **Worker App** (`TodayScreen`).
+  - Sees only guests assigned to them.
+  - Actions: **Call** (`tel:`) and **WhatsApp** (`https://wa.me/234...`), **NO SMS**.
+  - Logs follow-ups, records Sunday & Wednesday attendance (rejecting future dates), tracks team joins.
+  - Views the monthly podium (top 3) and their personal ranking card.
+  - Cannot add or edit guest identity fields (intake is owned by Google Forms).
+- **Admin / HOD**:
+  - Automatically routed to the **Admin App** (`DashboardScreen`).
+  - Sees 12-month analytics (New Guests, Members, Not Called, Team Joins) and conversion funnels.
+  - Team management: views workloads, active status toggles, adds new workers.
+  - Views all church guests with assigned worker attribution.
+  - Never receives auto-assigned guests.
+- **Unauthorized / Inactive**:
+  - Access is restricted with the message: *"No access. Ask your HOD to add your email."*
+
+---
+
+## 3. Business Rules (Server-Enforced)
+
+- **Member Rule**:
+  - In one calendar month: **4 distinct Sundays attended, OR (3 Sundays AND ≥2 distinct Wednesdays)**.
+  - Once qualified, the guest remains a Member and `MEMBERSHIP DATE` is stamped.
+- **Status Evaluation Hierarchy**:
+  1. Member rule (highest priority)
+  2. Not interested (sticky)
+  3. Returning (any attendance logged)
+  4. Contacted (any "Reached" outcome)
+  5. Unreachable (≥3 follow-ups with none reached)
+  6. Unchanged
+- **Attendance Dates**: Any past date or today (future dates strictly rejected).
+- **Points Scoring System**:
+  - `+10 pts` First call within 3 days
+  - `+5 pts` Each follow-up logged
+  - `+10 pts` Guest attends Sunday or Wednesday
+  - `+20 pts` Guest joins Workforce / Evangelism
+  - `+30 pts` Guest becomes a Member
+
+---
+
+## 4. Design System & Tokens
+
+Pixel-perfect recreation of `design/PCU_Worker_App.html` and `design/PCU_Admin_App.html`:
+
+- **Colors**:
+  - Navy: `#0B1F3A`
+  - Gold: `#E3B341`
+  - App Background: `#F3F4F7`
+  - Status Pills: Green (`#E4F4EA` / `#1B7A46`), Amber (`#FFF0D6` / `#8A5300`), Red (`#FBE5E3` / `#B3261E`), Blue (`#E6EBF4` / `#0B1F3A`), Gold (`#FFF3CC` / `#8A6A00`)
+- **Typography**: Google Font **Rubik** (weights 400, 500, 600, 700).
+- **Layout**: Centered responsive 390px–430px mobile shell (`ResponsiveWebShell`) on desktop web.
+
+---
+
+## 5. Clean Codebase Structure
 
 ```text
 lib/
-  core/                         design tokens, routing, terminology, backend clients
-  features/
-    access_control/             capabilities, presets, memberships
-    auth/                       Firebase Auth and profile/access resolution
-    call_workflow/              dialer handoff and immutable interaction capture
-    guests/                     contact list, detail, and lifecycle updates
-    organization_structure/     organization/location/unit CRUD
-    reports/                    Firestore reporting queries
-    team/                       legacy; Firestore migration pending
-supabase/functions/
-  guest-sync/                   Sheet intake and fair assignment
-  manage-access/                paginated list + guarded grant/revoke + audit logs
-firestore.rules                 tenant and capability enforcement
-firestore.indexes.json          required composite indexes
-firebase.json                   Firebase deploy paths
+├── core/
+│   ├── constants/             # AppColors, AppTextStyles, AppSizes, AppStrings
+│   ├── network/               # ApiClient (CORS text/plain handler, redirect following)
+│   ├── errors/                # Strongly-typed Failure hierarchy
+│   ├── theme/                 # Material 3 Theme data
+│   └── widgets/               # GuestCardWidget, GuestStatusPill, MetricTileWidget, FilterChipWidget, ResponsiveWebShell
+├── domain/
+│   ├── entities/              # GuestEntity, WorkerUser
+│   └── repositories/          # IAuthRepository, IGuestRepository
+├── data/
+│   └── repositories/          # AuthRepositoryImpl, GuestRepositoryImpl
+└── presentation/
+    ├── auth/                  # AuthBloc, LoginScreen (with Google Sign-In & Dev Switchers)
+    ├── worker/                # WorkerShellScreen, TodayTab, MyGuestsTab, GuestDetailScreen, LogFollowUpScreen, RankingTab, MeTab
+    └── admin/                 # AdminShellScreen, AdminDashboardTab, AdminTeamTab, AdminGuestsTab
 ```
 
-The existing `features/` folder name is intentionally retained until the planned one-time rename to `modules/`.
+---
 
-## Firestore model
+## 6. How to Run Locally
 
-Core collections are:
+```bash
+# Get dependencies
+flutter pub get
 
-- `profiles/{userId}`
-- `organization_owners/{organizationId}_{userId}`
-- `organization_memberships/{organizationId}_{userId}`
-- `team_memberships/{unitId}_{userId}`
-- `organizations/{organizationId}`
-- `locations/{locationId}`
-- `units/{unitId}`
-- `contacts/{contactId}`
-- `assignments/{assignmentId}`
-- `interactions/{interactionId}`
-- `follow_ups/{followUpId}`
-- `contact_status_history/{eventId}`
-- `audit_logs/{logId}`
-
-All runtime fields use camelCase. Legacy snake_case names are accepted only at the Google Sheet intake boundary during rollout; they are never written back to Firestore.
-
-## Access model
-
-A base role is a ceiling; the membership capability map is the actual authority.
-
-- **Pastor / organization owner:** highest authority, structure management, appoints HODs.
-- **HOD / unit manager:** manages the assigned unit within granted capabilities.
-- **Delegate:** receives a selected subset, such as assignment or reporting access.
-- **Worker / operator:** receives contacts, calls them, and records feedback.
-- **Viewer:** read-only access where explicitly granted.
-
-The client only hides or shows controls. Firestore Rules and trusted Edge Functions enforce the real permissions. Owner-only capabilities cannot be delegated. The Deputy Manager preset copies the HOD's operational capabilities but intentionally excludes re-delegation. The assistant screen cannot demote or modify an HOD; HOD appointment remains a Pastor-level management flow. Revoked users lose organization-level structure access when their last active membership is removed.
-
-## Local setup
-
-1. Install Flutter dependencies:
-
-   ```powershell
-   flutter pub get
-   ```
-
-2. Firebase is already connected for Android and Web. To refresh those files:
-
-   ```powershell
-   dart pub global activate flutterfire_cli
-   flutterfire configure --yes --project=pcu-workflow --platforms=android,web
-   ```
-
-3. Copy `.env.example` to `.env` and provide only the public Supabase URL and anon key. Never put a service-role key or Firebase service account in the Flutter app.
-
-4. The Firebase CLI is bound to `pcu-workflow`; redeploy rules and indexes after changing them with:
-
-   ```powershell
-   firebase use --add
-   firebase deploy --only firestore:rules,firestore:indexes
-   ```
-
-5. Bootstrap the first Pastor in the Firebase console:
-
-   ```text
-   organization_owners/{organizationId}_{firebaseUid}
-     organizationId: {organizationId}
-     userId: {firebaseUid}
-   ```
-
-6. Configure Edge Function secrets and deploy:
-
-   ```powershell
-   supabase secrets set FIREBASE_SERVICE_ACCOUNT='<service-account-json>'
-   supabase secrets set WORKFLOW_INTAKE_SECRET='<strong-random-secret>'
-   supabase functions deploy guest-sync manage-access
-   ```
-
-7. Run the app:
-
-   ```powershell
-   flutter run
-   ```
-
-## Performance conventions
-
-- Feature BLoCs are route-scoped and disposed when their screens close.
-- Structure reads start concurrently and lists are sorted once in the datasource.
-- Fair assignment uses denormalized assignment counts instead of one count query per worker.
-- Stable Firebase UIDs are stored as operator IDs, avoiding membership-document/identity mismatches.
-- Firestore queries are scope-filtered and backed by committed composite indexes.
-- Delegation lists load in bounded pages and the feature BLoC is disposed when its route closes.
-- Structure records are soft-archived instead of deleted.
-
-## Verification
-
-Focused model tests live in `test/naming_and_structure_test.dart` and `test/access_control/delegation_models_test.dart`. Run:
-
-```powershell
-flutter test
-flutter analyze
+# Run on Chrome
+flutter run -d chrome
 ```
-
-The last completed validation run passed all 7 Flutter tests, and targeted analysis of the delegation screen reported no issues. `firebase_options.dart` now exists, removing the previous full-project analyzer error. On 2026-08-29, fresh full `flutter analyze` and `flutter test` runs stalled locally and were stopped, so no newer passing result is claimed. Deno 2.9.5 previously type-checked `guest-sync` and `manage-access`, all five TypeScript files passed `deno fmt --check`, all Dart files passed the formatting check, and `firestore.indexes.json` parsed successfully. Flutter still warns that the currently empty `assets/images/` and `assets/icons/` directories do not exist.
-
-## Next implementation work
-
-1. Implement the server-only `assign-guest` manual reassignment function.
-2. Migrate `team` from deprecated Supabase/Postgres calls to Firestore.
-3. Complete the terminology sweep across detail, call, team, and report screens.
-4. Rename `lib/features` to `lib/modules` in one controlled refactor.

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin Dashboard</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Rubik',system-ui,sans-serif}
+a{text-decoration:none;color:inherit}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;background:#F3F4F7;color:#14213A;display:flex;flex-direction:column">
+
+<div style="background:#0B1F3A;padding:28px 20px 64px;display:flex;flex-direction:column;gap:12px;border-radius:0 0 32px 32px">
+<div>
+<div style="color:#E3B341;font-size:14px;font-weight:600">PCU Connect · HOD</div>
+<div style="color:#fff;font-size:28px;font-weight:600;margin-top:2px">{{title}}</div>
+<div style="color:#B9C4D8;font-size:14px;margin-top:2px">Only guests who came in this month</div>
+</div>
+<div style="display:flex;gap:8px;overflow:hidden">
+<sc-for list="{{months}}" as="m" hint-placeholder-count="5">
+<button onClick="{{m.pick}}" style="flex:none;height:34px;padding:0 14px;border-radius:999px;border:none;background:{{m.bg}};color:{{m.fg}};font-size:13px;font-weight:600">{{m.label}}</button>
+</sc-for>
+</div>
+</div>
+
+<div style="margin:-40px 16px 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;position:relative">
+<a href="Guests.dc.html" style="background:#fff;border-radius:18px;padding:14px;box-shadow:0 10px 28px rgba(11,31,58,0.14)">
+<div style="font-size:30px;font-weight:700">{{d.guests}}</div>
+<div style="font-size:13px;color:#5B6678">New guests</div>
+</a>
+<a href="Guests.dc.html" style="background:#fff;border-radius:18px;padding:14px;box-shadow:0 10px 28px rgba(11,31,58,0.14)">
+<div style="font-size:30px;font-weight:700;color:#8A6A00">{{d.members}}</div>
+<div style="font-size:13px;color:#5B6678">Became members</div>
+</a>
+<a href="Guests.dc.html" style="background:#fff;border-radius:18px;padding:14px;box-shadow:0 1px 3px rgba(11,31,58,0.08)">
+<div style="font-size:30px;font-weight:700;color:#B3261E">{{d.notCalled}}</div>
+<div style="font-size:13px;color:#5B6678">Not called</div>
+</a>
+<a href="Guests.dc.html" style="background:#fff;border-radius:18px;padding:14px;box-shadow:0 1px 3px rgba(11,31,58,0.08)">
+<div style="font-size:30px;font-weight:700;color:#2E5A99">{{d.teams}}</div>
+<div style="font-size:13px;color:#5B6678">Joined a team</div>
+</a>
+</div>
+
+<div style="margin:12px 16px 0;background:#fff;border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:11px;box-shadow:0 1px 3px rgba(11,31,58,0.08)">
+<span style="font-size:15px;font-weight:600">From guest to member</span>
+<sc-for list="{{bars}}" as="b" hint-placeholder-count="5">
+<div>
+<div style="display:flex;justify-content:space-between;font-size:13px"><span>{{b.label}}</span><span style="font-weight:600">{{b.n}} of {{b.total}}</span></div>
+<div style="height:10px;border-radius:5px;background:#E6EBF4;margin-top:5px"><div style="width:{{b.pct}};height:10px;border-radius:5px;background:{{b.color}}"></div></div>
+</div>
+</sc-for>
+</div>
+
+<div style="flex-grow:1"></div>
+
+<div style="height:72px;flex:none;background:#fff;border-top:1px solid #E3E6EC;display:flex">
+<sc-for list="{{nav}}" as="t" hint-placeholder-count="3">
+<a href="{{t.href}}" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:{{t.color}};font-size:12px;font-weight:{{t.weight}}">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{{t.color}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{t.d}}"/></svg>{{t.label}}
+<span style="width:20px;height:3px;border-radius:2px;background:{{t.bar}}"></span>
+</a>
+</sc-for>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  state = { i: 0 };
+  renderVals() {
+    const names = ['Oct 2026', 'Sep 2026', 'Aug 2026', 'Jul 2026', 'Jun 2026', 'May 2026', 'Apr 2026', 'Mar 2026', 'Feb 2026', 'Jan 2026', 'Dec 2025', 'Nov 2025'];
+    const rows = [
+      [42, 36, 24, 13, 9, 5, 6, 11], [48, 46, 33, 20, 14, 9, 0, 14], [45, 41, 30, 17, 12, 8, 1, 12],
+      [39, 37, 25, 15, 10, 6, 0, 9], [44, 40, 28, 16, 12, 7, 0, 10], [41, 38, 27, 14, 9, 6, 0, 8],
+      [37, 34, 22, 12, 8, 5, 0, 7], [46, 43, 31, 18, 11, 8, 0, 11], [40, 36, 24, 13, 9, 5, 0, 8],
+      [38, 35, 23, 12, 8, 4, 0, 6], [52, 49, 35, 21, 15, 10, 0, 15], [43, 39, 26, 14, 10, 6, 0, 9]
+    ];
+    const i = this.state.i;
+    const r = rows[i];
+    const nc = r[0] - r[1];
+    const pct = (n) => (r[0] ? Math.round(100 * n / r[0]) + '%' : '0%');
+    const tabs = [
+      ['Dashboard.dc.html', 'Dashboard', 'M4 20V10M10 20V4M16 20v-8M22 20H2'],
+      ['Team.dc.html', 'Team', 'M8 4h8v5a4 4 0 0 1-8 0V4zM8 6H4v1a3 3 0 0 0 4 2.8M16 6h4v1a3 3 0 0 1-4 2.8M12 13v4M8 20h8M10 17h4'],
+      ['Guests.dc.html', 'Guests', 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01']
+    ];
+    return {
+      title: names[i],
+      months: names.map((n, k) => ({ label: n.slice(0, 3) + (k > 9 || k === 0 ? ' ' + n.slice(4) : ''), pick: () => this.setState({ i: k }), bg: k === i ? '#E3B341' : '#14305A', fg: k === i ? '#0B1F3A' : '#fff' })),
+      d: { guests: r[0], members: r[5], notCalled: nc, teams: r[7] },
+      bars: [
+        { label: 'Contacted', n: r[1], total: r[0], pct: pct(r[1]), color: '#0B1F3A' },
+        { label: 'Followed up twice', n: r[2], total: r[0], pct: pct(r[2]), color: '#2E5A99' },
+        { label: 'Came on a Sunday', n: r[3], total: r[0], pct: pct(r[3]), color: '#1B7A46' },
+        { label: 'Came on a Wednesday', n: r[4], total: r[0], pct: pct(r[4]), color: '#3F8F7A' },
+        { label: 'Became members', n: r[5], total: r[0], pct: pct(r[5]), color: '#E3B341' }
+      ],
+      nav: tabs.map((t, k) => ({ href: t[0], label: t[1], d: t[2], color: k === 0 ? '#0B1F3A' : '#5B6678', weight: k === 0 ? 600 : 500, bar: k === 0 ? '#E3B341' : 'transparent' }))
+    };
+  }
+}
+</script>
+</body>
+</html>

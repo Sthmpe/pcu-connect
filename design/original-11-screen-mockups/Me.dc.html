@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My results</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Rubik',system-ui,sans-serif}
+a{text-decoration:none;color:inherit}
+</style>
+</helmet>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;background:#F3F4F7;color:#14213A;display:flex;flex-direction:column">
+
+<div style="background:#0B1F3A;padding:28px 20px 70px;display:flex;align-items:center;gap:14px;border-radius:0 0 32px 32px">
+<div style="width:56px;height:56px;border-radius:50%;background:#E3B341;color:#0B1F3A;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:22px;flex:none">D</div>
+<div>
+<div style="color:#fff;font-size:24px;font-weight:600">David Olanite</div>
+<div style="color:#B9C4D8;font-size:14px;margin-top:2px">PCU worker</div>
+</div>
+</div>
+
+<div style="margin:-46px 16px 0;background:#fff;border-radius:22px;padding:16px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 10px 28px rgba(11,31,58,0.14);position:relative">
+<div>
+<div style="font-size:13px;color:#5B6678">October</div>
+<div style="font-size:30px;font-weight:700;margin-top:2px">168 <span style="font-size:15px;font-weight:500;color:#5B6678">points</span></div>
+</div>
+<a href="Leaderboard.dc.html" style="background:#FFF3CC;color:#7A5A00;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:600">2nd place</a>
+</div>
+
+<div style="margin:12px 16px 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+<a href="MyGuests.dc.html" style="background:#fff;border-radius:18px;padding:14px;box-shadow:0 1px 3px rgba(11,31,58,0.08)"><div style="font-size:30px;font-weight:700">8</div><div style="font-size:13px;color:#5B6678">Guests given to you</div></a>
+<a href="MyGuests.dc.html" style="background:#fff;border-radius:18px;padding:14px;box-shadow:0 1px 3px rgba(11,31,58,0.08)"><div style="font-size:30px;font-weight:700">7</div><div style="font-size:13px;color:#5B6678">Contacted</div></a>
+<a href="MyGuests.dc.html" style="background:#fff;border-radius:18px;padding:14px;box-shadow:0 1px 3px rgba(11,31,58,0.08)"><div style="font-size:30px;font-weight:700">19</div><div style="font-size:13px;color:#5B6678">Follow-ups logged</div></a>
+<a href="MyGuests.dc.html" style="background:#fff;border-radius:18px;padding:14px;box-shadow:0 1px 3px rgba(11,31,58,0.08)"><div style="font-size:30px;font-weight:700;color:#8A6A00">2</div><div style="font-size:13px;color:#5B6678">Became members</div></a>
+</div>
+
+<div style="margin:12px 16px 0;background:#fff;border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:12px;box-shadow:0 1px 3px rgba(11,31,58,0.08)">
+<div>
+<div style="display:flex;justify-content:space-between;font-size:14px"><span style="font-weight:600">Called within 3 days</span><span>7 of 8</span></div>
+<div style="height:10px;border-radius:5px;background:#E6EBF4;margin-top:6px"><div style="width:88%;height:10px;border-radius:5px;background:#1B7A46"></div></div>
+</div>
+<div>
+<div style="display:flex;justify-content:space-between;font-size:14px"><span style="font-weight:600">Joined Workforce or Evangelism</span><span>2 of 8</span></div>
+<div style="height:10px;border-radius:5px;background:#E6EBF4;margin-top:6px"><div style="width:25%;height:10px;border-radius:5px;background:#2E5A99"></div></div>
+</div>
+<div>
+<div style="display:flex;justify-content:space-between;font-size:14px"><span style="font-weight:600">Became members</span><span>2 of 8</span></div>
+<div style="height:10px;border-radius:5px;background:#E6EBF4;margin-top:6px"><div style="width:25%;height:10px;border-radius:5px;background:#E3B341"></div></div>
+</div>
+</div>
+
+<div style="flex-grow:1"></div>
+
+<div style="height:72px;flex:none;background:#fff;border-top:1px solid #E3E6EC;display:flex">
+<sc-for list="{{nav}}" as="t" hint-placeholder-count="4">
+<a href="{{t.href}}" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:{{t.color}};font-size:12px;font-weight:{{t.weight}}">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{{t.color}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{t.d}}"/></svg>{{t.label}}
+<span style="width:20px;height:3px;border-radius:2px;background:{{t.bar}}"></span>
+</a>
+</sc-for>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const tabs = [
+      ['Main.dc.html', 'Today', 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 12l3 3 5-6'],
+      ['MyGuests.dc.html', 'Guests', 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01'],
+      ['Leaderboard.dc.html', 'Ranking', 'M8 4h8v5a4 4 0 0 1-8 0V4zM8 6H4v1a3 3 0 0 0 4 2.8M16 6h4v1a3 3 0 0 1-4 2.8M12 13v4M8 20h8M10 17h4'],
+      ['Me.dc.html', 'Me', 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0']
+    ];
+    return { nav: tabs.map((t, i) => ({ href: t[0], label: t[1], d: t[2], color: i === 3 ? '#0B1F3A' : '#5B6678', weight: i === 3 ? 600 : 500, bar: i === 3 ? '#E3B341' : 'transparent' })) };
+  }
+}
+</script>
+</body>
+</html>

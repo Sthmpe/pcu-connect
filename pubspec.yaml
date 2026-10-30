@@ -1,5 +1,5 @@
 name: workflow
-description: "A new Flutter project."
+description: "PCU Connect - Pastoral Care Unit Guest Follow-up App"
 publish_to: 'none'
 version: 0.1.0+1
 
@@ -10,30 +10,26 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # State Management
+  # State Management (Primary)
   flutter_bloc: ^8.1.6
   equatable: ^2.0.7
 
-  # UI & Responsiveness
+  # UI, Typography & Responsiveness
   flutter_screenutil: ^5.9.3
   google_fonts: ^6.2.1
   font_awesome_flutter: ^10.8.0
 
-  # Backend & Services
-  # Firebase = source of truth (Auth + Firestore data)
-  firebase_core: ^3.8.0
-  # firebase_storage/firebase_app_check can be added later if we move
-  # media off Supabase Storage too.
-  firebase_auth: ^5.3.3
-  cloud_firestore: ^5.5.0
-  # Supabase = Edge Functions (Sheets intake / fair assignment) + Storage only.
-  # No Postgres tables are read/written by the app itself anymore.
-  supabase_flutter: ^2.8.4
-  flutter_dotenv: ^5.2.1
+  # Navigation & Custom UI Utilities
+  get: ^4.6.6
+
+  # Networking & Google Auth
+  google_sign_in: ^6.2.2
+  http: ^1.2.2
 
   # Utilities
   intl: ^0.20.2
   url_launcher: ^6.3.1
+  flutter_dotenv: ^5.2.1
 
 dev_dependencies:
   flutter_test:
@@ -46,4 +42,3 @@ flutter:
     - assets/images/
     - assets/icons/
     - .env
-

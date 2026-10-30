@@ -250,4 +250,30 @@ Workflow Supabase project. Full `flutter analyze` and `flutter test` were
 started after configuration but stalled locally and were stopped; no new
 passing result is claimed. The next code task remains the server-only
 `assign-guest` manual reassignment function, followed by the `team` Firestore
-migration.
+migration.
+
+
+---
+
+## 2026-10-30 Update: Restructuring to PCU Connect (Flutter Web + Apps Script Backend)
+
+**Context:** Restructured the application to follow the new specification in `README_1.md` and the official handoff package (`PCU_Flutter_Handoff.zip`).
+
+### Key Architectural Decisions Implemented:
+1. **Target Platform:** Flutter Web (hosted on Firebase Hosting) with centered responsive phone frame (390–430px) matching `PCU_Worker_App.html` and `PCU_Admin_App.html`.
+2. **Backend & Source of Truth:** Google Sheet through Google Apps Script (`backend/Api.gs`). Client requests use `Content-Type: text/plain` with stringified JSON `{ action, idToken, ...payload }` to prevent browser CORS `OPTIONS` preflight issues.
+3. **Authentication & Auto-Role Routing:** Google Sign-In (`google_sign_in`). The user's role is checked via `api.me()` against the `Workers` sheet tab:
+   - `Worker` & `Active = 'Yes'` $\rightarrow$ Auto-routes to `WorkerShellScreen` (`TodayScreen`).
+   - `Admin` or `HOD` $\rightarrow$ Auto-routes to `AdminShellScreen` (`DashboardScreen`).
+   - Inactive or unauthorized $\rightarrow$ Shows restricted access dialog.
+4. **State Management & Clean Architecture:**
+   - **Primary Engine:** BLoC (`flutter_bloc`) managing all features and unidirectional data flow.
+   - **Responsiveness:** `flutter_screenutil` (390 x 844 reference).
+   - **Design Tokens:** Exact values from `design/base.css` (Navy `#0B1F3A`, Gold `#E3B341`, status pills, **Rubik** font).
+   - **Dialogs & Overlays:** GetX (`get`) strictly for quick snackbars and bottom-sheet alerts.
+5. **Legacy Isolation:** Older mobile/Firestore/Supabase Postgrest code safely preserved in `legacy/` without deletion.
+6. **Codebase Verification:** `dart analyze lib/` passes with **0 errors**.
+
+### Where this session stopped:
+- Complete Flutter Web frontend architecture and all screens matching the HTML prototype are built and verified.
+- Next step: Complete the Google Apps Script handlers in `backend/Api.gs` against the test Google Sheet (Member rule, points calculation, and round-robin admin skip).

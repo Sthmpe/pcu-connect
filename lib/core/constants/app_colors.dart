@@ -1,50 +1,52 @@
 import 'package:flutter/material.dart';
 
-/// Centralized Color System for PCU Workflow
+/// Exact Color Tokens matching PCU Connect Design System (base.css)
 abstract class AppColors {
-  // Brand Primary & Secondary
-  static const Color primary = Color(0xFF1E3A8A); // Deep Royal Blue
-  static const Color primaryDark = Color(0xFF0F172A); // Midnight Slate
-  static const Color primaryLight = Color(0xFF3B82F6); // Vibrant Blue
-  static const Color accent = Color(0xFF0D9488); // Deep Teal
+  // Brand Palette
+  static const Color navy = Color(0xFF0B1F3A);
+  static const Color gold = Color(0xFFE3B341);
+  static const Color bg = Color(0xFFF3F4F7);
+  static const Color ink = Color(0xFF14213A);
+  static const Color muted = Color(0xFF5B6678);
+  static const Color line = Color(0xFFE3E6EC);
+  static const Color surface = Color(0xFFFFFFFF);
 
-  // Neutral Palette
-  static const Color background = Color(
-    0xFFF8FAFC,
-  ); // Off-white surface background
-  static const Color surface = Color(0xFFFFFFFF); // Pure white card background
-  static const Color surfaceSubtle = Color(
-    0xFFF1F5F9,
-  ); // Subtle grey background
+  // Status & Semantic Colors
+  static const Color green = Color(0xFF1B7A46);
+  static const Color amber = Color(0xFFB26A00);
+  static const Color red = Color(0xFFB3261E);
+  static const Color blue = Color(0xFF2E5A99);
 
-  // Text Colors
-  static const Color textPrimary = Color(0xFF0F172A); // Near black for headers
-  static const Color textSecondary = Color(
-    0xFF475569,
-  ); // Slate grey for body text
-  static const Color textMuted = Color(0xFF94A3B8); // Muted grey for hints
-  static const Color textOnPrimary = Color(
-    0xFFFFFFFF,
-  ); // White on dark surfaces
+  // Status Pill Backgrounds & Texts
+  // Green (.g)
+  static const Color pillGreenBg = Color(0xFFE4F4EA);
+  static const Color pillGreenText = Color(0xFF1B7A46);
 
-  // Lifecycle Stage Colors
-  static const Color stageReceived = Color(0xFF6366F1); // Indigo
-  static const Color stageAssigned = Color(0xFF3B82F6); // Blue
-  static const Color stageContacted = Color(0xFF0284C7); // Light Blue
-  static const Color stageReturned = Color(0xFF0D9488); // Teal
-  static const Color stageRetained = Color(0xFF10B981); // Green
-  static const Color stageIntegrated = Color(0xFF8B5CF6); // Purple
-  static const Color stageWorker = Color(0xFFD97706); // Amber / Gold
+  // Amber (.a)
+  static const Color pillAmberBg = Color(0xFFFFF0D6);
+  static const Color pillAmberText = Color(0xFF8A5300);
 
-  // Semantic Feedback Colors
-  static const Color success = Color(0xFF10B981); // Emerald Green
-  static const Color warning = Color(0xFFF59E0B); // Amber
-  static const Color danger = Color(0xFFEF4444); // Red
-  static const Color info = Color(0xFF3B82F6); // Blue
+  // Red (.r)
+  static const Color pillRedBg = Color(0xFFFBE5E3);
+  static const Color pillRedText = Color(0xFFB3261E);
 
-  // Borders & Dividers
-  static const Color border = Color(0xFFE2E8F0);
-  static const Color borderFocused = Color(0xFF3B82F6);
-  static const Color divider = Color(0xFFE2E8F0);
-  static const Color modalBarrier = Color(0x33000000);
+  // Blue (.b)
+  static const Color pillBlueBg = Color(0xFFE6EBF4);
+  static const Color pillBlueText = Color(0xFF0B1F3A);
+
+  // Gold (.go - Member)
+  static const Color pillGoldBg = Color(0xFFFFF3CC);
+  static const Color pillGoldText = Color(0xFF8A6A00);
+
+  // Neutral (.n)
+  static const Color pillNeutralBg = Color(0xFFE3E6EC);
+  static const Color pillNeutralText = Color(0xFF3A455A);
+
+  // Buttons
+  static const Color btnCallBg = Color(0xFF0B1F3A);
+  static const Color btnWhatsAppBg = Color(0xFFE4F4EA);
+  static const Color btnWhatsAppText = Color(0xFF1B7A46);
+
+  // Desktop Shell Background
+  static const Color desktopBackground = Color(0xFFD9DDE5);
 }

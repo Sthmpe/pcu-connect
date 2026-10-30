@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Today</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Rubik',system-ui,sans-serif}
+a{text-decoration:none;color:inherit}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;background:#F3F4F7;color:#14213A;display:flex;flex-direction:column">
+
+<div style="background:#0B1F3A;padding:28px 20px 70px;display:flex;flex-direction:column;gap:14px;border-radius:0 0 32px 32px;position:relative;overflow:hidden">
+<div style="position:absolute;right:-50px;top:-60px;width:190px;height:190px;border-radius:50%;background:#14305A"></div>
+<div style="position:absolute;right:40px;top:70px;width:70px;height:70px;border-radius:50%;background:#E3B341;opacity:0.9"></div>
+<div style="display:flex;align-items:center;justify-content:space-between;position:relative">
+<div style="display:flex;align-items:center;gap:8px">
+<div style="width:30px;height:30px;border-radius:10px;background:#E3B341;display:flex;align-items:center;justify-content:center">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0B1F3A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4V5z"/></svg>
+</div>
+<span style="color:#fff;font-size:15px;font-weight:600">PCU Connect</span>
+</div>
+<div style="width:36px;height:36px;border-radius:50%;background:#fff;color:#0B1F3A;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px">D</div>
+</div>
+<div style="position:relative">
+<div style="color:#fff;font-size:28px;font-weight:600;line-height:1.15">Good morning,<br>David</div>
+<div style="color:#B9C4D8;font-size:14px;margin-top:6px">Wednesday · 3 guests need your call</div>
+</div>
+</div>
+
+<div style="margin:-48px 16px 0;background:#fff;border-radius:22px;padding:16px;display:flex;align-items:center;gap:16px;box-shadow:0 10px 28px rgba(11,31,58,0.14);position:relative">
+<div style="position:relative;width:76px;height:76px;flex:none">
+<svg width="76" height="76" viewBox="0 0 76 76" role="img" aria-label="3 of 6 guests contacted">
+<circle cx="38" cy="38" r="30" fill="none" stroke="#E6EBF4" stroke-width="8"/>
+<circle cx="38" cy="38" r="30" fill="none" stroke="#1B7A46" stroke-width="8" stroke-linecap="round" stroke-dasharray="94.2 188.5" transform="rotate(-90 38 38)"/>
+</svg>
+<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">3/6</div>
+</div>
+<div style="flex-grow:1;min-width:0">
+<div style="font-size:16px;font-weight:600">Contacted this week</div>
+<div style="font-size:13px;color:#5B6678;margin-top:2px">Call the rest to stay on time</div>
+<a href="Leaderboard.dc.html" style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;background:#FFF3CC;color:#7A5A00;border-radius:999px;padding:5px 11px;font-size:12px;font-weight:600">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7A5A00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0V4zM8 6H4v1a3 3 0 0 0 4 2.8M16 6h4v1a3 3 0 0 1-4 2.8M12 13v4M8 20h8M10 17h4"/></svg>
+2nd on the leaderboard
+</a>
+</div>
+</div>
+
+<div style="margin:14px 16px 0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+<sc-for list="{{tiles}}" as="t" hint-placeholder-count="3">
+<button onClick="{{t.pick}}" style="text-align:left;font-family:inherit;border:{{t.border}};background:#fff;border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:2px;box-shadow:0 1px 3px rgba(11,31,58,0.08)">
+<span style="font-size:26px;font-weight:700;color:{{t.color}}">{{t.n}}</span>
+<span style="font-size:12px;color:#5B6678">{{t.label}}</span>
+</button>
+</sc-for>
+</div>
+
+<div style="margin:14px 16px 8px;display:flex;align-items:baseline;justify-content:space-between">
+<span style="font-size:17px;font-weight:600">{{listTitle}}</span>
+</div>
+
+<div style="flex-grow:1;min-height:0;overflow-y:auto;padding:0 16px 12px;display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{guests}}" as="g" hint-placeholder-count="2">
+<div style="background:#fff;border-radius:18px;padding:12px;display:flex;flex-direction:column;gap:10px;box-shadow:0 1px 3px rgba(11,31,58,0.08)">
+<a href="Guest.dc.html" style="display:flex;align-items:center;gap:12px">
+<div style="width:44px;height:44px;border-radius:50%;background:#E6EBF4;color:#0B1F3A;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:16px;flex:none">{{g.initial}}</div>
+<div style="flex-grow:1;min-width:0">
+<div style="font-size:16px;font-weight:600">{{g.name}}</div>
+<div style="font-size:13px;color:#5B6678">{{g.meta}}</div>
+</div>
+<div style="background:{{g.pillBg}};color:{{g.pillFg}};border-radius:999px;padding:4px 10px;font-size:12px;font-weight:600;white-space:nowrap">{{g.pill}}</div>
+</a>
+<div style="display:flex;gap:8px">
+<button style="flex:1;height:44px;border:none;border-radius:14px;background:#0B1F3A;color:#fff;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>Call
+</button>
+<button style="flex:1;height:44px;border:1.5px solid #1B7A46;border-radius:14px;background:#fff;color:#1B7A46;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1B7A46" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21l1.6-4.6A8.5 8.5 0 1 1 8 19.6L3 21z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 .8a4 4 0 0 1-1.8-1.8l.8-1-1-2z"/></svg>WhatsApp
+</button>
+</div>
+</div>
+</sc-for>
+</div>
+
+<div style="height:72px;flex:none;background:#fff;border-top:1px solid #E3E6EC;display:flex">
+<sc-for list="{{nav}}" as="t" hint-placeholder-count="4">
+<a href="{{t.href}}" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:{{t.color}};font-size:12px;font-weight:{{t.weight}}">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{{t.color}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{t.d}}"/></svg>{{t.label}}
+<span style="width:20px;height:3px;border-radius:2px;background:{{t.bar}}"></span>
+</a>
+</sc-for>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  state = { t: 'call' };
+  renderVals() {
+    const R = ['#FBE5E3', '#B3261E'], A = ['#FFF1D6', '#8A5300'], G = ['#E4F4EA', '#1B7A46'], Y = ['#FFF3CC', '#7A5A00'], N = ['#E6EBF4', '#0B1F3A'];
+    const g = (name, meta, pill, c) => ({ initial: name[0], name, meta, pill, pillBg: c[0], pillFg: c[1] });
+    const lists = {
+      call: [g('Adaeze Okafor', 'Assigned 4 days ago', 'Call overdue', R), g('Tunde Bakare', 'Assigned 2 days ago', 'Not called yet', A), g('Chinedu Eze', 'Assigned today', 'New', N)],
+      fu: [g('Funke Adeyemi', '4 follow-ups · next call due', 'Followed up', G), g('Kemi Salau', '2 follow-ups', 'Followed up', G)],
+      mem: [g('Emeka Obi', '3 Sundays, 2 Wednesdays', 'Member', Y)]
+    };
+    const sel = this.state.t;
+    const titles = { call: 'Guests to call', fu: 'Followed up', mem: 'New members' };
+    const tabs = [
+      ['Main.dc.html', 'Today', 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 12l3 3 5-6'],
+      ['MyGuests.dc.html', 'Guests', 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01'],
+      ['Leaderboard.dc.html', 'Ranking', 'M8 4h8v5a4 4 0 0 1-8 0V4zM8 6H4v1a3 3 0 0 0 4 2.8M16 6h4v1a3 3 0 0 1-4 2.8M12 13v4M8 20h8M10 17h4'],
+      ['Me.dc.html', 'Me', 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0']
+    ];
+    return {
+      nav: tabs.map((t, i) => ({ href: t[0], label: t[1], d: t[2], color: i === 0 ? '#0B1F3A' : '#5B6678', weight: i === 0 ? 600 : 500, bar: i === 0 ? '#E3B341' : 'transparent' })),
+      listTitle: titles[sel],
+      tiles: [
+        { k: 'call', n: 3, label: 'To call', color: '#B3261E' },
+        { k: 'fu', n: 2, label: 'Followed up', color: '#1B7A46' },
+        { k: 'mem', n: 1, label: 'Members', color: '#8A6A00' }
+      ].map(t => ({ ...t, pick: () => this.setState({ t: t.k }), border: sel === t.k ? '2px solid #0B1F3A' : '2px solid transparent' })),
+      guests: lists[sel]
+    };
+  }
+}
+</script>
+</body>
+</html>

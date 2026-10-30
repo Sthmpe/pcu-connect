@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ranking</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Rubik',system-ui,sans-serif}
+a{text-decoration:none;color:inherit}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;background:#F3F4F7;color:#14213A;display:flex;flex-direction:column">
+
+<div style="background:#0B1F3A;padding:28px 20px 0;display:flex;flex-direction:column;gap:12px;border-radius:0 0 32px 32px">
+<div>
+<div style="color:#fff;font-size:28px;font-weight:600">Ranking</div>
+<div style="color:#B9C4D8;font-size:14px;margin-top:2px">{{subtitle}}</div>
+</div>
+<div style="display:flex;gap:8px">
+<sc-for list="{{months}}" as="m" hint-placeholder-count="4">
+<button onClick="{{m.pick}}" style="height:36px;padding:0 14px;border-radius:999px;border:none;background:{{m.bg}};color:{{m.fg}};font-size:13px;font-weight:600">{{m.label}}</button>
+</sc-for>
+</div>
+
+<div style="display:flex;align-items:flex-end;justify-content:center;gap:10px;margin-top:6px">
+<div style="width:96px;display:flex;flex-direction:column;align-items:center;gap:6px">
+<div style="width:50px;height:50px;border-radius:50%;background:#fff;color:#0B1F3A;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:19px">{{p2.initial}}</div>
+<div style="color:#fff;font-size:13px;font-weight:600">{{p2.name}}</div>
+<div style="width:96px;height:72px;background:#14305A;border-radius:14px 14px 0 0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff"><span style="font-size:22px;font-weight:700">2</span><span style="font-size:12px;color:#B9C4D8">{{p2.pts}} pts</span></div>
+</div>
+<div style="width:104px;display:flex;flex-direction:column;align-items:center;gap:6px">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="#E3B341" stroke="#E3B341" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/></svg>
+<div style="width:56px;height:56px;border-radius:50%;background:#E3B341;color:#0B1F3A;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:22px">{{p1.initial}}</div>
+<div style="color:#fff;font-size:13px;font-weight:600">{{p1.name}}</div>
+<div style="width:104px;height:96px;background:#E3B341;border-radius:14px 14px 0 0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#0B1F3A"><span style="font-size:26px;font-weight:700">1</span><span style="font-size:12px;font-weight:500">{{p1.pts}} pts</span></div>
+</div>
+<div style="width:96px;display:flex;flex-direction:column;align-items:center;gap:6px">
+<div style="width:50px;height:50px;border-radius:50%;background:#fff;color:#0B1F3A;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:19px">{{p3.initial}}</div>
+<div style="color:#fff;font-size:13px;font-weight:600">{{p3.name}}</div>
+<div style="width:96px;height:52px;background:#14305A;border-radius:14px 14px 0 0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff"><span style="font-size:22px;font-weight:700">3</span><span style="font-size:12px;color:#B9C4D8">{{p3.pts}} pts</span></div>
+</div>
+</div>
+</div>
+
+<div style="margin:16px 16px 0;background:#fff;border-radius:18px;padding:14px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 20px rgba(11,31,58,0.10)">
+<div style="width:44px;height:44px;border-radius:50%;background:#E3B341;color:#0B1F3A;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none">D</div>
+<div style="flex-grow:1">
+<div style="font-size:15px;font-weight:600">You</div>
+<div style="font-size:13px;color:#5B6678">{{myLine}}</div>
+</div>
+<div style="font-size:24px;font-weight:700;color:#0B1F3A">#{{myRank}}</div>
+</div>
+
+<div style="margin:12px 16px 0;background:#fff;border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 1px 3px rgba(11,31,58,0.08)">
+<div style="font-size:15px;font-weight:600">How you earn points</div>
+<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#3A455A">First call within 3 days</span><span style="font-weight:600">+10</span></div>
+<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#3A455A">Follow-up call</span><span style="font-weight:600">+5</span></div>
+<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#3A455A">Guest comes on a Sunday or Wednesday</span><span style="font-weight:600">+10</span></div>
+<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#3A455A">Guest joins Workforce or Evangelism</span><span style="font-weight:600">+20</span></div>
+<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#3A455A">Guest becomes a member</span><span style="font-weight:600">+30</span></div>
+</div>
+
+<div style="flex-grow:1"></div>
+
+<div style="height:72px;flex:none;background:#fff;border-top:1px solid #E3E6EC;display:flex">
+<sc-for list="{{nav}}" as="t" hint-placeholder-count="4">
+<a href="{{t.href}}" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:{{t.color}};font-size:12px;font-weight:{{t.weight}}">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{{t.color}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{t.d}}"/></svg>{{t.label}}
+<span style="width:20px;height:3px;border-radius:2px;background:{{t.bar}}"></span>
+</a>
+</sc-for>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  state = { m: 'oct' };
+  renderVals() {
+    const data = {
+      oct: { label: 'October', sub: 'This month · points reset on the 1st', top: [['Grace', 195], ['David (you)', 168], ['Tolu', 141]], rank: 2, pts: 168, line: 'Keep going, 27 points behind 1st' },
+      sep: { label: 'September', sub: 'Final standings', top: [['Tolu', 210], ['Grace', 188], ['Samuel', 150]], rank: 5, pts: 98, line: 'You finished 5th with 98 pts' },
+      aug: { label: 'August', sub: 'Final standings', top: [['Grace', 230], ['Ife', 176], ['Tolu', 160]], rank: 5, pts: 102, line: 'You finished 5th with 102 pts' },
+      jul: { label: 'July', sub: 'Final standings', top: [['Samuel', 205], ['David (you)', 190], ['Grace', 171]], rank: 2, pts: 190, line: 'You finished 2nd with 190 pts' }
+    };
+    const d = data[this.state.m];
+    const p = (i) => ({ name: d.top[i][0], initial: d.top[i][0][0], pts: d.top[i][1] });
+    const tabs = [
+      ['Main.dc.html', 'Today', 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 12l3 3 5-6'],
+      ['MyGuests.dc.html', 'Guests', 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01'],
+      ['Leaderboard.dc.html', 'Ranking', 'M8 4h8v5a4 4 0 0 1-8 0V4zM8 6H4v1a3 3 0 0 0 4 2.8M16 6h4v1a3 3 0 0 1-4 2.8M12 13v4M8 20h8M10 17h4'],
+      ['Me.dc.html', 'Me', 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0']
+    ];
+    return {
+      subtitle: d.sub,
+      months: Object.keys(data).map((k) => ({ label: data[k].label, pick: () => this.setState({ m: k }), bg: this.state.m === k ? '#E3B341' : '#14305A', fg: this.state.m === k ? '#0B1F3A' : '#fff' })),
+      p1: p(0), p2: p(1), p3: p(2),
+      myRank: d.rank,
+      myLine: d.line,
+      nav: tabs.map((t, i) => ({ href: t[0], label: t[1], d: t[2], color: i === 2 ? '#0B1F3A' : '#5B6678', weight: i === 2 ? 600 : 500, bar: i === 2 ? '#E3B341' : 'transparent' }))
+    };
+  }
+}
+</script>
+</body>
+</html>
