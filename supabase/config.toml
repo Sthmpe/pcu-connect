@@ -1,0 +1,33 @@
+project_id = "pcu-workflow"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+jwt_expiry = 3600
+enable_signup = false
+
+[functions.guest-sync]
+verify_jwt = false
+
+[functions.assign-guest]
+verify_jwt = false
+
+# Callers authenticate with Firebase, not Supabase - this function verifies
+# the Firebase ID token itself (see _shared/verify_token.ts), so Supabase's
+# own JWT check is irrelevant here.
+[functions.manage-access]
+verify_jwt = false

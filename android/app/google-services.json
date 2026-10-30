@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "727373224836",
+    "project_id": "pcu-workflow",
+    "storage_bucket": "pcu-workflow.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:727373224836:android:5b6060542cf9a8983cdbd1",
+        "android_client_info": {
+          "package_name": "com.pcu.workflow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCBklqK3Gz7p7uOYZdWWomsW604tJtin1M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
