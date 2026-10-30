@@ -1,0 +1,89 @@
+PROMPT FOR CHATGPT - PCU CONNECT (AppSheet app on a Google Sheet)
+=====================================================================
+
+You are taking over a project from another AI assistant that ran out of credit. Read everything below before you do anything. The attached ZIP contains: design/ (high-fidelity mockup source files, HTML - read them as a spec), script/pcu_auto_assign.gs (the Google Apps Script already written), and this prompt. Treat the design as the target look and flow. Ask me only if something is truly blocking; otherwise decide, tell me what you decided, and keep going.
+
+WHO I AM
+- Opeyemi Olanite. I work with the PCU (guest follow-up) team at my church (COZA). I am not a full-time developer, so give me exact click-by-click steps and copy-paste formulas, one phase at a time.
+- Google account that owns the test copy: olaniteolanight@gmail.com. A second tester: davidolanite0@gmail.com (David).
+
+WHAT PCU CONNECT IS
+An AppSheet app on top of the church's existing Google Form -> Google Sheet. Guests register with the Google Form (unchanged). An Apps Script gives each new guest to the next ACTIVE worker in round-robin order. Workers call or WhatsApp the guest from the app and log feedback. The HOD (admin) sees a dashboard and worker performance and manages workers. Admins do NOT call guests and must not receive guests.
+
+HARD RULES (keep these)
+1. NEVER edit the real church sheet (id 17pMCuexwu6XVLbWJUWGkq2yCiPs8HlZ2-JNNqHg8r7Y) until I explicitly approve go-live. Build and test only on the TEST COPY: spreadsheet id 1R9-l3GOw_NY8qIvn94mM3ZFxBpuuDl7lwSEnumdFU24.
+2. Never move, rename or delete the Google Form's own columns (A to M). Only add columns after them.
+3. Only do exactly what I ask. Do not clean or "fix" other cells without asking. (Stray cells N345, N346, N6811:O6811 on the test copy are waiting for my approval to be cleaned.)
+4. Do not complete CAPTCHAs or accept permission/OAuth prompts for me; I do those myself.
+5. Only guests from go-live day onward are counted. Go-live date in the script is 2026-10-28 (assumed). The 9,000+ older rows stay in the sheet but are kept out of every app view and number.
+
+CURRENT STATE ON THE TEST COPY (already built, working)
+Sheet tab "Form Responses 1" (one row per guest). Columns:
+  A Timestamp | D SERVICE DATE | E FULL NAME | F PHONE NUMBER | (B,C,G-K are other form fields such as gender and marital status) | L FEEDBACK 1 | M FEEDBACK 2
+  N ASSIGNED TO (worker email, set by script) | O ASSIGNED DATE | P CALL STATUS | Q MEMBERSHIP STATUS | R FEEDBACK 1 DATE | S FEEDBACK 2 DATE | T MEMBERSHIP DATE | U GUEST ID (e.g. G09200; script-made ids look like G-10161115)
+Tab "Workers": ID, Name, Email, Phone, Role (Admin/Worker), Active. Rows: W001 Opeyemi Olanite (Admin), W002 TEST Worker A (worker.a@example.com), W003 TEST Worker B (worker.b@example.com), W004 TEST Worker C (inactive), W005 David Olanite (davidolanite0@gmail.com, Worker).
+Tab "Follow-ups" (appears in AppSheet as table "Call Log"): one row per call. Columns: Follow-up ID (key), Guest (ref to GUEST ID), Worker, Call date, Call status, Note, Attended Sunday?, Sunday date.
+Tab "Months": A1 "Month"; A2 = ARRAYFORMULA(EDATE(DATE(2026,10,1), SEQUENCE(DATEDIF(DATE(2026,10,1), TODAY(), "M") + 1) - 1)) -> one row per month since go-live. Used by the Dashboard.
+6 test guests exist at rows 9200-9205 and 6 more at 9206-9211 (all named "TEST Guest ..."), the last 6 reassigned by hand to David.
+
+Apps Script (script/pcu_auto_assign.gs, bound to the test copy, already authorised and switched on):
+- onFormSubmit trigger assigns each new row to the next active worker (round robin), writes ASSIGNED TO, ASSIGNED DATE, GUEST ID and status "New guest". LockService prevents double assignment.
+- PCU menu: assign selected rows, assign today's unassigned, who is next, summary, add/deactivate/reactivate/list workers, notifications on/off/status, test guests add/remove.
+- Notifications: email to the worker when a guest is assigned (call + WhatsApp links); daily 6pm Africa/Lagos email listing guests with no call logged (over 3 days in red). Emails skip @example.com addresses. Switch is ON.
+- KNOWN PROBLEM TO FIX: the script currently gives guests to the Admin (Opeyemi). Admins must be skipped in the rotation (only Role = Worker AND Active = Yes get guests).
+
+APPSHEET APP (named "PCU Connect", appId 37ecd84f-d7d6-44b0-bc88-2372b0933e3e, built on the test copy)
+- Tables: Form Responses 1, Workers, Call Log (Follow-ups), Months. App is shared with olaniteolanight and (pending) davidolanite0.
+- Roles: LOOKUP(USEREMAIL(),"Workers","Email","Role"). Admin-only views use that; worker views are hidden from Admin. Starting view: Dashboard for Admin, Today for workers.
+- Workers table is read-only for non-admins. Slices: My Today, My Guests, My Followed Up, All Guests (slices, not security filters).
+- Action "Log a call" opens the Call Log form for a guest. A bot on Call Log add/update runs action "Update after call" on the guest row, which sets CALL STATUS (latest call), FEEDBACK 1 / FEEDBACK 2 (+ dates), MEMBERSHIP STATUS and MEMBERSHIP DATE automatically.
+- Theme: navy #0B1F3A primary, gold accent, font Rubik. Rule colours: red = overdue, amber = needs follow-up, green = followed up, gold = member.
+- Reality check: AppSheet cannot do in-app push when the script (not the app) assigns guests, so notifications are emails from the script.
+- No Play Store / App Store: workers install via the AppSheet app or "Add to home screen" from the app link. Free plan limits users; the team will likely need a paid plan - verify on AppSheet pricing before go-live.
+
+WHAT I WANT NEXT (decisions made in the last chat - these CHANGE the earlier build)
+A. Services: church has Sunday AND Wednesday services. Track attendance for both.
+B. MEMBER definition (assumed, please confirm with me once): in the same calendar month, 3 or more Sundays AND at least 2 Wednesdays. (I also wrote "more than 4 sundays or 3 sundays" - ambiguous; ask me one short question to confirm.) Membership date is set automatically the first time a guest qualifies.
+C. Statuses: New guest, Contacted, Returning, Member, Not interested, Unreachable.
+D. Guests who join Workforce or Evangelism team must be tracked (column TEAM JOINED: none / Workforce / Evangelism, set when a worker logs a follow-up).
+E. Workers may follow up MANY times (not just 2). Add columns on Form Responses 1 after the existing ones: FOLLOW-UP COUNT, LAST FEEDBACK (always overwritten with the newest note, even on the 7th call), LAST FEEDBACK DATE, SUNDAYS THIS MONTH / WEDNESDAYS THIS MONTH (or compute as virtual columns). Keep the Follow-ups tab as the full call history (add a "Attended Wednesday?" + "Wednesday date" + "Joined team" columns there).
+F. Performance colours per guest: green = first call within 3 days of assignment; amber = called once only; red = not called 3 days after assignment.
+G. History: HOD must see records for each of the LAST 12 MONTHS. Each month shows ONLY guests who first came (service date) in that month: new guests, contacted %, followed up twice %, came on Sunday, came on Wednesday, new members, joined team, not called. Use the Months tab (extend it to 12 rows or all months since go-live).
+H. Leaderboard (workers compete): points per worker per calendar month, stored in a NEW tab "Leaderboard" (columns: Month, Worker email, Worker name, Points, Rank, First-call-on-time, Follow-ups, Sunday/Wed attendances, Team joins, Members). Proposed points (confirm with me): +10 first call within 3 days, +5 each follow-up, +10 guest attends a Sunday or Wednesday, +20 guest joins Workforce/Evangelism, +30 guest becomes a member. Points reset each month; the monthly result is SAVED (Apps Script on the 1st, or a formula-based tab) so past months can be shown. Workers can see this month live, and for every past month: the top 3 plus their own rank (e.g. "August: you finished 5th" with 1st-3rd shown). Admin is excluded from the ranking.
+I. Worker cannot add or edit guests (no add/edit guest form for workers; the Google Form is the only way guests are created). Workers can only view assigned guests, call, WhatsApp, and log follow-ups. Remove any SMS/message button: ONLY Call and WhatsApp.
+J. Admin (HOD): sees all, can click a worker to see stats, make a worker inactive/active, remove a worker, add a worker (name, Google email, role Worker/Admin, active). "Remove" should mean: stop giving new guests and keep history (set Active = No) - hard delete only if I insist, with a warning. Admin screens: Dashboard (month picker), Team (ranked, standing: Outstanding / On track / Behind / Inactive), Worker detail, Add worker, Guests (month picker + filters All / Not called / Members / Teams).
+
+THE TARGET UI. Each design/*.dc.html is the SOURCE of one 390x844 phone mockup (HTML with inline styles; it only renders inside Claude's design canvas, so do not expect it to open by double-click - read it for layout, colours, copy and behaviour, which are also described below). Screens:
+Worker app, bottom tabs: Today | Guests | Ranking | Me
+ 1. Today (Main.dc.html): greeting, progress ring "3/6 contacted this week", rank chip (opens Ranking). Three tiles (To call / Followed up / Members) are FILTERS for the list below on the SAME screen - they do not navigate. No "See all" link; the list scrolls. Each guest card: name, assigned age, status pill, Call button and WhatsApp button.
+ 2. My guests (MyGuests.dc.html): every guest ever given to the worker. Gold CALENDAR button at the top right opens a month list (All months, Oct 2026, ...). Status chips: All, To call, Followed up, Members, In a team (single row, no second row of month chips).
+ 3. Guest (Guest.dc.html): name, phone, status pill, follow-up count, Call + WhatsApp, "Road to membership" (Sundays x of 3, Wednesdays x of 2), Last feedback with date, team joined, calls logged. Note "Guest details are managed by the HOD" (read-only). Big gold button "Log a follow-up".
+ 4. Log a follow-up (LogCall.dc.html): outcome chips (Reached / No answer / Number off / Not interested), feedback text, toggles "Came on Sunday" (+date) and "Came on Wednesday" (+date), "Joined a team?" (Not yet / Workforce / Evangelism), Save.
+ 5. Ranking (Leaderboard.dc.html): podium top 3, month chips (this month + past months), your own rank card (shows e.g. "You finished 5th with 98 pts" for a past month), and a "how you earn points" card.
+ 6. Me (Me.dc.html): points, rank, stat tiles (guests, contacted, follow-ups, members), progress bars (called within 3 days, joined a team, became members).
+Admin app, bottom tabs: Dashboard | Team | Guests
+ 7. Dashboard (Dashboard.dc.html): month capsules for 12 months, tiles (New guests, Became members, Not called, Joined a team), funnel bars (Contacted, Followed up twice, Came on Sunday, Came on Wednesday, Became members). Tiles open the Guests list.
+ 8. Team (Team.dc.html): workers ranked with standing pill and progress bar; each row is clickable; "+ Worker" button.
+ 9. Worker detail (Worker.dc.html): stats, Active switch, "Make inactive", "Remove worker", link to that worker's guests.
+10. Add worker (AddWorker.dc.html): name, Google email, Role, Active, Add.
+11. Guests, admin (Guests.dc.html): calendar button + month list at top right, chips All / Not called / Members / Teams (clickable), search, guest rows with "With <worker>" and status.
+Style: navy #0B1F3A, gold #E3B341, white cards on #F3F4F7, green #1B7A46, amber #8A5300 on #FFF1D6, red #B3261E on #FBE5E3, font Rubik, rounded cards, big touch targets. Sample names/numbers in the mockups are fake.
+AppSheet limits to respect: no true podium or progress ring (use a ranked list with gold/silver/bronze rows and a progress bar), icons are limited to AppSheet's set. Match the design as closely as AppSheet allows; tell me where you had to compromise.
+
+HOW I WANT YOU TO WORK (order of phases)
+Phase 1 - Data on the TEST COPY only: add the new columns/tabs (TEAM JOINED, WEDNESDAY info, FOLLOW-UP COUNT, LAST FEEDBACK + date, Leaderboard tab, 12-month Months tab). Fix the script so Admin is skipped in the rotation and add a monthly leaderboard snapshot. Show me each formula/script change to paste.
+Phase 2 - AppSheet logic: update "Update after call" for the new member rule (3+ Sundays AND 2+ Wednesdays in the same month), last feedback, team joined, counts; update the Call Log form fields; points and month virtual columns.
+Phase 3 - Worker screens, then Admin screens, matching the design (slices, views, Show_If role rules, month filters).
+Phase 4 - Test as worker (David) and as admin; fix issues.
+Phase 5 - Only after my written approval: repeat on the real sheet (add headers/columns after M, Workers tab with real workers and the HOD as Admin, Months, Leaderboard, script, then point the app at the real sheet and set the go-live date).
+At the start of each phase say in one line what you will do; at the end, list what changed and what I must test. Keep answers short and practical. Do not ask me many questions - at most one at a time.
+
+OPEN QUESTIONS (ask me only when you reach them)
+1. Member rule: 3+ Sundays AND 2+ Wednesdays in the same calendar month - correct?
+2. Which emails get the Admin role in the real app (HOD only, or other leaders)?
+3. May I clean stray cells N345, N346, N6811:O6811 on the test copy?
+4. Are the proposed point values OK?
+5. Confirm the real go-live date.
+
+NOTE ON THE OLD PLAN DOCUMENT
+An earlier "Plan and Build Guide" said in-app push notifications and "3 Sundays only" and 4 old screens. Ignore those parts - this prompt replaces it.

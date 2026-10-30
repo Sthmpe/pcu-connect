@@ -276,4 +276,11 @@ migration.
 
 ### Where this session stopped:
 - Complete Flutter Web frontend architecture and all screens matching the HTML prototype are built and verified.
-- Next step: Complete the Google Apps Script handlers in `backend/Api.gs` against the test Google Sheet (Member rule, points calculation, and round-robin admin skip).
+- **Backend Completed:**
+  - `backend/Api.gs`: All 9 handlers implemented (`me`, `guests`, `guest`, `logFollowUp`, `ranking`, `dashboard`, `team`, `saveWorker`, `setWorkerActive`). Implemented CORS-compliant text/plain POST parsing, Google token verification with mock token fallback for local dev, server-side Member rule enforcement (4 Sundays or 3 Sundays + 2 Wednesdays in same month), future attendance date rejection, points scoring, and Leaderboard tracking.
+  - `backend/pcu_auto_assign.gs`: Fixed `activeWorkers_()` to strictly exclude users with Role = Admin/HOD, ensuring Admins never receive assigned guests in the round-robin rotation.
+  - Claude conversation history (124 messages) successfully extracted, analyzed, and persisted to `claude_conversation_full.md` and scratch archive.
+  - Verified with `dart analyze lib/`: **0 errors, 0 warnings**.
+- **Next Steps:**
+  - Test the Flutter Web app locally with `flutter run -d chrome`.
+  - When the user is ready, deploy the Apps Script to their Google Sheet and configure Firebase Hosting for live web deployment.
