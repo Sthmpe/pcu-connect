@@ -89,16 +89,32 @@ class GuestEntity extends Equatable {
       name: json['name']?.toString() ?? 'Guest',
       phone: json['phone']?.toString() ?? '',
       status: json['status']?.toString() ?? 'New guest',
-      daysSinceVisit: (json['days'] as num?)?.toInt() ?? 0,
-      callCount: (json['calls'] as num?)?.toInt() ?? 0,
-      sundayAttendance: (json['sun'] as num?)?.toInt() ?? 0,
-      wednesdayAttendance: (json['wed'] as num?)?.toInt() ?? 0,
+      daysSinceVisit: (json['daysSinceVisit'] as num?)?.toInt() ??
+          (json['days'] as num?)?.toInt() ??
+          0,
+      callCount: (json['followUps'] as num?)?.toInt() ??
+          (json['calls'] as num?)?.toInt() ??
+          0,
+      sundayAttendance: (json['sundays'] as num?)?.toInt() ??
+          (json['sun'] as num?)?.toInt() ??
+          0,
+      wednesdayAttendance: (json['wednesdays'] as num?)?.toInt() ??
+          (json['wed'] as num?)?.toInt() ??
+          0,
       teamJoined: json['team']?.toString() ?? '',
-      lastFeedback: json['fb']?.toString() ?? '',
-      lastFeedbackDate: json['fbDate']?.toString() ?? '',
-      followUpCount: (json['fu'] as num?)?.toInt() ?? 0,
+      lastFeedback: json['lastFeedback']?.toString() ??
+          json['fb']?.toString() ??
+          '',
+      lastFeedbackDate: json['lastFeedbackDate']?.toString() ??
+          json['fbDate']?.toString() ??
+          '',
+      followUpCount: (json['followUps'] as num?)?.toInt() ??
+          (json['fu'] as num?)?.toInt() ??
+          0,
       month: json['month']?.toString() ?? '',
-      assignedWorkerName: json['assignedWorker']?.toString(),
+      assignedWorkerName: json['assignedName']?.toString() ??
+          json['assignedWorker']?.toString() ??
+          json['assignedTo']?.toString(),
     );
   }
 

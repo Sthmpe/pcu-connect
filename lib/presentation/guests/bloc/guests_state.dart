@@ -16,12 +16,16 @@ class GuestsLoadedState extends GuestsState {
   final String selectedMonth;
   final String tileFilter; // 'all' | 'call' | 'fu' | 'mem'
   final String chipFilter; // 'all' | 'call' | 'fu' | 'mem' | 'team'
+  final bool isFromCache;
+  final bool isRefreshing;
 
   const GuestsLoadedState({
     required this.allGuests,
     required this.selectedMonth,
     this.tileFilter = 'all',
     this.chipFilter = 'all',
+    this.isFromCache = false,
+    this.isRefreshing = false,
   });
 
   // Today Tab computed metrics
@@ -84,18 +88,28 @@ class GuestsLoadedState extends GuestsState {
     String? selectedMonth,
     String? tileFilter,
     String? chipFilter,
+    bool? isFromCache,
+    bool? isRefreshing,
   }) {
     return GuestsLoadedState(
       allGuests: allGuests ?? this.allGuests,
       selectedMonth: selectedMonth ?? this.selectedMonth,
       tileFilter: tileFilter ?? this.tileFilter,
       chipFilter: chipFilter ?? this.chipFilter,
+      isFromCache: isFromCache ?? this.isFromCache,
+      isRefreshing: isRefreshing ?? this.isRefreshing,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [allGuests, selectedMonth, tileFilter, chipFilter];
+  List<Object?> get props => [
+        allGuests,
+        selectedMonth,
+        tileFilter,
+        chipFilter,
+        isFromCache,
+        isRefreshing,
+      ];
 }
 
 class GuestsFailureState extends GuestsState {

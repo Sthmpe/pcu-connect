@@ -1,4 +1,4 @@
-# PCU Connect — Flutter Web + Google Sheet Backend
+# PCU Connect  -  Flutter Web + Google Sheet Backend
 
 Guest follow-up, retention, and integration platform for the church Pastoral Care Unit (PCU). Built as a **Flutter Web** application backed directly by a Google Sheet database through a Google Apps Script web-app API (`backend/Api.gs`).
 

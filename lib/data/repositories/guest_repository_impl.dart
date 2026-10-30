@@ -1,6 +1,7 @@
 import '../../core/errors/failures.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_result.dart';
+import '../../core/storage/local_cache.dart';
 import '../../domain/entities/guest_entity.dart';
 import '../../domain/repositories/i_auth_repository.dart';
 import '../../domain/repositories/i_guest_repository.dart';
@@ -8,12 +9,28 @@ import '../../domain/repositories/i_guest_repository.dart';
 class GuestRepositoryImpl implements IGuestRepository {
   final ApiClient _apiClient;
   final IAuthRepository _authRepository;
+  final LocalCache _localCache;
 
   GuestRepositoryImpl({
     required ApiClient apiClient,
     required IAuthRepository authRepository,
+    required LocalCache localCache,
   })  : _apiClient = apiClient,
-        _authRepository = authRepository;
+        _authRepository = authRepository,
+        _localCache = localCache;
+
+  @override
+  List<GuestEntity>? getCachedGuests({String? month}) {
+    final key = 'guests.${month ?? 'current'}';
+    final entry = _localCache.read(key);
+    if (entry != null && entry.data is List) {
+      return (entry.data as List)
+          .whereType<Map<String, dynamic>>()
+          .map(GuestEntity.fromJson)
+          .toList();
+    }
+    return null;
+  }
 
   @override
   Future<ApiResult<List<GuestEntity>>> fetchGuests({
@@ -35,17 +52,27 @@ class GuestRepositoryImpl implements IGuestRepository {
     if (result.isSuccess) {
       try {
         final data = result.data;
-        if (data is List) {
-          final guests = data
-              .map((item) => GuestEntity.fromJson(item as Map<String, dynamic>))
-              .toList();
-          return ApiResult.success(guests);
+        List rawList = const [];
+        if (data is Map<String, dynamic> && data['guests'] is List) {
+          rawList = data['guests'] as List;
+        } else if (data is List) {
+          rawList = data;
         }
-        return const ApiResult.success([]);
+        await _localCache.write('guests.${month ?? 'current'}', rawList);
+
+        final guests = rawList
+            .whereType<Map<String, dynamic>>()
+            .map(GuestEntity.fromJson)
+            .toList();
+        return ApiResult.success(guests);
       } catch (e) {
         return ApiResult.failure(ServerFailure(e.toString()));
       }
     } else {
+      final cached = getCachedGuests(month: month);
+      if (cached != null && cached.isNotEmpty) {
+        return ApiResult.success(cached);
+      }
       return ApiResult.failure(result.failure!);
     }
   }

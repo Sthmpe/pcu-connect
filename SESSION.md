@@ -1,18 +1,18 @@
-# Workflow / PCU Workflow — Session Log
+# Workflow / PCU Workflow  -  Session Log
 
 Shared handoff doc across every agent/tool working on this project, not
 just one conversation. Multiple agents touch this codebase in parallel.
 
 **Rules for anyone updating this file:**
 - Verify claims against the actual code (grep/read) before writing them
-  here — don't restate what a previous version of this file said without
+  here  -  don't restate what a previous version of this file said without
   checking it's still true. Code moves faster than this doc; trust the
   code over old notes in this file if they conflict.
 - When you stop work, add/update the "Where the last session stopped"
   section at the bottom with what you touched and what you deliberately
   left undone, so the next agent (human or AI) doesn't have to re-derive it.
 - Don't delete history other agents recorded just because it's not what
-  you worked on — only correct it if you've verified it's wrong.
+  you worked on  -  only correct it if you've verified it's wrong.
 
 ## Product
 
@@ -21,10 +21,10 @@ just one conversation. Multiple agents touch this codebase in parallel.
 tracking for a church) is its first configuration, not a hardcoded special
 case. Terminology (Pastor/HOD/Worker/Guest) is a display-layer mapping
 over neutral internal concepts (organization_owner/unit_manager/operator/
-contact) — see "Terminology layer" below.
+contact)  -  see "Terminology layer" below.
 
 Full original product spec (goals, screens, lifecycle, metrics) was
-provided by the user at project kickoff — not duplicated here.
+provided by the user at project kickoff  -  not duplicated here.
 
 ## Backend architecture (confirmed, do not re-litigate)
 
@@ -52,10 +52,10 @@ functions since callers aren't Supabase-authenticated.
 - Typography: `google_fonts` · Icons: `font_awesome_flutter` + Material
 - Responsive sizing: `flutter_screenutil`
 - Routing: plain Material `onGenerateRoute` (`core/routing/app_router.dart`)
-  is primary. GetX reserved for isolated complex flows only — not adopted,
+  is primary. GetX reserved for isolated complex flows only  -  not adopted,
   not the app-wide router.
 - All colors/text styles/sizes/strings centralized in `core/theme/` and
-  `core/constants/` — no magic values in widgets.
+  `core/constants/`  -  no magic values in widgets.
 
 ## Schema / naming (verified via grep as of this update)
 
@@ -65,12 +65,12 @@ Firestore collections use the **neutral schema**, matching `firestore.rules`:
 `worker_id`/`assigned_worker_id`).
 
 **Migrated to this schema:** `guests` feature (kept its folder/class name
-`GuestModel`/`features/guests/` — only the *data layer* field naming
+`GuestModel`/`features/guests/`  -  only the *data layer* field naming
 changed, not the Dart identifiers), `call_workflow`, `reports`,
 `access_control`, `organization_structure`.
 
 **Still on OLD naming (confirmed by grep):**
-- `lib/features/team/data/datasources/team_remote_datasource.dart` —
+- `lib/features/team/data/datasources/team_remote_datasource.dart`  - 
   also still queries Postgres via `supabase_service.dart`, not migrated
   to Firestore at all.
 
@@ -98,11 +98,11 @@ lib/
                              manage-access Edge Function for list/grant/revoke
     organization_structure/  Organization/Location/Unit models + CRUD bloc/screen
     guests/                  Firestore-backed, neutral schema
-    call_workflow/           Firestore-backed, neutral schema — Call Guest → dialer →
+    call_workflow/           Firestore-backed, neutral schema  -  Call Guest → dialer →
                              manual feedback capture
     home/                    HomeScreen, reads TerminologyCubit for labels
     reports/                 Firestore-backed, neutral schema
-    team/                    STALE — old Postgres/Supabase pattern, not migrated
+    team/                    STALE  -  old Postgres/Supabase pattern, not migrated
   app.dart            AuthBloc + TerminologyCubit + AccessCubit provided app-wide via
                        MultiBlocProvider; feature blocs scoped per-route in AppRouter;
                        _SessionLoader triggers Terminology/Access loads on AuthAuthenticated
@@ -113,10 +113,10 @@ supabase/
     _shared/          firebase_admin.ts, verify_token.ts, responses.ts
     guest-sync/        Firestore transaction, fair-assignment on Sheet intake;
                        writes the neutral Firestore schema
-    assign-guest/      EMPTY STUB — not implemented
+    assign-guest/      EMPTY STUB  -  not implemented
     manage-access/     list / grant / revoke team_memberships with escalation
                        prevention + pagination + audit logging
-  migrations/          DEPRECATED — old Postgres schema, reference only
+  migrations/          DEPRECATED  -  old Postgres schema, reference only
   config.toml          all three functions: verify_jwt = false (Firebase-token
                        verified internally instead)
 
@@ -128,7 +128,7 @@ android/                Package fixed: com.example.workflow → com.pcu.workflow
                        Google Services Gradle plugin wired in settings.gradle.kts +
                        app/build.gradle.kts. Android/Web FlutterFire configuration
                        and `google-services.json` are present.
-.env.example            SUPABASE_URL/SUPABASE_ANON_KEY only — Firebase admin creds are
+.env.example            SUPABASE_URL/SUPABASE_ANON_KEY only  -  Firebase admin creds are
                        Edge Function secrets, never in the app
 ```
 
@@ -137,25 +137,25 @@ android/                Package fixed: com.example.workflow → com.pcu.workflow
 Authorization = **base role (ceiling) + scoped capability map (actual
 access)**, not a fixed role enum. `lib/features/access_control/domain/models/`:
 
-- `Capability` — flat string constants (`contacts.edit`, `assignments.manage`, etc.)
-- `BaseRole` — organizationOwner (Pastor) > unitManager (HOD) > delegate > operator/viewer.
+- `Capability`  -  flat string constants (`contacts.edit`, `assignments.manage`, etc.)
+- `BaseRole`  -  organizationOwner (Pastor) > unitManager (HOD) > delegate > operator/viewer.
   Ceiling only, used for rank comparisons during delegation, never checked
   directly for authorization.
-- `PermissionPreset` — Assignment Officer / Follow-up Supervisor / Records
+- `PermissionPreset`  -  Assignment Officer / Follow-up Supervisor / Records
   Officer / Reporting Officer / Team Officer / Deputy HOD / Custom. UI
-  convenience only — server re-validates the actual capability set on every grant.
-- `MembershipScope` — organizationId + optional locationIds/unitIds. Empty
+  convenience only  -  server re-validates the actual capability set on every grant.
+- `MembershipScope`  -  organizationId + optional locationIds/unitIds. Empty
   list = org-wide at that level.
-- `MembershipModel` — Firestore doc `team_memberships/{unitId}_{userId}`.
-- `DelegationBloc` + `DelegationScreen` — the actual HOD UI: lists current
+- `MembershipModel`  -  Firestore doc `team_memberships/{unitId}_{userId}`.
+- `DelegationBloc` + `DelegationScreen`  -  the actual HOD UI: lists current
   unit members (paginated via `manage-access` `list` action), grants/revokes access.
 
 **Where enforcement actually happens (order of trust):**
-1. `firestore.rules` — real gate for all reads and most writes, including
+1. `firestore.rules`  -  real gate for all reads and most writes, including
    field-level shape validation on create (contacts, interactions, follow_ups).
-2. `manage-access` Edge Function — only path that can create/modify a
+2. `manage-access` Edge Function  -  only path that can create/modify a
    membership doc. Rules block direct writes to `team_memberships` entirely.
-3. `AccessCubit`/`DelegationBloc` in the app — UI convenience/reactivity,
+3. `AccessCubit`/`DelegationBloc` in the app  -  UI convenience/reactivity,
    mirrors server state, grants nothing itself.
 
 **Privilege escalation guards in `manage-access`:**
@@ -163,7 +163,7 @@ access)**, not a fixed role enum. `lib/features/access_control/domain/models/`:
 - Requested permissions must be a subset of the granter's own.
 - `OWNER_ONLY` capabilities (`organization.manage`, `locations.manage`,
   `managers.manage`) never delegable by anyone but the org owner.
-- Requested `baseRole` rank must be strictly less than granter's rank —
+- Requested `baseRole` rank must be strictly less than granter's rank  - 
   a delegate can never mint another delegate at or above their own level.
 - Unit must be active and scope-complete or the request is rejected.
 - Every grant/revoke writes an immutable `audit_logs` doc.
@@ -173,9 +173,9 @@ access)**, not a fixed role enum. `lib/features/access_control/domain/models/`:
 Mechanism for configurable labels (PCU/HOD/Guest per organization instead
 of hardcoded strings): **built, coverage is partial.**
 
-- `AppTerminology` — `organization`, `organizationPlural`,
+- `AppTerminology`  -  `organization`, `organizationPlural`,
   `organizationOwner`, `location`, `unit`, `unitManager`, `operatorLabel(Plural)`,
-  `contact(Plural)`, `journey`. Defaults to current PCU Workflow labels —
+  `contact(Plural)`, `journey`. Defaults to current PCU Workflow labels  - 
   defaults are the first configuration, not special-cased in the type.
 - `TerminologyRepository` reads `organizations/{organizationId}.terminology`
   from Firestore, merges only overridden keys over defaults.
@@ -187,7 +187,7 @@ of hardcoded strings): **built, coverage is partial.**
   other screens (`GuestDetailScreen`, `CallFeedbackScreen`, `Team`,
   `Reports`) still use hardcoded `AppStrings` literals.
 - Testable in principle now that `organization_structure` exists to create
-  a real `organizations/{orgId}` doc — not actually exercised against a
+  a real `organizations/{orgId}` doc  -  not actually exercised against a
   live Firebase project yet.
 
 ## What's built (verified by code inspection, NOT run against live Firebase yet)
@@ -201,10 +201,10 @@ they're disposed with their screen.
 ## Explicitly NOT done yet
 
 - `lib/features` → `lib/modules` directory rename (requested early on, still not done).
-- `team` feature — still Postgres/Supabase, not migrated to Firestore.
-- `assign-guest` Edge Function — empty stub.
-- Full terminology coverage — several screens still hardcode English labels.
-- Supabase project setup — the CLI is authenticated, but none of the visible
+- `team` feature  -  still Postgres/Supabase, not migrated to Firestore.
+- `assign-guest` Edge Function  -  empty stub.
+- Full terminology coverage  -  several screens still hardcode English labels.
+- Supabase project setup  -  the CLI is authenticated, but none of the visible
   Supabase projects is Workflow and this folder is not linked to a project.
 
 ## Manual steps only the user can do (blocked on their credentials)
@@ -214,8 +214,8 @@ they're disposed with their screen.
    `organizationId` and `userId`.
 2. Create/select a Supabase project for Workflow and run `supabase link`.
 3. `supabase secrets set FIREBASE_SERVICE_ACCOUNT='<service-account-json>'`
-   — required by `guest-sync` and `manage-access`.
-4. `supabase secrets set WORKFLOW_INTAKE_SECRET='<random-secret>'` — shared
+    -  required by `guest-sync` and `manage-access`.
+4. `supabase secrets set WORKFLOW_INTAKE_SECRET='<random-secret>'`  -  shared
    secret for Apps Script → `guest-sync` calls.
 5. `supabase functions deploy guest-sync manage-access`; deploy
    `assign-guest` only after its implementation is complete.
@@ -233,9 +233,9 @@ Fixed: `android/app/build.gradle.kts` (namespace/applicationId + added
 Also re-verified the whole naming-migration status by grep since several
 other agents had done substantial work since this doc was last accurate
 (organization_structure feature, delegation screen/bloc, expanded
-firestore.rules validation, terminology `organization` fields) — all now
+firestore.rules validation, terminology `organization` fields)  -  all now
 reflected above. **Did not** touch `guest-sync`'s stale naming or the
-`team` feature — both still need the fixes described above. Next action
+`team` feature  -  both still need the fixes described above. Next action
 for the user: run `flutterfire configure`, since `lib/firebase_options.dart`
 and `android/app/google-services.json` still don't exist.
 

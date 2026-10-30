@@ -160,20 +160,39 @@ class GuestsBloc extends Bloc<GuestsEvent, GuestsState> {
     Emitter<GuestsState> emit,
   ) async {
     final currentMonth = event.month ?? 'Oct 2026';
-    emit(GuestsLoadingState());
+
+    final cached = _guestRepository.getCachedGuests(month: currentMonth);
+    if (cached != null && cached.isNotEmpty) {
+      emit(GuestsLoadedState(
+        allGuests: cached,
+        selectedMonth: currentMonth,
+        isFromCache: true,
+        isRefreshing: true,
+      ));
+    } else {
+      emit(GuestsLoadingState());
+    }
 
     final result = await _guestRepository.fetchGuests(month: currentMonth);
     if (result.isSuccess && result.data!.isNotEmpty) {
       emit(GuestsLoadedState(
         allGuests: result.data!,
         selectedMonth: currentMonth,
+        isFromCache: false,
+        isRefreshing: false,
       ));
     } else {
-      // Use prototype seed dataset so screens work cleanly on initial boot
-      emit(GuestsLoadedState(
-        allGuests: seedGuests,
-        selectedMonth: currentMonth,
-      ));
+      if (state is GuestsLoadedState) {
+        final current = state as GuestsLoadedState;
+        emit(current.copyWith(isFromCache: true, isRefreshing: false));
+      } else {
+        emit(GuestsLoadedState(
+          allGuests: seedGuests,
+          selectedMonth: currentMonth,
+          isFromCache: true,
+          isRefreshing: false,
+        ));
+      }
     }
   }
 

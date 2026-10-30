@@ -7,6 +7,8 @@ abstract class IGuestRepository {
     String? filter,
   });
 
+  List<GuestEntity>? getCachedGuests({String? month});
+
   Future<ApiResult<GuestEntity>> fetchGuestDetail(String guestId);
 
   Future<ApiResult<Map<String, dynamic>>> logFollowUp({

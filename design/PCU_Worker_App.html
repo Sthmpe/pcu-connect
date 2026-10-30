@@ -83,7 +83,7 @@ return `<div class="hdr round" style="flex-direction:column;align-items:stretch"
 <div class="mut">Wednesdays ${g.wed}/2</div><div class="dots" style="margin-top:6px">${[1,2].map(i=>`<div class="dot ${g.wed>=i?'on':''}">${i}</div>`).join('')}</div>
 <div style="margin-top:12px;font-weight:600;color:${g.status==='Member'?'#8A6A00':'var(--mut)'}">${g.status==='Member'?'★ Member':need?'Qualifies this month':'Keeps attending to qualify'}</div></div>
 <div class="card"><div class="row"><b class="grow">Last feedback</b><span class="mut">${g.fbDate}</span></div><div style="margin-top:6px">${g.fb||'<span class="mut">No follow-up yet.</span>'}</div></div>
-<div class="tiles" style="grid-template-columns:1fr 1fr"><div class="card"><b style="font-size:24px">${g.fu}</b><div class="mut">Follow-ups</div></div><div class="card"><b style="font-size:24px">${g.team||'—'}</b><div class="mut">Team joined</div></div></div></div>
+<div class="tiles" style="grid-template-columns:1fr 1fr"><div class="card"><b style="font-size:24px">${g.fu}</b><div class="mut">Follow-ups</div></div><div class="card"><b style="font-size:24px">${g.team||' - '}</b><div class="mut">Team joined</div></div></div></div>
 <div class="foot"><button class="btn gold" onclick="S.log={out:'Reached',sun:false,wed:false,team:g.team,note:''};render()">Log a follow-up</button></div>`}
 function logv(){const g=G.find(x=>x.id===S.view),L=S.log;
 return `<div class="hdr round" style="flex-direction:column;align-items:stretch">${BACK('Cancel')}<h1>Log a follow-up</h1><p>${g.name}</p></div>

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'core/constants/app_colors.dart';
 import 'core/network/api_client.dart';
+import 'core/storage/local_cache.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/repositories/guest_repository_impl.dart';
 import 'domain/repositories/i_auth_repository.dart';
@@ -14,8 +16,11 @@ import 'presentation/auth/screens/login_screen.dart';
 import 'presentation/guests/bloc/guests_bloc.dart';
 import 'presentation/guests/bloc/guests_event.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  final prefs = await SharedPreferences.getInstance();
+  final localCache = LocalCache(prefs);
 
   // Test Apps Script Web App URL (Configurable via backend deployment)
   const appsScriptUrl =
@@ -26,22 +31,26 @@ void main() {
   final guestRepository = GuestRepositoryImpl(
     apiClient: apiClient,
     authRepository: authRepository,
+    localCache: localCache,
   );
 
   runApp(PCUConnectApp(
     authRepository: authRepository,
     guestRepository: guestRepository,
+    localCache: localCache,
   ));
 }
 
 class PCUConnectApp extends StatelessWidget {
   final IAuthRepository authRepository;
   final IGuestRepository guestRepository;
+  final LocalCache localCache;
 
   const PCUConnectApp({
     super.key,
     required this.authRepository,
     required this.guestRepository,
+    required this.localCache,
   });
 
   @override
@@ -54,8 +63,10 @@ class PCUConnectApp extends StatelessWidget {
       child: MultiBlocProvider(
         providers: [
           BlocProvider<AuthBloc>(
-            create: (ctx) => AuthBloc(authRepository: authRepository)
-              ..add(AuthCheckSessionEvent()),
+            create: (ctx) => AuthBloc(
+              authRepository: authRepository,
+              localCache: localCache,
+            )..add(AuthCheckSessionEvent()),
           ),
           BlocProvider<GuestsBloc>(
             create: (ctx) => GuestsBloc(guestRepository: guestRepository)

@@ -6,3 +6,6 @@ analyzer:
     - design/**
     - backend/**
     - test/**
+  errors:
+    prefer_initializing_formals: ignore
+    use_null_aware_elements: ignore

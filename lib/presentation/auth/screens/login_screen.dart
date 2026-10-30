@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -142,93 +143,95 @@ class LoginScreen extends StatelessWidget {
                               ),
                       ),
                     ),
-                    SizedBox(height: 24.h),
+                    if (kDebugMode) ...[
+                      SizedBox(height: 24.h),
 
-                    // Quick Switch Options for Testing
-                    Container(
-                      padding: EdgeInsets.all(14.r),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.line),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            'Quick Test Switch',
-                            style: TextStyle(
-                              fontSize: 12.sp,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.muted,
+                      // Quick Switch Options for Testing (Debug Mode Only)
+                      Container(
+                        padding: EdgeInsets.all(14.r),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppColors.line),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              'Quick Test Switch',
+                              style: TextStyle(
+                                fontSize: 12.sp,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.muted,
+                              ),
                             ),
-                          ),
-                          SizedBox(height: 10.h),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: InkWell(
-                                  onTap: () {
-                                    context.read<AuthBloc>().add(
-                                          const AuthMockSignInRequestedEvent(
-                                            email: 'davidolanite0@gmail.com',
-                                            role: 'Worker',
-                                          ),
-                                        );
-                                  },
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Container(
-                                    padding: EdgeInsets.symmetric(vertical: 8.h),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFE6EBF4),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      'David (Worker)',
-                                      style: TextStyle(
-                                        fontSize: 12.sp,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.navy,
+                            SizedBox(height: 10.h),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () {
+                                      context.read<AuthBloc>().add(
+                                            const AuthMockSignInRequestedEvent(
+                                              email: 'davidolanite0@gmail.com',
+                                              role: 'Worker',
+                                            ),
+                                          );
+                                    },
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Container(
+                                      padding: EdgeInsets.symmetric(vertical: 8.h),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE6EBF4),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        'David (Worker)',
+                                        style: TextStyle(
+                                          fontSize: 12.sp,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.navy,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              SizedBox(width: 8.w),
-                              Expanded(
-                                child: InkWell(
-                                  onTap: () {
-                                    context.read<AuthBloc>().add(
-                                          const AuthMockSignInRequestedEvent(
-                                            email: 'olaniteolanight@gmail.com',
-                                            role: 'Admin',
-                                          ),
-                                        );
-                                  },
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Container(
-                                    padding: EdgeInsets.symmetric(vertical: 8.h),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.pillGoldBg,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      'Opeyemi (Admin)',
-                                      style: TextStyle(
-                                        fontSize: 12.sp,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.pillGoldText,
+                                SizedBox(width: 8.w),
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () {
+                                      context.read<AuthBloc>().add(
+                                            const AuthMockSignInRequestedEvent(
+                                              email: 'olaniteolanight@gmail.com',
+                                              role: 'Admin',
+                                            ),
+                                          );
+                                    },
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Container(
+                                      padding: EdgeInsets.symmetric(vertical: 8.h),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.pillGoldBg,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        'Opeyemi (Admin)',
+                                        style: TextStyle(
+                                          fontSize: 12.sp,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.pillGoldText,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),

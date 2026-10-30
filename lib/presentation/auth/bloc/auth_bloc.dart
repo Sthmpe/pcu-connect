@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/storage/local_cache.dart';
 import '../../../domain/entities/worker_user.dart';
 import '../../../domain/repositories/i_auth_repository.dart';
 import 'auth_event.dart';
@@ -6,9 +7,13 @@ import 'auth_state.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final IAuthRepository _authRepository;
+  final LocalCache _localCache;
 
-  AuthBloc({required IAuthRepository authRepository})
-      : _authRepository = authRepository,
+  AuthBloc({
+    required IAuthRepository authRepository,
+    required LocalCache localCache,
+  })  : _authRepository = authRepository,
+        _localCache = localCache,
         super(AuthInitialState()) {
     on<AuthCheckSessionEvent>(_onCheckSession);
     on<AuthSignInRequestedEvent>(_onSignInRequested);
@@ -28,6 +33,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         emit(const AuthUnauthorizedState(
             'Your account is inactive. Please contact your HOD.'));
       } else {
+        _localCache.setScope(user.email);
         emit(AuthAuthenticatedState(user: user, idToken: token));
       }
     } else {
@@ -61,6 +67,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
 
     final user = profileResult.data!;
+    _localCache.setScope(user.email);
     emit(AuthAuthenticatedState(user: user, idToken: idToken));
   }
 
@@ -78,6 +85,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       role: event.role,
       active: true,
     );
+    _localCache.setScope(user.email);
     emit(AuthAuthenticatedState(user: user, idToken: 'mock_token_${event.email}'));
   }
 

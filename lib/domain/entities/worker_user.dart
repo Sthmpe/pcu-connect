@@ -27,6 +27,8 @@ class WorkerUser extends Equatable {
       phone: json['Phone']?.toString() ?? json['phone']?.toString() ?? '',
       role: json['Role']?.toString() ?? json['role']?.toString() ?? 'Worker',
       active: (json['Active']?.toString().toLowerCase() == 'yes') ||
+          (json['active']?.toString().toLowerCase() == 'yes') ||
+          (json['Active'] == true) ||
           (json['active'] == true),
     );
   }

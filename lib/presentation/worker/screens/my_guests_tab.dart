@@ -198,9 +198,38 @@ class MyGuestsTab extends StatelessWidget {
                   : ListView.builder(
                       padding: EdgeInsets.symmetric(
                           horizontal: 16.w, vertical: 8.h),
-                      itemCount: filtered.length,
+                      itemCount: filtered.length + (state.isFromCache ? 1 : 0),
                       itemBuilder: (context, index) {
-                        final guest = filtered[index];
+                        if (state.isFromCache && index == 0) {
+                          return Container(
+                            margin: EdgeInsets.only(bottom: 12.h),
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 12.w, vertical: 8.h),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF0D6),
+                              borderRadius: BorderRadius.circular(10.r),
+                              border: Border.all(color: const Color(0xFFE3B341)),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.cloud_off_rounded,
+                                    size: 16.sp,
+                                    color: const Color(0xFF8A5300)),
+                                SizedBox(width: 8.w),
+                                Text(
+                                  'Showing saved data',
+                                  style: TextStyle(
+                                    fontSize: 12.sp,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF8A5300),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                        final guest =
+                            filtered[index - (state.isFromCache ? 1 : 0)];
                         return Padding(
                           padding: EdgeInsets.only(bottom: 10.h),
                           child: GuestCardWidget(
