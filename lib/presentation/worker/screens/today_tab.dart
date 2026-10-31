@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_icons.dart';
 import '../../../core/constants/app_sizes.dart';
@@ -65,6 +66,11 @@ class TodayTab extends StatelessWidget {
           return RefreshIndicator(
             color: AppColors.navy,
             onRefresh: () async {
+              // Live lists (Firestore) are already current: just acknowledge.
+              if (AppConfig.useFirestore) {
+                await Future<void>.delayed(const Duration(milliseconds: 400));
+                return;
+              }
               bloc.add(const LoadGuestsEvent());
               await bloc.stream
                   .firstWhere((s) => s is! GuestsLoadedState || !s.isRefreshing)
