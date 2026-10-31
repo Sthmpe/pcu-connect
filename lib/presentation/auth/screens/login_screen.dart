@@ -1,230 +1,140 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:get/get.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_icons.dart';
+import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../../core/widgets/responsive_web_shell.dart';
-import '../../admin/screens/admin_shell_screen.dart';
-import '../../worker/screens/worker_shell_screen.dart';
+import '../../../core/routing/app_routes.dart';
+import '../../../core/widgets/app_controls.dart';
+import '../../../core/widgets/app_feedback.dart';
+import '../../../core/widgets/brand_marks.dart';
+import '../../common/insights_cubits.dart';
 import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // The session check may finish before this screen subscribes.
+    final state = context.read<AuthBloc>().state;
+    if (state is AuthAuthenticatedState) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _enterApp(state));
+    }
+  }
+
+  void _enterApp(AuthAuthenticatedState state) {
+    if (!mounted) return;
+    // Clear anything left from a previous account on this device.
+    context.read<RankingCubit>().reset();
+    context.read<DashboardCubit>().reset();
+    context.read<TeamCubit>().reset();
+    context.read<GuestsBloc>().add(const LoadGuestsEvent());
+    Navigator.of(context).pushReplacementNamed(
+      state.user.isAdmin ? AppRoutes.admin : AppRoutes.worker,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ResponsiveWebShell(
-      child: Scaffold(
-        backgroundColor: AppColors.bg,
-        body: BlocConsumer<AuthBloc, AuthState>(
-          listener: (context, state) {
-            if (state is AuthAuthenticatedState) {
-              context.read<GuestsBloc>().add(const LoadGuestsEvent());
-              if (state.user.isAdmin) {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const AdminShellScreen()),
-                );
-              } else {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const WorkerShellScreen()),
-                );
-              }
-            } else if (state is AuthUnauthorizedState) {
-              Get.defaultDialog(
-                title: 'Access Restricted',
-                middleText: state.message,
-                textConfirm: 'OK',
-                confirmTextColor: Colors.white,
-                buttonColor: AppColors.navy,
-                onConfirm: () => Get.back(),
-              );
-            } else if (state is AuthFailureState) {
-              Get.snackbar(
-                'Sign In Failed',
-                state.message,
-                backgroundColor: AppColors.red,
-                colorText: Colors.white,
-                snackPosition: SnackPosition.BOTTOM,
-              );
-            }
-          },
-          builder: (context, state) {
-            final isLoading = state is AuthLoadingState;
+    return Scaffold(
+      body: BlocConsumer<AuthBloc, AuthState>(
+        listener: (context, state) {
+          if (state is AuthAuthenticatedState) {
+            _enterApp(state);
+          } else if (state is AuthUnauthorizedState) {
+            AppFeedback.notice(title: 'You are not on the team yet', message: state.message);
+          } else if (state is AuthFailureState) {
+            AppFeedback.error('Sign in did not work', state.message);
+          }
+        },
+        builder: (context, state) {
+          final checking = state is AuthInitialState;
+          final loading = state is AuthLoadingState;
+          final bloc = context.read<AuthBloc>();
 
-            return Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24.w),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Brand Icon & Header
-                    Container(
-                      width: 80.r,
-                      height: 80.r,
-                      decoration: const BoxDecoration(
-                        color: AppColors.navy,
-                        shape: BoxShape.circle,
-                      ),
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.handshake_rounded,
-                        color: AppColors.gold,
-                        size: 44,
-                      ),
-                    ),
-                    SizedBox(height: 18.h),
-                    Text(
-                      'PCU Connect',
-                      style: TextStyle(
-                        fontSize: 28.sp,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.navy,
-                      ),
-                    ),
-                    SizedBox(height: 6.h),
-                    Text(
-                      'Pastoral Care Unit Guest Management',
-                      style: AppTextStyles.bodyMuted,
-                      textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: 48.h),
-
-                    // Google Sign-In Button
-                    InkWell(
-                      onTap: isLoading
-                          ? null
-                          : () {
-                              context
-                                  .read<AuthBloc>()
-                                  .add(AuthSignInRequestedEvent());
-                            },
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        height: 52.h,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color: const Color(0xFFC3CAD6), width: 1.5),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.navy.withValues(alpha: 0.06),
-                              blurRadius: 3,
-                              offset: const Offset(0, 1),
-                            ),
-                          ],
-                        ),
-                        child: isLoading
-                            ? const Center(
-                                child: CircularProgressIndicator(
-                                  color: AppColors.navy,
-                                  strokeWidth: 2.5,
-                                ),
-                              )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.g_mobiledata_rounded,
-                                      size: 32, color: AppColors.navy),
-                                  SizedBox(width: 8.w),
-                                  Text(
-                                    'Sign in with Google',
-                                    style: TextStyle(
-                                      fontSize: 16.sp,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.navy,
-                                    ),
-                                  ),
-                                ],
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: AppSizes.gutter),
+              child: Column(
+                children: [
+                  const Spacer(flex: 3),
+                  _BrandMark(pulsing: checking),
+                  SizedBox(height: AppSizes.s24),
+                  Text('PCU Connect', style: AppTextStyles.display),
+                  SizedBox(height: AppSizes.s8),
+                  Text(
+                    'Follow up every guest with care.',
+                    style: AppTextStyles.bodyMuted,
+                    textAlign: TextAlign.center,
+                  ),
+                  const Spacer(flex: 4),
+                  AnimatedOpacity(
+                    duration: AppDurations.normal,
+                    opacity: checking ? 0 : 1,
+                    child: IgnorePointer(
+                      ignoring: checking,
+                      child: Column(
+                        children: [
+                          AppButton(
+                            label: 'Continue with Google',
+                            isLoading: loading,
+                            leading: Container(
+                              width: 24,
+                              height: 24,
+                              alignment: Alignment.center,
+                              decoration: const BoxDecoration(
+                                color: AppColors.surface,
+                                shape: BoxShape.circle,
                               ),
-                      ),
-                    ),
-                    if (AppConfig.enableMockLogin) ...[
-                      SizedBox(height: 24.h),
-
-                      // Quick Switch Options for Testing (Debug Mode Only)
-                      Container(
-                        padding: EdgeInsets.all(14.r),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppColors.line),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              'Quick Test Switch',
-                              style: TextStyle(
-                                fontSize: 12.sp,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.muted,
-                              ),
+                              child: const GoogleMark(size: 14),
                             ),
-                            SizedBox(height: 10.h),
+                            onPressed: () => bloc.add(AuthSignInRequestedEvent()),
+                          ),
+                          SizedBox(height: AppSizes.s16),
+                          Text(
+                            'Use the Google account your HOD added.',
+                            style: AppTextStyles.caption,
+                            textAlign: TextAlign.center,
+                          ),
+                          if (AppConfig.enableMockLogin) ...[
+                            SizedBox(height: AppSizes.s32),
+                            Text('Developer sign in', style: AppTextStyles.caption),
+                            SizedBox(height: AppSizes.s8),
                             Row(
                               children: [
                                 Expanded(
-                                  child: InkWell(
-                                    onTap: () {
-                                      context.read<AuthBloc>().add(
-                                            const AuthMockSignInRequestedEvent(
-                                              email: 'davidolanite0@gmail.com',
-                                              role: 'Worker',
-                                            ),
-                                          );
-                                    },
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: Container(
-                                      padding: EdgeInsets.symmetric(vertical: 8.h),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFE6EBF4),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      alignment: Alignment.center,
-                                      child: Text(
-                                        'David (Worker)',
-                                        style: TextStyle(
-                                          fontSize: 12.sp,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.navy,
-                                        ),
+                                  child: AppButton(
+                                    label: 'David, worker',
+                                    variant: AppButtonVariant.secondary,
+                                    onPressed: () => bloc.add(
+                                      const AuthMockSignInRequestedEvent(
+                                        email: 'davidolanite0@gmail.com',
+                                        role: 'Worker',
                                       ),
                                     ),
                                   ),
                                 ),
-                                SizedBox(width: 8.w),
+                                SizedBox(width: AppSizes.s8),
                                 Expanded(
-                                  child: InkWell(
-                                    onTap: () {
-                                      context.read<AuthBloc>().add(
-                                            const AuthMockSignInRequestedEvent(
-                                              email: 'olaniteolanight@gmail.com',
-                                              role: 'Admin',
-                                            ),
-                                          );
-                                    },
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: Container(
-                                      padding: EdgeInsets.symmetric(vertical: 8.h),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.pillGoldBg,
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      alignment: Alignment.center,
-                                      child: Text(
-                                        'Opeyemi (Admin)',
-                                        style: TextStyle(
-                                          fontSize: 12.sp,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.pillGoldText,
-                                        ),
+                                  child: AppButton(
+                                    label: 'Opeyemi, admin',
+                                    variant: AppButtonVariant.secondary,
+                                    onPressed: () => bloc.add(
+                                      const AuthMockSignInRequestedEvent(
+                                        email: 'olaniteolanight@gmail.com',
+                                        role: 'Admin',
                                       ),
                                     ),
                                   ),
@@ -232,15 +142,78 @@ class LoginScreen extends StatelessWidget {
                               ],
                             ),
                           ],
-                        ),
+                        ],
                       ),
-                    ],
-                  ],
-                ),
+                    ),
+                  ),
+                  SizedBox(height: AppSizes.s32),
+                ],
               ),
-            );
-          },
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Navy app mark. Breathes gently while the session is being checked.
+class _BrandMark extends StatefulWidget {
+  final bool pulsing;
+
+  const _BrandMark({required this.pulsing});
+
+  @override
+  State<_BrandMark> createState() => _BrandMarkState();
+}
+
+class _BrandMarkState extends State<_BrandMark> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.pulsing) _c.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(_BrandMark old) {
+    super.didUpdateWidget(old);
+    if (widget.pulsing && !_c.isAnimating) {
+      _c.repeat(reverse: true);
+    } else if (!widget.pulsing && _c.isAnimating) {
+      _c.animateTo(0, duration: AppDurations.normal);
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: Tween(begin: 1.0, end: 0.94).animate(
+        CurvedAnimation(parent: _c, curve: Curves.easeInOut),
+      ),
+      child: Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColors.navyRaised, AppColors.navy],
+          ),
+          borderRadius: BorderRadius.circular(AppSizes.radiusLg + 2),
+          boxShadow: AppShadows.raised,
         ),
+        child: const Icon(AppIcons.heart, color: AppColors.gold, size: 32),
       ),
     );
   }

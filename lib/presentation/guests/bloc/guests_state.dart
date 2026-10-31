@@ -28,6 +28,35 @@ class GuestsLoadedState extends GuestsState {
     this.isRefreshing = false,
   });
 
+  /// Guests whose first visit was in the selected month.
+  List<GuestEntity> get monthGuests =>
+      allGuests.where((g) => g.month == selectedMonth).toList();
+
+  /// Number of this month's guests matching a filter key
+  /// ('all' | 'call' | 'fu' | 'mem' | 'team').
+  int countFor(String filter) {
+    final list = monthGuests;
+    switch (filter) {
+      case 'call':
+        return list.where((g) => g.callCount == 0).length;
+      case 'fu':
+        return list.where((g) => g.callCount > 0).length;
+      case 'mem':
+        return list.where((g) => g.status == 'Member').length;
+      case 'team':
+        return list.where((g) => g.teamJoined.isNotEmpty).length;
+      default:
+        return list.length;
+    }
+  }
+
+  /// The guest who has waited longest without a call, if any.
+  GuestEntity? get nextToCall {
+    final waiting = monthGuests.where((g) => g.callCount == 0).toList()
+      ..sort((a, b) => b.daysSinceVisit.compareTo(a.daysSinceVisit));
+    return waiting.isEmpty ? null : waiting.first;
+  }
+
   // Today Tab computed metrics
   int get todayCallCount =>
       allGuests.where((g) => g.month == selectedMonth && g.callCount == 0).length;

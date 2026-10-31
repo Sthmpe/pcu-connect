@@ -1,52 +1,60 @@
 import 'package:flutter/material.dart';
 
-/// Exact Color Tokens matching PCU Connect Design System (base.css)
+/// PCU Connect color tokens.
+///
+/// Neutral surfaces carry the content, navy gives structure, and gold is kept
+/// for the primary action and the selected state only. Status colors come as
+/// a small solid dot plus a soft tint with readable text.
 abstract class AppColors {
-  // Brand Palette
+  // Brand
   static const Color navy = Color(0xFF0B1F3A);
+  static const Color navyRaised = Color(0xFF162C4D);
+  static const Color navySoft = Color(0xFFEEF1F6);
   static const Color gold = Color(0xFFE3B341);
-  static const Color bg = Color(0xFFF3F4F7);
-  static const Color ink = Color(0xFF14213A);
-  static const Color muted = Color(0xFF5B6678);
-  static const Color line = Color(0xFFE3E6EC);
+  static const Color goldSoft = Color(0xFFFBF3DD);
+  static const Color goldInk = Color(0xFF6E5200);
+
+  // Surfaces
+  static const Color bg = Color(0xFFF6F7F9);
   static const Color surface = Color(0xFFFFFFFF);
+  static const Color sunken = Color(0xFFF1F3F6);
+  static const Color desktopBackground = Color(0xFFE9ECF1);
 
-  // Status & Semantic Colors
-  static const Color green = Color(0xFF1B7A46);
-  static const Color amber = Color(0xFFB26A00);
-  static const Color red = Color(0xFFB3261E);
-  static const Color blue = Color(0xFF2E5A99);
+  // Text. Contrast on white: ink 17:1, inkSoft 9:1, muted 4.9:1.
+  static const Color ink = Color(0xFF0E1726);
+  static const Color inkSoft = Color(0xFF3D4756);
+  static const Color muted = Color(0xFF667085);
+  static const Color subtle = Color(0xFFA0A8B4);
+  static const Color onNavy = Color(0xFFFFFFFF);
+  static const Color onNavyMuted = Color(0xFFAFBCD0);
 
-  // Status Pill Backgrounds & Texts
-  // Green (.g)
-  static const Color pillGreenBg = Color(0xFFE4F4EA);
-  static const Color pillGreenText = Color(0xFF1B7A46);
+  // Lines
+  static const Color line = Color(0xFFE6E9EE);
+  static const Color lineStrong = Color(0xFFD5DAE1);
 
-  // Amber (.a)
-  static const Color pillAmberBg = Color(0xFFFFF0D6);
-  static const Color pillAmberText = Color(0xFF8A5300);
+  // Status: blue new, red overdue, amber called once, green followed up
+  static const Color blue = Color(0xFF2F6FDB);
+  static const Color blueSoft = Color(0xFFEBF2FD);
+  static const Color blueInk = Color(0xFF1D4FA8);
 
-  // Red (.r)
-  static const Color pillRedBg = Color(0xFFFBE5E3);
-  static const Color pillRedText = Color(0xFFB3261E);
+  static const Color red = Color(0xFFD14343);
+  static const Color redSoft = Color(0xFFFDEEEE);
+  static const Color redInk = Color(0xFFA62D2D);
 
-  // Blue (.b)
-  static const Color pillBlueBg = Color(0xFFE6EBF4);
-  static const Color pillBlueText = Color(0xFF0B1F3A);
+  static const Color amber = Color(0xFFD9930D);
+  static const Color amberSoft = Color(0xFFFDF4E2);
+  static const Color amberInk = Color(0xFF875800);
 
-  // Gold (.go - Member)
-  static const Color pillGoldBg = Color(0xFFFFF3CC);
-  static const Color pillGoldText = Color(0xFF8A6A00);
+  static const Color green = Color(0xFF1F9D5C);
+  static const Color greenSoft = Color(0xFFE8F6EE);
+  static const Color greenInk = Color(0xFF16703F);
 
-  // Neutral (.n)
-  static const Color pillNeutralBg = Color(0xFFE3E6EC);
-  static const Color pillNeutralText = Color(0xFF3A455A);
+  static const Color neutralSoft = Color(0xFFEEF0F3);
+  static const Color neutralInk = Color(0xFF4B5565);
 
-  // Buttons
-  static const Color btnCallBg = Color(0xFF0B1F3A);
-  static const Color btnWhatsAppBg = Color(0xFFE4F4EA);
-  static const Color btnWhatsAppText = Color(0xFF1B7A46);
+  // Top three
+  static const Color silver = Color(0xFFB4BCC8);
+  static const Color bronze = Color(0xFFC08A5B);
 
-  // Desktop Shell Background
-  static const Color desktopBackground = Color(0xFFD9DDE5);
+  static const Color scrim = Color(0x590B1F3A);
 }

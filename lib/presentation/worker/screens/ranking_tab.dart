@@ -1,345 +1,407 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_icons.dart';
+import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/utils/month_utils.dart';
+import '../../../core/widgets/app_controls.dart';
+import '../../../core/widgets/app_display.dart';
+import '../../../core/widgets/app_page.dart';
+import '../../../core/widgets/app_surfaces.dart';
+import '../../../core/widgets/state_views.dart';
+import '../../../core/widgets/status_tone.dart';
+import '../../../domain/entities/insights.dart';
+import '../../common/insights_cubits.dart';
+import '../../common/load_state.dart';
 
 class RankingTab extends StatefulWidget {
-  const RankingTab({super.key});
+  /// Loads the first time the tab becomes visible.
+  final bool active;
+
+  const RankingTab({super.key, this.active = false});
 
   @override
   State<RankingTab> createState() => _RankingTabState();
 }
 
 class _RankingTabState extends State<RankingTab> {
-  String _selectedMonth = 'Oct 2026';
-
-  final Map<String, List<Map<String, dynamic>>> _rankings = {
-    'Oct 2026': [
-      {'name': 'Grace', 'points': 320},
-      {'name': 'David', 'points': 280},
-      {'name': 'Tolu', 'points': 240},
-      {'name': 'Samuel', 'points': 160},
-      {'name': 'Ife', 'points': 90},
-    ],
-    'Sep 2026': [
-      {'name': 'David', 'points': 410},
-      {'name': 'Grace', 'points': 390},
-      {'name': 'Tolu', 'points': 300},
-      {'name': 'Ife', 'points': 210},
-      {'name': 'Samuel', 'points': 120},
-    ],
-    'Aug 2026': [
-      {'name': 'Grace', 'points': 450},
-      {'name': 'Tolu', 'points': 380},
-      {'name': 'Samuel', 'points': 330},
-      {'name': 'Ife', 'points': 250},
-      {'name': 'David', 'points': 210},
-    ],
-  };
+  @override
+  void didUpdateWidget(RankingTab old) {
+    super.didUpdateWidget(old);
+    if (widget.active) context.read<RankingCubit>().ensureLoaded();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final list = _rankings[_selectedMonth] ?? [];
-    final first = list.isNotEmpty ? list[0] : null;
-    final second = list.length > 1 ? list[1] : null;
-    final third = list.length > 2 ? list[2] : null;
-
-    return Column(
-      children: [
-        // Header
-        Container(
-          color: AppColors.navy,
-          padding: EdgeInsets.fromLTRB(20.w, 42.h, 20.w, 18.h),
-          alignment: Alignment.centerLeft,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Leaderboard', style: AppTextStyles.headerTitle),
-              SizedBox(height: 2.h),
-              Text(
-                '$_selectedMonth · Top workers by points',
-                style: AppTextStyles.headerSubtitle,
-              ),
+    final cubit = context.read<RankingCubit>();
+    return BlocBuilder<RankingCubit, LoadState<RankingView>>(
+      builder: (context, state) {
+        return AppPage(
+          title: 'Ranking',
+          trailing: AppIconButton(
+            icon: AppIcons.info,
+            tooltip: 'How points work',
+            background: Colors.transparent,
+            onTap: () => showPointsSheet(context),
+          ),
+          below: ChipBar(
+            chips: [
+              for (final m in MonthUtils.recent(6))
+                AppChip(
+                  label: MonthUtils.chip(m),
+                  selected: m == state.month,
+                  onTap: () => cubit.load(m),
+                ),
             ],
           ),
-        ),
-
-        // Month selector
-        Container(
-          padding: EdgeInsets.symmetric(vertical: 10.h),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(horizontal: 16.w),
-            child: Row(
-              children: ['Oct 2026', 'Sep 2026', 'Aug 2026'].map((m) {
-                final isSelected = m == _selectedMonth;
-                return Padding(
-                  padding: EdgeInsets.only(right: 8.w),
-                  child: InkWell(
-                    onTap: () => setState(() => _selectedMonth = m),
-                    borderRadius: BorderRadius.circular(999),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                          horizontal: 14.w, vertical: 8.h),
-                      decoration: BoxDecoration(
-                        color: isSelected ? AppColors.navy : Colors.white,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: isSelected
-                              ? AppColors.navy
-                              : const Color(0xFFC3CAD6),
-                          width: 1.5.w,
-                        ),
-                      ),
-                      child: Text(
-                        m,
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.w500,
-                          color: isSelected
-                              ? Colors.white
-                              : const Color(0xFF3A455A),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
+          child: AnimatedSwitcher(
+            duration: AppDurations.normal,
+            child: KeyedSubtree(
+              key: ValueKey('${state.month}-${state.data != null}'),
+              child: _body(context, state),
             ),
           ),
+        );
+      },
+    );
+  }
+
+  Widget _body(BuildContext context, LoadState<RankingView> state) {
+    final view = state.data;
+    final loadingOtherMonth = state.isLoading && view?.ranking.month != state.month;
+    if (view == null || loadingOtherMonth) {
+      if (state.status == LoadStatus.failure) {
+        return ErrorState(
+          message: state.message ?? '',
+          onRetry: () => context.read<RankingCubit>().load(),
+        );
+      }
+      return const SkeletonPage(hero: true, rows: 4);
+    }
+
+    final ranking = view.ranking;
+    final isPast = !MonthUtils.isCurrent(state.month);
+    final monthName = MonthUtils.name(state.month);
+
+    if (ranking.entries.isEmpty) {
+      return Center(
+        child: EmptyState(
+          icon: AppIcons.ranking,
+          message: 'No one was ranked in $monthName.',
+          actionLabel: 'How points work',
+          onAction: () => showPointsSheet(context),
         ),
+      );
+    }
 
-        // Body
-        Expanded(
-          child: ListView(
-            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+    final me = ranking.me;
+    final anyPoints = ranking.entries.first.points > 0;
+    return RefreshIndicator(
+      color: AppColors.navy,
+      onRefresh: () => context.read<RankingCubit>().load(),
+      child: PageList(
+        children: [
+          if (anyPoints)
+            _TopThree(entries: ranking.entries.take(3).toList(), meEmail: me?.email)
+          else
+            AppCard(
+              child: Text(
+                isPast
+                    ? 'No points were earned in $monthName.'
+                    : 'No points yet this month. The first follow-up starts the board.',
+                style: AppTextStyles.bodyMuted,
+              ),
+            ),
+          if (me != null && anyPoints) ...[
+            SizedBox(height: AppSizes.s16),
+            _MyPosition(me: me, entries: ranking.entries, isPast: isPast),
+          ],
+          SectionLabel(isPast ? 'Final standings, $monthName' : 'Standings so far'),
+          GroupedCard(
+            dividerIndent: AppSizes.s16 + AppSizes.s24 + AppSizes.s16 + AppSizes.avatarSm,
             children: [
-              // Top 3 Podium Cards
-              if (first != null) ...[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    // 2nd Place
-                    if (second != null)
-                      Expanded(
-                        child: _buildPodiumTile(
-                          place: '2nd',
-                          name: second['name'],
-                          points: second['points'],
-                          color: const Color(0xFFC0C0C0),
-                          height: 120.h,
-                        ),
-                      ),
-                    SizedBox(width: 8.w),
-                    // 1st Place (Tallest)
-                    Expanded(
-                      child: _buildPodiumTile(
-                        place: '1st',
-                        name: first['name'],
-                        points: first['points'],
-                        color: AppColors.gold,
-                        height: 150.h,
-                        isFirst: true,
-                      ),
-                    ),
-                    SizedBox(width: 8.w),
-                    // 3rd Place
-                    if (third != null)
-                      Expanded(
-                        child: _buildPodiumTile(
-                          place: '3rd',
-                          name: third['name'],
-                          points: third['points'],
-                          color: const Color(0xFFCD7F32),
-                          height: 105.h,
-                        ),
-                      ),
-                  ],
+              for (final e in ranking.entries)
+                _RankRow(
+                  entry: e,
+                  isMe: e.email == me?.email,
+                  movement: view.movement(e),
                 ),
-                SizedBox(height: 16.h),
-              ],
+            ],
+          ),
+          if (ranking.entries.any((e) => (view.movement(e) ?? 0) != 0)) ...[
+            SizedBox(height: AppSizes.s8),
+            Text(
+              'Arrows compare with ${MonthUtils.name(MonthUtils.previous(state.month))}.',
+              style: AppTextStyles.caption,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
 
-              // Your Own Rank Banner
-              Container(
-                padding: EdgeInsets.all(14.r),
-                decoration: BoxDecoration(
-                  color: AppColors.navy,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.star_rounded,
-                        color: AppColors.gold, size: 28),
-                    SizedBox(width: 12.w),
-                    Expanded(
+class _TopThree extends StatelessWidget {
+  final List<RankingEntry> entries;
+  final String? meEmail;
+
+  const _TopThree({required this.entries, this.meEmail});
+
+  @override
+  Widget build(BuildContext context) {
+    const badges = [AppColors.gold, AppColors.silver, AppColors.bronze];
+    // Second, first, third, with first slightly raised.
+    const order = [1, 0, 2];
+
+    return AppCard(
+      padding: EdgeInsets.symmetric(vertical: AppSizes.s24, horizontal: AppSizes.s8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          for (final i in order)
+            Expanded(
+              child: i >= entries.length
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: EdgeInsets.only(bottom: i == 0 ? AppSizes.s16 : 0),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Your Ranking',
-                            style: TextStyle(
-                              fontSize: 13.sp,
-                              color: const Color(0xFFB9C4D8),
-                            ),
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              AppAvatar(
+                                name: entries[i].name,
+                                size: i == 0 ? AppSizes.avatarLg : AppSizes.s48,
+                              ),
+                              Positioned(
+                                right: -2,
+                                bottom: -2,
+                                child: Container(
+                                  width: 22,
+                                  height: 22,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: badges[i],
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: AppColors.surface, width: 2),
+                                  ),
+                                  child: Text(
+                                    '${entries[i].rank}',
+                                    textAlign: TextAlign.center,
+                                    style: AppTextStyles.centered(AppTextStyles.captionStrong).copyWith(
+                                      color: i == 0 ? AppColors.navy : AppColors.onNavy,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
+                          SizedBox(height: AppSizes.s16),
                           Text(
-                            '2nd place · 280 points',
-                            style: TextStyle(
-                              fontSize: 16.sp,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
+                            entries[i].email == meEmail ? 'You' : firstNameOf(entries[i].name),
+                            style: AppTextStyles.bodyStrong,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
+                          SizedBox(height: AppSizes.s4 / 2),
+                          Text('${entries[i].points} pts', style: AppTextStyles.caption),
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 16.h),
-
-              // How points are earned card
-              Container(
-                padding: EdgeInsets.all(14.r),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.navy.withValues(alpha: 0.08),
-                      blurRadius: 3,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'How to earn points',
-                      style: TextStyle(
-                        fontSize: 15.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.ink,
-                      ),
-                    ),
-                    SizedBox(height: 10.h),
-                    _buildPointRule('+10 pts', 'First call within 3 days'),
-                    _buildPointRule('+5 pts', 'Each follow-up logged'),
-                    _buildPointRule('+10 pts', 'Guest attends Sunday or Wednesday'),
-                    _buildPointRule('+20 pts', 'Guest joins Workforce / Evangelism'),
-                    _buildPointRule('+30 pts', 'Guest becomes a Member'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+            ),
+        ],
+      ),
     );
   }
+}
 
-  Widget _buildPodiumTile({
-    required String place,
-    required String name,
-    required int points,
-    required Color color,
-    required double height,
-    bool isFirst = false,
-  }) {
+String _ordinal(int n) {
+  if (n % 100 >= 11 && n % 100 <= 13) return '${n}th';
+  switch (n % 10) {
+    case 1:
+      return '${n}st';
+    case 2:
+      return '${n}nd';
+    case 3:
+      return '${n}rd';
+    default:
+      return '${n}th';
+  }
+}
+
+class _MyPosition extends StatelessWidget {
+  final RankingEntry me;
+  final List<RankingEntry> entries;
+  final bool isPast;
+
+  const _MyPosition({required this.me, required this.entries, required this.isPast});
+
+  @override
+  Widget build(BuildContext context) {
+    final ahead = entries.where((e) => e.points > me.points).toList();
+    final String headline = isPast
+        ? 'You finished ${_ordinal(me.rank)} with ${me.points} points'
+        : 'You are ${_ordinal(me.rank)} with ${me.points} points';
+    final String line;
+    if (me.rank == 1) {
+      line = isPast ? 'Top of the team. Well done.' : 'You lead this month. Well done.';
+    } else if (isPast) {
+      line = 'Thank you for every call.';
+    } else if (ahead.isNotEmpty) {
+      final gap = ahead.last.points - me.points;
+      line = '$gap ${gap == 1 ? 'point' : 'points'} to move up';
+    } else {
+      line = 'Keep going.';
+    }
+
     return Container(
-      height: height,
-      padding: EdgeInsets.all(10.r),
+      padding: EdgeInsets.all(AppSizes.s16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isFirst ? AppColors.gold : const Color(0xFFE3E6EC),
-          width: isFirst ? 2 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.navy.withValues(alpha: 0.06),
-            blurRadius: 3,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        color: AppColors.goldSoft,
+        borderRadius: BorderRadius.circular(AppSizes.radiusLg),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              place,
-              style: TextStyle(
-                fontSize: 12.sp,
-                fontWeight: FontWeight.w700,
-                color: color,
-              ),
-            ),
-          ),
-          SizedBox(height: 4.h),
-          Text(
-            name,
-            style: TextStyle(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w600,
-              color: AppColors.ink,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            '$points pts',
-            style: TextStyle(
-              fontSize: 12.sp,
-              fontWeight: FontWeight.w500,
-              color: AppColors.muted,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPointRule(String pts, String description) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 6.h),
       child: Row(
         children: [
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
-            decoration: BoxDecoration(
-              color: AppColors.pillGreenBg,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              pts,
-              style: TextStyle(
-                fontSize: 11.sp,
-                fontWeight: FontWeight.w700,
-                color: AppColors.green,
-              ),
-            ),
-          ),
-          SizedBox(width: 8.w),
+          Icon(AppIcons.award, size: AppSizes.iconLg, color: AppColors.goldInk),
+          SizedBox(width: AppSizes.s16),
           Expanded(
-            child: Text(
-              description,
-              style: TextStyle(
-                fontSize: 13.sp,
-                color: AppColors.ink,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(headline, style: AppTextStyles.bodyStrong.copyWith(color: AppColors.goldInk)),
+                SizedBox(height: AppSizes.s4 / 2),
+                Text(line, style: AppTextStyles.caption.copyWith(color: AppColors.goldInk)),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+}
+
+class _RankRow extends StatelessWidget {
+  final RankingEntry entry;
+  final bool isMe;
+  final int? movement;
+
+  const _RankRow({required this.entry, required this.isMe, this.movement});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: isMe ? AppColors.goldSoft : null,
+      constraints: BoxConstraints(minHeight: AppSizes.touch + AppSizes.s8),
+      padding: EdgeInsets.symmetric(horizontal: AppSizes.s16),
+      child: Row(
+        children: [
+          SizedBox(
+            width: AppSizes.s24,
+            child: Text('${entry.rank}',
+                style: isMe ? AppTextStyles.captionStrong.copyWith(color: AppColors.goldInk) : AppTextStyles.caption),
+          ),
+          SizedBox(width: AppSizes.s16),
+          AppAvatar(name: entry.name, size: AppSizes.avatarSm),
+          SizedBox(width: AppSizes.s16),
+          Expanded(
+            child: Text(isMe ? 'You' : entry.name,
+                style: isMe ? AppTextStyles.bodyStrong : AppTextStyles.body,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+          ),
+          _Movement(movement),
+          SizedBox(width: AppSizes.s8),
+          SizedBox(
+            width: 64,
+            child: Text('${entry.points} pts',
+                textAlign: TextAlign.right, style: AppTextStyles.bodyStrong),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Small up or down marker against last month. Nothing when unchanged or new.
+class _Movement extends StatelessWidget {
+  final int? places;
+
+  const _Movement(this.places);
+
+  @override
+  Widget build(BuildContext context) {
+    final p = places;
+    if (p == null || p == 0) return const SizedBox(width: 32);
+    final up = p > 0;
+    final color = up ? AppColors.greenInk : AppColors.redInk;
+    return Tooltip(
+      message: up ? 'Up $p since last month' : 'Down ${-p} since last month',
+      child: SizedBox(
+        width: 32,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Icon(up ? AppIcons.up : AppIcons.down, size: 12, color: color),
+            Text('${p.abs()}', style: AppTextStyles.caption.copyWith(color: color)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Short explainer of the points rules.
+Future<void> showPointsSheet(BuildContext context) {
+  const rules = [
+    ('+10', 'First call within 3 days', 'or +5 later'),
+    ('+5', 'Each follow-up you log', null),
+    ('+10', 'Guest comes on Sunday or Wednesday', null),
+    ('+20', 'Guest joins Workforce or Evangelism', null),
+    ('+30', 'Guest becomes a member', null),
+  ];
+  return showModalBottomSheet<void>(
+    context: context,
+    builder: (sheetContext) => SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(AppSizes.gutter, 0, AppSizes.gutter, AppSizes.s24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('How points work', style: AppTextStyles.title),
+            SizedBox(height: AppSizes.s4),
+            Text('Points start again at the beginning of every month.',
+                style: AppTextStyles.bodyMuted),
+            SizedBox(height: AppSizes.s16),
+            for (final (pts, rule, note) in rules)
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: AppSizes.s8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: AppSizes.s48,
+                      height: 24,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppColors.sunken,
+                        borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+                      ),
+                      child: Text(pts,
+                          textAlign: TextAlign.center,
+                          style: AppTextStyles.centered(AppTextStyles.captionStrong)
+                              .copyWith(color: AppColors.ink)),
+                    ),
+                    SizedBox(width: AppSizes.s16),
+                    Expanded(child: Text(rule, style: AppTextStyles.body)),
+                    if (note != null) Text(note, style: AppTextStyles.caption),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

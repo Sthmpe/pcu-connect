@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'follow_up_entry.dart';
 
 enum GuestUrgency { red, amber, green, blue }
 
@@ -18,6 +19,9 @@ class GuestEntity extends Equatable {
   final String month; // e.g. 'Oct 2026'
   final String? assignedWorkerName;
 
+  /// Newest first. Only filled by the single guest request.
+  final List<FollowUpEntry> history;
+
   const GuestEntity({
     required this.id,
     required this.name,
@@ -33,6 +37,7 @@ class GuestEntity extends Equatable {
     required this.followUpCount,
     required this.month,
     this.assignedWorkerName,
+    this.history = const [],
   });
 
   /// Computed performance urgency color matching PCU Connect rules:
@@ -115,6 +120,10 @@ class GuestEntity extends Equatable {
       assignedWorkerName: json['assignedName']?.toString() ??
           json['assignedWorker']?.toString() ??
           json['assignedTo']?.toString(),
+      history: (json['history'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(FollowUpEntry.fromJson)
+          .toList(),
     );
   }
 
@@ -153,5 +162,6 @@ class GuestEntity extends Equatable {
         followUpCount,
         month,
         assignedWorkerName,
+        history,
       ];
 }

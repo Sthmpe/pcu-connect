@@ -116,6 +116,42 @@ r = call({ action: 'saveWorker', idToken: 'tokAdmin', name: 'Ruth A', email: 'ru
 r = call({ action: 'setWorkerActive', idToken: 'tokAdmin', id: 'W002', active: false }); check('deactivate', r.ok && r.data.active === false, r);
 r = call({ action: 'setWorkerActive', idToken: 'tokAdmin', id: 'W001', active: false }); check('cannot deactivate self', !r.ok && r.code === 'VALIDATION', r);
 r = call({ action: 'nope', idToken: 'tokAdmin' }); check('unknown action', !r.ok && r.code === 'VALIDATION', r);
+
+// Admin logs a follow-up on behalf of the assigned worker.
+const fu = () => sheets['Follow-ups'].rows;
+const lastFu = () => fu()[fu().length - 1];
+const davidPoints = () => call({ action: 'ranking', idToken: 'tokDavid', month }).data.me.points;
+let pointsBefore = davidPoints();
+// 1) Follow-ups tab without a "Logged by" column: still works.
+r = call({ action: 'logFollowUp', idToken: 'tokAdmin', guestId: 'G2', outcome: 'No answer', note: 'admin call', attendedSunday: false, attendedWednesday: false, team: '' });
+check('admin log ok without Logged by column', r.ok, r);
+check('admin log credits the assigned worker', lastFu()[2] === 'david@x.com', lastFu());
+check('no extra cell written when column missing', lastFu().length === 11, lastFu().length);
+check('admin points go to the worker', davidPoints() === pointsBefore + 5, [pointsBefore, davidPoints()]);
+check('assigned to unchanged', r.ok && r.data.guest.assignedTo === 'david@x.com', r.data && r.data.guest.assignedTo);
+// 2) Add the column, as on the test sheet.
+fu()[0].push('Logged by');
+pointsBefore = davidPoints();
+r = call({ action: 'logFollowUp', idToken: 'tokAdmin', guestId: 'G2', outcome: 'Reached', note: 'second admin call', attendedSunday: false, attendedWednesday: false, team: '' });
+check('admin log ok with Logged by column', r.ok, r);
+check('Worker is assigned worker, Logged by is admin', lastFu()[2] === 'david@x.com' && lastFu()[11] === 'boss@x.com', lastFu());
+const h0 = r.ok && r.data.guest.history[0];
+check('history marks admin log', h0 && h0.loggedByAdmin === true && h0.workerEmail === 'david@x.com' && h0.workerName === 'David Olanite' && h0.loggedByName === 'Opeyemi Olanite', h0);
+check('admin log counts for worker points', davidPoints() === pointsBefore + 5, [pointsBefore, davidPoints()]);
+r = call({ action: 'ranking', idToken: 'tokAdmin', month }); check('admin stays out of ranking', r.ok && r.data.entries.every(e => e.email !== 'boss@x.com'), r.data && r.data.entries);
+r = call({ action: 'dashboard', idToken: 'tokAdmin', month }); check('admin not a top worker', r.ok && r.data.topWorkers.every(w => w.email !== 'boss@x.com'), r.data && r.data.topWorkers);
+r = call({ action: 'team', idToken: 'tokAdmin', month });
+const boss = r.ok && r.data.members.find(m => m.email === 'boss@x.com');
+check('admin has no follow-ups or points', boss && boss.followUps === 0 && boss.points === 0, boss);
+r = call({ action: 'guest', idToken: 'tokDavid', id: 'G2' });
+check('worker sees the admin label', r.ok && r.data.history.some(h => h.loggedByAdmin && h.loggedByEmail === 'boss@x.com'), r.data && r.data.history);
+check('old rows without Logged by are not labelled', r.ok && r.data.history.filter(h => h.loggedByAdmin).length === 1, r.data && r.data.history);
+r = call({ action: 'logFollowUp', idToken: 'tokDavid', guestId: 'G2', outcome: 'Reached', note: 'my call', attendedSunday: false, attendedWednesday: false, team: '' });
+check('worker log: Logged by is the worker', r.ok && lastFu()[11] === 'david@x.com' && r.data.guest.history[0].loggedByAdmin === false, lastFu());
+r = call({ action: 'logFollowUp', idToken: 'tokAdmin', guestId: 'G4', outcome: 'Reached', note: '', attendedSunday: false, attendedWednesday: false, team: '' });
+check('admin cannot log for an unassigned guest', !r.ok && r.code === 'VALIDATION', r);
+r = call({ action: 'logFollowUp', idToken: 'tokDavid', guestId: 'G3', outcome: 'Reached', note: '', attendedSunday: false, attendedWednesday: false, team: '' });
+check('worker still blocked from other guests', !r.ok && r.code === 'FORBIDDEN', r);
 console.log('Follow-ups rows now:', sheets['Follow-ups'].rows.length - 1, '| guest G1 row:', JSON.stringify(sheets['Form Responses 1'].rows[1].slice(11, 25)));
 ctx.pcuSelfTest();
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');

@@ -4,17 +4,24 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'core/constants/app_colors.dart';
+import 'core/config/app_config.dart';
+import 'core/constants/app_sizes.dart';
 import 'core/network/api_client.dart';
+import 'core/routing/app_routes.dart';
 import 'core/storage/local_cache.dart';
+import 'core/theme/app_theme.dart';
+import 'core/widgets/responsive_web_shell.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/repositories/guest_repository_impl.dart';
+import 'data/repositories/team_repository_impl.dart';
+import 'data/sample/sample_repositories.dart';
 import 'domain/repositories/i_auth_repository.dart';
 import 'firebase_options.dart';
 import 'domain/repositories/i_guest_repository.dart';
+import 'domain/repositories/i_team_repository.dart';
 import 'presentation/auth/bloc/auth_bloc.dart';
 import 'presentation/auth/bloc/auth_event.dart';
-import 'presentation/auth/screens/login_screen.dart';
+import 'presentation/common/insights_cubits.dart';
 import 'presentation/guests/bloc/guests_bloc.dart';
 
 void main() async {
@@ -33,15 +40,23 @@ void main() async {
 
   final apiClient = ApiClient(baseUrl: appsScriptUrl);
   final authRepository = AuthRepositoryImpl(apiClient: apiClient);
-  final guestRepository = GuestRepositoryImpl(
-    apiClient: apiClient,
-    authRepository: authRepository,
-    localCache: localCache,
-  );
+  // Sample repositories exist for UI work only and are compiled out of any
+  // build made without --dart-define=USE_SAMPLE_DATA=true.
+  final IGuestRepository guestRepository = AppConfig.useSampleData
+      ? SampleGuestRepository()
+      : GuestRepositoryImpl(
+          apiClient: apiClient,
+          authRepository: authRepository,
+          localCache: localCache,
+        );
+  final ITeamRepository teamRepository = AppConfig.useSampleData
+      ? SampleTeamRepository()
+      : TeamRepositoryImpl(apiClient: apiClient, authRepository: authRepository);
 
   runApp(PCUConnectApp(
     authRepository: authRepository,
     guestRepository: guestRepository,
+    teamRepository: teamRepository,
     localCache: localCache,
   ));
 }
@@ -49,12 +64,14 @@ void main() async {
 class PCUConnectApp extends StatelessWidget {
   final IAuthRepository authRepository;
   final IGuestRepository guestRepository;
+  final ITeamRepository teamRepository;
   final LocalCache localCache;
 
   const PCUConnectApp({
     super.key,
     required this.authRepository,
     required this.guestRepository,
+    required this.teamRepository,
     required this.localCache,
   });
 
@@ -64,6 +81,7 @@ class PCUConnectApp extends StatelessWidget {
       providers: [
         RepositoryProvider<IAuthRepository>.value(value: authRepository),
         RepositoryProvider<IGuestRepository>.value(value: guestRepository),
+        RepositoryProvider<ITeamRepository>.value(value: teamRepository),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -76,27 +94,26 @@ class PCUConnectApp extends StatelessWidget {
           BlocProvider<GuestsBloc>(
             create: (ctx) => GuestsBloc(guestRepository: guestRepository),
           ),
+          BlocProvider<RankingCubit>(create: (ctx) => RankingCubit(teamRepository)),
+          BlocProvider<DashboardCubit>(create: (ctx) => DashboardCubit(teamRepository)),
+          BlocProvider<TeamCubit>(create: (ctx) => TeamCubit(teamRepository)),
         ],
         child: ScreenUtilInit(
-          // Exact design resolution from PCU_Worker_App.html (390 x 844)
-          designSize: const Size(390, 844),
+          // Design resolution from PCU_Worker_App.html (390 x 844). The
+          // ResponsiveWebShell re-configures scaling from the phone frame.
+          designSize: AppSizes.designSize,
           minTextAdapt: true,
-          splitScreenMode: true,
+          fontSizeResolver: ResponsiveWebShell.resolveFontSize,
           builder: (context, child) {
             return GetMaterialApp(
               title: 'PCU Connect',
               debugShowCheckedModeBanner: false,
-              theme: ThemeData(
-                scaffoldBackgroundColor: AppColors.bg,
-                primaryColor: AppColors.navy,
-                fontFamily: 'Rubik',
-                colorScheme: const ColorScheme.light(
-                  primary: AppColors.navy,
-                  secondary: AppColors.gold,
-                  surface: Colors.white,
-                ),
-              ),
-              home: const LoginScreen(),
+              theme: AppTheme.lightTheme,
+              initialRoute: AppRoutes.login,
+              onGenerateInitialRoutes: AppRoutes.initialRoutes,
+              onGenerateRoute: AppRoutes.onGenerateRoute,
+              builder: (context, child) =>
+                  ResponsiveWebShell(child: child ?? const SizedBox.shrink()),
             );
           },
         ),

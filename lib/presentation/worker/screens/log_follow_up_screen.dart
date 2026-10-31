@@ -1,26 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_icons.dart';
+import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../../core/widgets/responsive_web_shell.dart';
+import '../../../core/widgets/app_controls.dart';
+import '../../../core/widgets/app_feedback.dart';
+import '../../../core/widgets/app_page.dart';
+import '../../../core/widgets/app_surfaces.dart';
+import '../../../core/widgets/status_tone.dart';
+import '../../../domain/entities/guest_entity.dart';
 import '../../../domain/repositories/i_guest_repository.dart';
+import '../../auth/bloc/auth_bloc.dart';
+import '../../auth/bloc/auth_state.dart';
+import '../../common/insights_cubits.dart';
 import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
+import '../../guests/bloc/guests_state.dart';
+import 'guest_detail_screen.dart';
 
 class LogFollowUpScreen extends StatefulWidget {
   final String guestId;
+  final String? initialOutcome;
 
-  const LogFollowUpScreen({super.key, required this.guestId});
+  const LogFollowUpScreen({super.key, required this.guestId, this.initialOutcome});
 
   @override
   State<LogFollowUpScreen> createState() => _LogFollowUpScreenState();
 }
 
 class _LogFollowUpScreenState extends State<LogFollowUpScreen> {
-  String _selectedOutcome = 'Reached';
+  late String _selectedOutcome = widget.initialOutcome ?? 'Reached';
   final TextEditingController _noteController = TextEditingController();
 
   bool _cameSunday = false;
@@ -32,14 +43,27 @@ class _LogFollowUpScreenState extends State<LogFollowUpScreen> {
   String _selectedTeam = 'Not yet'; // 'Not yet' | 'Workforce' | 'Evangelism'
   bool _isSubmitting = false;
 
-  final List<String> _outcomes = [
-    'Reached',
-    'No answer',
-    'Number off',
-    'Not interested'
-  ];
+  static const List<String> _teams = ['Not yet', 'Workforce', 'Evangelism'];
 
-  final List<String> _teams = ['Not yet', 'Workforce', 'Evangelism'];
+  GuestEntity? get _guest {
+    final state = context.read<GuestsBloc>().state;
+    if (state is GuestsLoadedState) {
+      for (final g in state.allGuests) {
+        if (g.id == widget.guestId) return g;
+      }
+    }
+    return null;
+  }
+
+  String? get _guestName => _guest?.name;
+
+  /// First name of the worker who gets the credit when an admin logs it.
+  String? get _creditedTo {
+    final auth = context.read<AuthBloc>().state;
+    final isAdmin = auth is AuthAuthenticatedState && auth.user.isAdmin;
+    final assignee = (_guest?.assignedWorkerName ?? '').trim();
+    return isAdmin && assignee.isNotEmpty ? firstNameOf(assignee) : null;
+  }
 
   Future<void> _pickDate(bool isSunday) async {
     final picked = await showDatePicker(
@@ -62,6 +86,11 @@ class _LogFollowUpScreenState extends State<LogFollowUpScreen> {
 
   Future<void> _submit() async {
     setState(() => _isSubmitting = true);
+    final guestName = _guestName ?? 'this guest';
+    final creditedTo = _creditedTo;
+    final ranking = context.read<RankingCubit>();
+    final dashboard = context.read<DashboardCubit>();
+    final team = context.read<TeamCubit>();
 
     final guestRepo = context.read<IGuestRepository>();
     final result = await guestRepo.logFollowUp(
@@ -75,31 +104,20 @@ class _LogFollowUpScreenState extends State<LogFollowUpScreen> {
       team: _selectedTeam == 'Not yet' ? '' : _selectedTeam,
     );
 
+    if (!mounted) return;
     setState(() => _isSubmitting = false);
 
     if (result.isSuccess) {
-      // Trigger instant UI feedback
-      Get.snackbar(
-        'Follow-up Logged',
-        'Guest record and points updated successfully!',
-        backgroundColor: AppColors.green,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.BOTTOM,
-      );
-
-      // Refresh guest list in BLoC
-      if (mounted) {
-        context.read<GuestsBloc>().add(const LoadGuestsEvent());
-        Navigator.pop(context);
-      }
+      final points = (result.data?['pointsEarned'] as num?)?.toInt() ?? 0;
+      context.read<GuestsBloc>().add(const LoadGuestsEvent());
+      if (ranking.state.data != null) ranking.load();
+      if (dashboard.state.data != null) dashboard.load();
+      if (team.state.data != null) team.load();
+      Navigator.pop(context);
+      AppFeedback.pointsEarned(
+          points: points, guestName: guestName, creditedTo: creditedTo);
     } else {
-      Get.snackbar(
-        'Submission Error',
-        result.failure?.message ?? 'Could not save follow-up.',
-        backgroundColor: AppColors.red,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      AppFeedback.error('Not saved', result.failure?.message ?? 'Please try again.');
     }
   }
 
@@ -111,279 +129,180 @@ class _LogFollowUpScreenState extends State<LogFollowUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ResponsiveWebShell(
-      child: Scaffold(
-        backgroundColor: AppColors.bg,
-        body: Column(
-          children: [
-            // Dark Header
-            Container(
-              color: AppColors.navy,
-              padding: EdgeInsets.fromLTRB(16.w, 42.h, 16.w, 18.h),
-              child: Row(
-                children: [
-                  InkWell(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.arrow_back_ios_new_rounded,
-                        color: Color(0xFFB9C4D8), size: 18),
-                  ),
-                  SizedBox(width: 12.w),
-                  Text(
-                    'Log a follow-up',
-                    style: TextStyle(
-                      fontSize: 20.sp,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+    final name = _guestName;
+    final creditedTo = _creditedTo;
+    return Scaffold(
+      body: Column(
+        children: [
+          const AppTopBar(title: 'Log follow-up'),
+          Expanded(
+            child: PageList(
+              children: [
+                if (name != null)
+                  Padding(
+                    padding: EdgeInsets.zero,
+                    child: Text(
+                      creditedTo == null
+                          ? 'For $name'
+                          : 'For $name. It counts for $creditedTo.',
+                      style: AppTextStyles.bodyMuted,
                     ),
                   ),
-                ],
-              ),
-            ),
-
-            // Form Body
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
-                children: [
-                  // Outcome Chips
-                  Text('Call Outcome', style: AppTextStyles.formLabel),
-                  SizedBox(height: 8.h),
-                  Wrap(
-                    spacing: 8.w,
-                    runSpacing: 8.h,
-                    children: _outcomes.map((outcome) {
-                      final isSelected = _selectedOutcome == outcome;
-                      return InkWell(
-                        onTap: () =>
-                            setState(() => _selectedOutcome = outcome),
-                        borderRadius: BorderRadius.circular(999),
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 14.w, vertical: 8.h),
-                          decoration: BoxDecoration(
-                            color: isSelected ? AppColors.navy : Colors.white,
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color: isSelected
-                                  ? AppColors.navy
-                                  : const Color(0xFFC3CAD6),
-                              width: 1.5.w,
-                            ),
-                          ),
-                          child: Text(
-                            outcome,
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              fontWeight: isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.w500,
-                              color: isSelected
-                                  ? Colors.white
-                                  : const Color(0xFF3A455A),
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  SizedBox(height: 16.h),
-
-                  // Note Textarea
-                  Text('Feedback Notes', style: AppTextStyles.formLabel),
-                  SizedBox(height: 8.h),
-                  TextField(
-                    controller: _noteController,
-                    maxLines: 4,
-                    decoration: InputDecoration(
-                      hintText: 'Enter call summary, prayer requests, etc.',
-                      hintStyle: AppTextStyles.bodyMuted,
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide:
-                            const BorderSide(color: Color(0xFFC3CAD6), width: 1.5),
+                SectionLabel('What happened?'),
+                GroupedCard(
+                  dividerIndent: AppSizes.s16 * 2 + AppSizes.iconMd,
+                  children: [
+                    for (final (label, icon) in kFollowUpOutcomes)
+                      _OutcomeOption(
+                        label: label,
+                        icon: icon,
+                        selected: _selectedOutcome == label,
+                        onTap: () => setState(() => _selectedOutcome = label),
                       ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide:
-                            const BorderSide(color: Color(0xFFC3CAD6), width: 1.5),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 16.h),
-
-                  // Sunday Attendance Toggle & Date
-                  _buildAttendanceToggle(
-                    title: 'Came on Sunday',
-                    value: _cameSunday,
-                    date: _sundayDate,
-                    onChanged: (val) => setState(() => _cameSunday = val),
-                    onPickDate: () => _pickDate(true),
-                  ),
-                  SizedBox(height: 12.h),
-
-                  // Wednesday Attendance Toggle & Date
-                  _buildAttendanceToggle(
-                    title: 'Came on Wednesday',
-                    value: _cameWednesday,
-                    date: _wednesdayDate,
-                    onChanged: (val) => setState(() => _cameWednesday = val),
-                    onPickDate: () => _pickDate(false),
-                  ),
-                  SizedBox(height: 16.h),
-
-                  // Joined Team Selection
-                  Text('Joined a team?', style: AppTextStyles.formLabel),
-                  SizedBox(height: 8.h),
-                  Row(
-                    children: _teams.map((t) {
-                      final isSelected = _selectedTeam == t;
-                      return Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 4.w),
-                          child: InkWell(
-                            onTap: () => setState(() => _selectedTeam = t),
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              height: 44.h,
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? AppColors.navy
-                                    : Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? AppColors.navy
-                                      : const Color(0xFFC3CAD6),
-                                  width: 1.5.w,
-                                ),
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                t,
-                                style: TextStyle(
-                                  fontSize: 13.sp,
-                                  fontWeight: isSelected
-                                      ? FontWeight.w600
-                                      : FontWeight.w500,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : const Color(0xFF3A455A),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ),
-            ),
-
-            // Bottom Save Button
-            Container(
-              color: Colors.white,
-              padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 20.h),
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: AppColors.line, width: 1)),
-              ),
-              child: InkWell(
-                onTap: _isSubmitting ? null : _submit,
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  height: 50.h,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: AppColors.gold,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  alignment: Alignment.center,
-                  child: _isSubmitting
-                      ? SizedBox(
-                          width: 24.r,
-                          height: 24.r,
-                          child: const CircularProgressIndicator(
-                            color: AppColors.navy,
-                            strokeWidth: 2.5,
-                          ),
-                        )
-                      : Text('Save follow-up', style: AppTextStyles.buttonGold),
+                  ],
                 ),
-              ),
+                SectionLabel('Notes'),
+                TextField(
+                  controller: _noteController,
+                  minLines: 3,
+                  maxLines: 5,
+                  style: AppTextStyles.body,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    hintText: 'What did they share? Any prayer requests?',
+                  ),
+                ),
+                SectionLabel('Did they come to church?'),
+                GroupedCard(
+                  children: [
+                    AppSwitchRow(
+                      title: 'Sunday service',
+                      value: _cameSunday,
+                      onChanged: (v) => setState(() => _cameSunday = v),
+                      extra: _cameSunday
+                          ? _DateChip(date: _sundayDate, onTap: () => _pickDate(true))
+                          : null,
+                    ),
+                    AppSwitchRow(
+                      title: 'Wednesday service',
+                      value: _cameWednesday,
+                      onChanged: (v) => setState(() => _cameWednesday = v),
+                      extra: _cameWednesday
+                          ? _DateChip(date: _wednesdayDate, onTap: () => _pickDate(false))
+                          : null,
+                    ),
+                  ],
+                ),
+                SectionLabel('Joined a team?'),
+                SegmentedPicker(
+                  options: _teams,
+                  value: _selectedTeam,
+                  onChanged: (t) => setState(() => _selectedTeam = t),
+                ),
+              ],
             ),
-          ],
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(AppSizes.gutter, AppSizes.s8, AppSizes.gutter,
+                AppSizes.s16 + MediaQuery.paddingOf(context).bottom),
+            child: AppButton(
+              label: 'Save follow-up',
+              isLoading: _isSubmitting,
+              onPressed: _submit,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OutcomeOption extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _OutcomeOption({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: AppSizes.touch + AppSizes.s8,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSizes.s16),
+            child: Row(
+              children: [
+                Icon(icon, size: AppSizes.iconMd, color: AppColors.inkSoft),
+                SizedBox(width: AppSizes.s16),
+                Expanded(child: Text(label, style: AppTextStyles.body)),
+                AnimatedContainer(
+                  duration: AppDurations.fast,
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: selected ? AppColors.gold : Colors.transparent,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: selected ? AppColors.gold : AppColors.lineStrong,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: selected
+                      ? const Icon(AppIcons.check, size: 14, color: AppColors.navy)
+                      : null,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildAttendanceToggle({
-    required String title,
-    required bool value,
-    required DateTime date,
-    required ValueChanged<bool> onChanged,
-    required VoidCallback onPickDate,
-  }) {
-    return Container(
-      padding: EdgeInsets.all(12.r),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFC3CAD6), width: 1.5),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 15.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.ink,
-                  ),
-                ),
-              ),
-              Switch(
-                value: value,
-                onChanged: onChanged,
-                activeThumbColor: AppColors.green,
-              ),
-            ],
-          ),
-          if (value) ...[
-            const Divider(color: AppColors.line),
-            InkWell(
-              onTap: onPickDate,
-              child: Row(
-                children: [
-                  const Icon(Icons.event, color: AppColors.muted, size: 20),
-                  SizedBox(width: 8.w),
-                  Text(
-                    'Date: ${DateFormat('yyyy-MM-dd').format(date)}',
-                    style: TextStyle(
-                      fontSize: 14.sp,
-                      color: AppColors.navy,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    'Change',
-                    style: TextStyle(
-                      fontSize: 13.sp,
-                      color: AppColors.blue,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
+class _DateChip extends StatelessWidget {
+  final DateTime date;
+  final VoidCallback onTap;
+
+  const _DateChip({required this.date, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        height: AppSizes.touch,
+        child: Center(
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: AppSizes.s8 + 2, vertical: AppSizes.s4 + 2),
+            decoration: BoxDecoration(
+              color: AppColors.sunken,
+              borderRadius: BorderRadius.circular(AppSizes.radiusFull),
             ),
-          ],
-        ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(AppIcons.calendar, size: AppSizes.iconSm, color: AppColors.inkSoft),
+                SizedBox(width: AppSizes.s4),
+                Text(DateFormat('EEE d MMM').format(date),
+                    style: AppTextStyles.centered(AppTextStyles.caption)
+                        .copyWith(color: AppColors.ink)),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

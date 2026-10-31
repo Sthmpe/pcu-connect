@@ -316,3 +316,68 @@ migration.
 - Guests now load after sign-in (not at app start), so no request is sent without a token.
 - Still manual: deploy Apps Script and set `FIREBASE_WEB_API_KEY`, enable Google sign-in in Firebase,
   add the hosting domain to authorized domains.
+
+## 2026-10-31 Update: UI and UX redesign
+
+- **Sizing fix:** ScreenUtil used to measure the whole browser window, so `.w` scaled
+  about 3.7x on a laptop. `ResponsiveWebShell` now wraps the app once, in
+  `GetMaterialApp.builder`, draws a centred 400px phone frame above 520px wide, and
+  configures ScreenUtil from the frame width only. Text is capped at its design size
+  (`fontSizeResolver` clamps the scale to 0.92 to 1.0).
+- **Tokens:** `app_colors.dart` (navy, restrained gold, soft surfaces, status trios:
+  blue new, red overdue, amber called once, green followed up), `app_text_styles.dart`
+  (Rubik: body 14, secondary 12 to 13, section 16, titles 18 to 20, numbers 24 to 28),
+  `app_sizes.dart` (4pt spacing, radii, `AppShadows`, `AppDurations`). The theme uses
+  fixed values because it is built before the frame configures ScreenUtil.
+- **Shared widgets** in `core/widgets/`: `AppHeader`, `AppCard`, `AppButton`,
+  `AppBottomNav` + `FadeIndexedStack`, `MetricTileWidget`, `FilterChipWidget`/`ChipBar`/
+  `SegmentedPicker`, `GuestCardWidget` (one-tap Call and WhatsApp), `StatusTone`,
+  `EmptyState`/`ErrorState`/`SkeletonList`/`OfflineBanner`, `AppFeedback` (the only
+  GetX use: snackbars and dialogs, including the points earned dialog), `showMonthSheet`,
+  `brand_marks.dart`.
+- **Named routes:** `core/routing/app_routes.dart`. The app always starts on the sign
+  in screen, which routes by role. Sign out now returns to sign in (it did not before).
+- **Flow:** guest detail has Call, WhatsApp and a "How did the call go?" card; one tap
+  opens Log follow-up with that outcome chosen. After saving, the app returns to the
+  guest and shows the points earned (`pointsEarned` from the API).
+- **New admin screens:** Worker detail, Add worker (full screen form), Me. Team data
+  moved into `presentation/admin/cubit/team_cubit.dart`. It is still sample data; the
+  Team, Ranking and Dashboard top-workers lists are not wired to the Apps Script
+  `team`/`ranking` actions yet. Dashboard and Me counts are computed from the loaded guests.
+- **`font_awesome_flutter` 10.12 does not compile on Flutter 3.44** (`IconData` is final).
+  It is no longer imported anywhere in `lib/`; the dependency is still in pubspec.
+- No business logic, repository or API changes.
+
+## 2026-10-31 Update: Premium redesign, real API data, admin logs for workers
+
+- **Design system v2:** neutral surfaces, navy for structure, gold only for the primary
+  action and selected state. Rubik at four sizes (display 26, title 18, body 14,
+  caption 12) and two weights. 8px spacing, radii 12 and 20, cards use soft shadows and
+  no borders, 48px touch targets. Icons are Lucide 300 only, through `core/constants/app_icons.dart`
+  (`lucide_icons_flutter`). `font_awesome_flutter` was removed (it does not compile on Flutter 3.44).
+- **Kit** in `core/widgets/`: `app_page.dart` (AppPage large title, AppTopBar), `app_surfaces.dart`
+  (AppCard, GroupedCard, SectionLabel, StatGrid, InfoTile), `app_controls.dart` (AppButton,
+  AppIconButton, AppChip, ChipBar, SegmentedPicker, AppSwitchRow, AppTextField, MonthPill),
+  `app_display.dart` (AppAvatar, StatusDot, AppPill, ProgressRing, SegmentBar), `guest_row.dart`,
+  skeleton loaders in `state_views.dart`.
+- **Text scaler clamp** (web 0.75 to 0.9) lives in `ResponsiveWebShell` next to the ScreenUtil setup.
+  With `.sp` capped at 1.0, body text renders at about 12.6px on web.
+- **Month fix:** the API uses month keys like `2026-10`; the app used `Oct 2026`, so real guest
+  lists would have filtered to nothing. `MonthUtils` now drives every month, and picking a
+  month fetches it (`SelectMonthEvent` reloads).
+- **Outcome fix:** the app sent `Number off`, which `Api.gs` rejects. Outcomes now match
+  `PCU.OUTCOMES` exactly.
+- **Real data:** Ranking, Dashboard and Team use `ITeamRepository` (`ranking`, `dashboard`,
+  `team`, `saveWorker`, `setWorkerActive`) through cubits in `presentation/common/insights_cubits.dart`.
+  `GuestsBloc` no longer falls back to seed data. Sample repositories in `data/sample/` are only
+  wired with `--dart-define=USE_SAMPLE_DATA=true`, so they are compiled out of release builds.
+- **Admin logs for a worker:** opening a guest from the admin app shows "Log a follow-up for
+  <worker>". `pcuLogFollowUp_` credits `guest.assignedTo` (WORKER column) and writes the real user to
+  the optional `LOGGED BY` column; ASSIGNED TO never changes; admins stay out of rankings. History
+  entries carry `loggedByAdmin`, shown as a "Logged by admin" label to everyone. Node harness covers
+  both with and without the column. The column was added to the TEST sheet's Follow-ups tab (L1).
+  **Api.gs must be pasted into the Apps Script project and redeployed** for this to work live.
+
+## Backend plan
+
+Phase 2 (Firestore as the live database, sheet sync, UI checklist per phase) is in `docs/BACKEND_PLAN.md`. Not implemented yet.

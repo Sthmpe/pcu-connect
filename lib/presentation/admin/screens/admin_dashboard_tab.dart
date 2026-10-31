@@ -1,234 +1,239 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_icons.dart';
+import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/utils/month_utils.dart';
+import '../../../core/widgets/app_controls.dart';
+import '../../../core/widgets/app_display.dart';
+import '../../../core/widgets/app_page.dart';
+import '../../../core/widgets/app_surfaces.dart';
+import '../../../core/widgets/state_views.dart';
+import '../../../domain/entities/guest_entity.dart';
+import '../../../domain/entities/insights.dart';
+import '../../common/insights_cubits.dart';
+import '../../common/load_state.dart';
+import '../../guests/bloc/guests_bloc.dart';
+import '../../guests/bloc/guests_event.dart';
+import '../../guests/bloc/guests_state.dart';
 
-class AdminDashboardTab extends StatefulWidget {
-  const AdminDashboardTab({super.key});
+class AdminDashboardTab extends StatelessWidget {
+  final ValueChanged<String> onOpenGuests;
+  final VoidCallback onOpenTeam;
 
-  @override
-  State<AdminDashboardTab> createState() => _AdminDashboardTabState();
-}
-
-class _AdminDashboardTabState extends State<AdminDashboardTab> {
-  String _selectedMonth = 'Oct 2026';
-
-  final List<String> _months = [
-    'Oct 2026',
-    'Sep 2026',
-    'Aug 2026',
-    'Jul 2026',
-    'Jun 2026',
-    'May 2026'
-  ];
+  const AdminDashboardTab({
+    super.key,
+    required this.onOpenGuests,
+    required this.onOpenTeam,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Dark Header
-        Container(
-          color: AppColors.navy,
-          padding: EdgeInsets.fromLTRB(20.w, 42.h, 20.w, 18.h),
-          alignment: Alignment.centerLeft,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('PCU Leadership', style: AppTextStyles.headerTitle),
-              SizedBox(height: 2.h),
-              Text(
-                '$_selectedMonth · Church-wide guest analytics',
-                style: AppTextStyles.headerSubtitle,
-              ),
-            ],
+    final cubit = context.read<DashboardCubit>();
+    return BlocBuilder<DashboardCubit, LoadState<DashboardSummary>>(
+      builder: (context, state) {
+        return AppPage(
+          title: 'Dashboard',
+          trailing: MonthPill(
+            month: state.month,
+            onChanged: (m) {
+              cubit.load(m);
+              context.read<GuestsBloc>().add(SelectMonthEvent(m));
+            },
           ),
-        ),
+          child: _body(context, state),
+        );
+      },
+    );
+  }
 
-        // Month Selector Chips
-        Container(
-          padding: EdgeInsets.symmetric(vertical: 10.h),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(horizontal: 16.w),
-            child: Row(
-              children: _months.map((m) {
-                final isSelected = m == _selectedMonth;
-                return Padding(
-                  padding: EdgeInsets.only(right: 8.w),
-                  child: InkWell(
-                    onTap: () => setState(() => _selectedMonth = m),
-                    borderRadius: BorderRadius.circular(999),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                          horizontal: 14.w, vertical: 8.h),
-                      decoration: BoxDecoration(
-                        color: isSelected ? AppColors.navy : Colors.white,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: isSelected
-                              ? AppColors.navy
-                              : const Color(0xFFC3CAD6),
-                          width: 1.5.w,
-                        ),
-                      ),
-                      child: Text(
-                        m,
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.w500,
-                          color: isSelected
-                              ? Colors.white
-                              : const Color(0xFF3A455A),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
+  Widget _body(BuildContext context, LoadState<DashboardSummary> state) {
+    final data = state.data;
+    if (data == null) {
+      if (state.status == LoadStatus.failure) {
+        return ErrorState(
+          message: state.message ?? '',
+          onRetry: () => context.read<DashboardCubit>().load(),
+        );
+      }
+      return const SkeletonPage(hero: true, rows: 3);
+    }
+
+    return RefreshIndicator(
+      color: AppColors.navy,
+      onRefresh: () => context.read<DashboardCubit>().load(),
+      child: PageList(
+        children: [
+          _CalledHero(data: data, onSeeWaiting: () => onOpenGuests('call')),
+          SizedBox(height: AppSizes.s16),
+          StatGrid(items: [
+            StatItem('${data.guests}', 'Guests', onTap: () => onOpenGuests('all')),
+            StatItem('${data.notCalled}', 'Not called yet',
+                color: data.notCalled > 0 ? AppColors.redInk : null,
+                onTap: () => onOpenGuests('call')),
+            StatItem('${data.members}', 'Became members', onTap: () => onOpenGuests('mem')),
+            StatItem('${data.inTeam}', 'Joined a team', onTap: () => onOpenGuests('team')),
+          ]),
+          const _Journey(),
+          SectionLabel('Top workers', actionLabel: 'See team', onAction: onOpenTeam),
+          if (data.topWorkers.isEmpty)
+            AppCard(
+              child: Text('No points logged yet this month.', style: AppTextStyles.bodyMuted),
+            )
+          else
+            GroupedCard(
+              dividerIndent: AppSizes.s16 * 3 + AppSizes.s8 + AppSizes.avatarSm,
+              children: [
+                for (var i = 0; i < data.topWorkers.length; i++)
+                  _TopWorkerRow(rank: i + 1, worker: data.topWorkers[i]),
+              ],
             ),
-          ),
-        ),
+        ],
+      ),
+    );
+  }
+}
 
-        // Body
-        Expanded(
-          child: ListView(
-            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+class _CalledHero extends StatelessWidget {
+  final DashboardSummary data;
+  final VoidCallback onSeeWaiting;
+
+  const _CalledHero({required this.data, required this.onSeeWaiting});
+
+  @override
+  Widget build(BuildContext context) {
+    final waiting = data.notCalled;
+    return AppCard(
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [AppColors.navyRaised, AppColors.navy],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
-              // 4 Headline Metric Tiles
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildTile('18', 'New Guests', AppColors.ink),
-                  ),
-                  SizedBox(width: 10.w),
-                  Expanded(
-                    child: _buildTile('5', 'Became Members', AppColors.gold),
-                  ),
-                ],
+              ProgressRing(
+                value: data.calledRate,
+                size: 72,
+                stroke: 6,
+                color: AppColors.onNavy,
+                trackColor: AppColors.onNavy.withValues(alpha: 0.14),
+                child: Text('${(data.calledRate * 100).round()}%',
+                    style: AppTextStyles.bodyStrong.copyWith(color: AppColors.onNavy)),
               ),
-              SizedBox(height: 10.h),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildTile('2', 'Not Called', AppColors.red),
-                  ),
-                  SizedBox(width: 10.w),
-                  Expanded(
-                    child: _buildTile('4', 'Joined a Team', AppColors.green),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16.h),
-
-              // Retention & Conversion Funnel
-              Container(
-                padding: EdgeInsets.all(16.r),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.navy.withValues(alpha: 0.08),
-                      blurRadius: 3,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
+              SizedBox(width: AppSizes.s16),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Church Retention Funnel',
-                      style: TextStyle(
-                        fontSize: 15.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.ink,
-                      ),
+                      data.guests == 0
+                          ? 'No guests yet'
+                          : '${data.called} of ${data.guests} guests called',
+                      style: AppTextStyles.title.copyWith(color: AppColors.onNavy),
                     ),
-                    SizedBox(height: 14.h),
-                    _buildFunnelBar('Contacted', 16, 18),
-                    SizedBox(height: 10.h),
-                    _buildFunnelBar('Followed up 2+ times', 12, 18),
-                    SizedBox(height: 10.h),
-                    _buildFunnelBar('Came on Sunday', 9, 18),
-                    SizedBox(height: 10.h),
-                    _buildFunnelBar('Came on Wednesday', 6, 18),
-                    SizedBox(height: 10.h),
-                    _buildFunnelBar('Became Members', 5, 18),
+                    SizedBox(height: AppSizes.s4),
+                    Text(
+                      waiting == 0
+                          ? 'Everyone in ${MonthUtils.name(data.month)} has had a call'
+                          : '$waiting still ${waiting == 1 ? 'waits' : 'wait'} for a first call',
+                      style: AppTextStyles.caption.copyWith(color: AppColors.onNavyMuted),
+                    ),
                   ],
                 ),
               ),
             ],
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTile(String count, String label, Color accentColor) {
-    return Container(
-      padding: EdgeInsets.all(14.r),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.navy.withValues(alpha: 0.06),
-            blurRadius: 3,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            count,
-            style: TextStyle(
-              fontSize: 26.sp,
-              fontWeight: FontWeight.w700,
-              color: accentColor,
+          if (waiting > 0) ...[
+            SizedBox(height: AppSizes.s24),
+            AppButton(
+              label: 'See who is waiting',
+              icon: AppIcons.call,
+              onPressed: onSeeWaiting,
             ),
-          ),
-          SizedBox(height: 2.h),
-          Text(label, style: AppTextStyles.tileLabel),
+          ],
         ],
       ),
     );
   }
+}
 
-  Widget _buildFunnelBar(String label, int current, int total) {
-    final pct = total > 0 ? (current / total) : 0.0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+/// How this month's guests moved along, from the loaded guest list.
+class _Journey extends StatelessWidget {
+  const _Journey();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<GuestsBloc, GuestsState>(
+      builder: (context, state) {
+        if (state is! GuestsLoadedState || state.monthGuests.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        final guests = state.monthGuests;
+        final total = guests.length;
+        int count(bool Function(GuestEntity g) test) => guests.where(test).length;
+        final steps = [
+          ('Called', count((g) => g.callCount > 0), AppColors.navy),
+          ('Followed up twice', count((g) => g.callCount >= 2), AppColors.navy),
+          ('Came back to church',
+              count((g) => g.sundayAttendance + g.wednesdayAttendance > 0), AppColors.blue),
+          ('Became members', count((g) => g.status == 'Member'), AppColors.green),
+        ];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(label,
-                style: TextStyle(fontSize: 13.sp, color: AppColors.ink)),
-            Text(
-              '$current of $total (${(pct * 100).toInt()}%)',
-              style: TextStyle(
-                fontSize: 12.sp,
-                color: AppColors.muted,
-                fontWeight: FontWeight.w500,
+            SectionLabel('Guest journey'),
+            AppCard(
+              child: Column(
+                children: [
+                  for (var i = 0; i < steps.length; i++) ...[
+                    if (i > 0) SizedBox(height: AppSizes.s16),
+                    Row(
+                      children: [
+                        Expanded(child: Text(steps[i].$1, style: AppTextStyles.body)),
+                        Text('${steps[i].$2} of $total', style: AppTextStyles.caption),
+                      ],
+                    ),
+                    SizedBox(height: AppSizes.s8),
+                    AppProgressBar(value: steps[i].$2 / total, color: steps[i].$3),
+                  ],
+                ],
               ),
             ),
           ],
-        ),
-        SizedBox(height: 6.h),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: pct,
-            minHeight: 8.h,
-            backgroundColor: const Color(0xFFE6EBF4),
-            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.navy),
+        );
+      },
+    );
+  }
+}
+
+class _TopWorkerRow extends StatelessWidget {
+  final int rank;
+  final TopWorker worker;
+
+  const _TopWorkerRow({required this.rank, required this.worker});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: BoxConstraints(minHeight: AppSizes.touch + AppSizes.s8),
+      padding: EdgeInsets.symmetric(horizontal: AppSizes.s16),
+      child: Row(
+        children: [
+          SizedBox(width: AppSizes.s16, child: Text('$rank', style: AppTextStyles.caption)),
+          SizedBox(width: AppSizes.s8),
+          AppAvatar(name: worker.name, size: AppSizes.avatarSm),
+          SizedBox(width: AppSizes.s16),
+          Expanded(child: Text(worker.name, style: AppTextStyles.body)),
+          Text(
+            '${worker.members} ${worker.members == 1 ? 'member' : 'members'}',
+            style: AppTextStyles.caption,
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

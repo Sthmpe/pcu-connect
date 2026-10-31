@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/widgets/responsive_web_shell.dart';
+import '../../../core/constants/app_icons.dart';
+import '../../../core/routing/app_routes.dart';
+import '../../../core/widgets/app_bottom_nav.dart';
+import '../../auth/bloc/auth_bloc.dart';
+import '../../auth/bloc/auth_state.dart';
+import '../../common/insights_cubits.dart';
+import '../../guests/bloc/guests_bloc.dart';
+import '../../guests/bloc/guests_event.dart';
+import '../../worker/screens/me_tab.dart';
 import 'admin_dashboard_tab.dart';
 import 'admin_team_tab.dart';
 import 'admin_guests_tab.dart';
@@ -14,74 +22,52 @@ class AdminShellScreen extends StatefulWidget {
 }
 
 class _AdminShellScreenState extends State<AdminShellScreen> {
-  int _currentTabIndex = 0;
+  int _index = 0;
 
-  final List<Widget> _tabs = const [
-    AdminDashboardTab(),
-    AdminTeamTab(),
-    AdminGuestsTab(),
+  static const _items = [
+    AppNavItem(AppIcons.dashboard, 'Dashboard'),
+    AppNavItem(AppIcons.team, 'Team'),
+    AppNavItem(AppIcons.guests, 'Guests'),
+    AppNavItem(AppIcons.me, 'Me'),
   ];
 
   @override
-  Widget build(BuildContext context) {
-    return ResponsiveWebShell(
-      maxWidth: 480.0, // Slightly wider for admin data tables
-      child: Scaffold(
-        backgroundColor: AppColors.bg,
-        body: IndexedStack(
-          index: _currentTabIndex,
-          children: _tabs,
-        ),
-        bottomNavigationBar: Container(
-          height: 72.h,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            border: Border(top: BorderSide(color: AppColors.line, width: 1)),
-          ),
-          child: Row(
-            children: [
-              _buildTabItem(0, Icons.dashboard_rounded, 'Dashboard'),
-              _buildTabItem(1, Icons.badge_rounded, 'Team'),
-              _buildTabItem(2, Icons.people_alt_rounded, 'Guests'),
-            ],
-          ),
-        ),
-      ),
-    );
+  void initState() {
+    super.initState();
+    context.read<DashboardCubit>().ensureLoaded();
   }
 
-  Widget _buildTabItem(int index, IconData icon, String label) {
-    final isSelected = _currentTabIndex == index;
-    return Expanded(
-      child: InkWell(
-        onTap: () => setState(() => _currentTabIndex = index),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+  void _select(int i) {
+    if (i == 1) context.read<TeamCubit>().ensureLoaded();
+    setState(() => _index = i);
+  }
+
+  void _openGuests(String chip) {
+    context.read<GuestsBloc>().add(ChangeChipFilterEvent(chip));
+    _select(2);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<AuthBloc, AuthState>(
+      listenWhen: (_, s) => s is AuthUnauthenticatedState,
+      listener: (context, _) => Navigator.of(context)
+          .pushNamedAndRemoveUntil(AppRoutes.login, (_) => false),
+      child: Scaffold(
+        backgroundColor: AppColors.bg,
+        body: FadeIndexedStack(
+          index: _index,
           children: [
-            Icon(
-              icon,
-              size: 24.r,
-              color: isSelected ? AppColors.navy : AppColors.muted,
-            ),
-            SizedBox(height: 3.h),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12.sp,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected ? AppColors.navy : AppColors.muted,
-              ),
-            ),
-            SizedBox(height: 3.h),
-            Container(
-              width: 20.w,
-              height: 3.h,
-              decoration: BoxDecoration(
-                color: isSelected ? AppColors.gold : Colors.transparent,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+            AdminDashboardTab(onOpenGuests: _openGuests, onOpenTeam: () => _select(1)),
+            const AdminTeamTab(),
+            const AdminGuestsTab(),
+            const MeTab(),
           ],
+        ),
+        bottomNavigationBar: AppBottomNav(
+          items: _items,
+          currentIndex: _index,
+          onTap: _select,
         ),
       ),
     );

@@ -1,385 +1,481 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_icons.dart';
+import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../../core/widgets/guest_status_pill.dart';
-import '../../../core/widgets/responsive_web_shell.dart';
+import '../../../core/routing/app_routes.dart';
+import '../../../core/utils/contact_launcher.dart';
+import '../../../core/utils/month_utils.dart';
+import '../../../core/widgets/app_controls.dart';
+import '../../../core/widgets/app_display.dart';
+import '../../../core/widgets/app_page.dart';
+import '../../../core/widgets/app_surfaces.dart';
+import '../../../core/widgets/state_views.dart';
+import '../../../core/widgets/status_tone.dart';
+import '../../../domain/entities/follow_up_entry.dart';
 import '../../../domain/entities/guest_entity.dart';
+import '../../../domain/repositories/i_guest_repository.dart';
 import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_state.dart';
-import 'log_follow_up_screen.dart';
 
-class GuestDetailScreen extends StatelessWidget {
+/// Call outcomes, exactly as the Apps Script API accepts them.
+const List<(String, IconData)> kFollowUpOutcomes = [
+  ('Reached', AppIcons.reached),
+  ('No answer', AppIcons.noAnswer),
+  ('Busy', AppIcons.busy),
+  ('Switched off', AppIcons.numberOff),
+  ('Wrong number', AppIcons.wrongNumber),
+  ('Not interested', AppIcons.notInterested),
+];
+
+/// The four shown as one-tap shortcuts on the guest screen.
+const List<String> kQuickOutcomes = ['Reached', 'No answer', 'Switched off', 'Not interested'];
+
+IconData outcomeIcon(String outcome) {
+  for (final (label, icon) in kFollowUpOutcomes) {
+    if (label == outcome) return icon;
+  }
+  return AppIcons.call;
+}
+
+class GuestDetailScreen extends StatefulWidget {
   final String guestId;
 
-  const GuestDetailScreen({super.key, required this.guestId});
+  /// Opened from the admin app: logs are saved for the assigned worker.
+  final bool asAdmin;
 
-  Future<void> _launchUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+  const GuestDetailScreen({super.key, required this.guestId, this.asAdmin = false});
+
+  @override
+  State<GuestDetailScreen> createState() => _GuestDetailScreenState();
+}
+
+class _GuestDetailScreenState extends State<GuestDetailScreen> {
+  List<FollowUpEntry>? _history;
+  bool _historyFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    final result = await context.read<IGuestRepository>().fetchGuestDetail(widget.guestId);
+    if (!mounted) return;
+    setState(() {
+      _historyFailed = result.isFailure;
+      if (result.isSuccess) _history = result.data!.history;
+    });
+  }
+
+  Future<void> _log(GuestEntity guest, [String? outcome]) async {
+    await Navigator.of(context).pushNamed(
+      AppRoutes.logFollowUp,
+      arguments: LogFollowUpArgs(guest.id, initialOutcome: outcome),
+    );
+    if (mounted) _loadHistory();
   }
 
   @override
   Widget build(BuildContext context) {
-    return ResponsiveWebShell(
-      child: Scaffold(
-        backgroundColor: AppColors.bg,
-        body: BlocBuilder<GuestsBloc, GuestsState>(
-          builder: (context, state) {
-            if (state is! GuestsLoadedState) {
-              return const Center(child: CircularProgressIndicator());
+    return Scaffold(
+      body: BlocBuilder<GuestsBloc, GuestsState>(
+        builder: (context, state) {
+          GuestEntity? guest;
+          if (state is GuestsLoadedState) {
+            for (final g in state.allGuests) {
+              if (g.id == widget.guestId) guest = g;
             }
+          }
 
-            final guest = state.allGuests.firstWhere(
-              (g) => g.id == guestId,
-              orElse: () => state.allGuests.first,
-            );
-
+          if (guest == null) {
             return Column(
               children: [
-                // Rounded Navy Header matching .hdr.round
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.navy,
-                    borderRadius: BorderRadius.vertical(
-                      bottom: Radius.circular(32.r),
-                    ),
-                  ),
-                  padding: EdgeInsets.fromLTRB(16.w, 42.h, 16.w, 22.h),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Back button
-                      InkWell(
-                        onTap: () => Navigator.pop(context),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.arrow_back_ios_new_rounded,
-                                color: Color(0xFFB9C4D8), size: 14),
-                            SizedBox(width: 4.w),
-                            Text(
-                              'Back',
-                              style: TextStyle(
-                                color: const Color(0xFFB9C4D8),
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: 12.h),
-
-                      // Avatar, Name, Phone, Status Pill
-                      Row(
-                        children: [
-                          Container(
-                            width: 56.r,
-                            height: 56.r,
-                            decoration: const BoxDecoration(
-                              color: AppColors.gold,
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              guest.initials,
-                              style: TextStyle(
-                                fontSize: 20.sp,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.navy,
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 14.w),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  guest.name,
-                                  style: TextStyle(
-                                    fontSize: 22.sp,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                SizedBox(height: 2.h),
-                                Text(
-                                  '${guest.phone} · came ${guest.month}',
-                                  style: TextStyle(
-                                    fontSize: 13.sp,
-                                    color: const Color(0xFFB9C4D8),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          GuestStatusPill(status: guest.status),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Body cards
+                const AppTopBar(),
                 Expanded(
-                  child: ListView(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
-                    children: [
-                      // Action Buttons: WhatsApp & Call
-                      Row(
-                        children: [
-                          Expanded(
-                            child: InkWell(
-                              onTap: () => _launchUrl(guest.whatsAppUrl),
-                              borderRadius: BorderRadius.circular(14),
-                              child: Container(
-                                height: 50.h,
-                                decoration: BoxDecoration(
-                                  color: AppColors.btnWhatsAppBg,
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  'WhatsApp',
-                                  style: TextStyle(
-                                    fontSize: 15.sp,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.btnWhatsAppText,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 10.w),
-                          Expanded(
-                            child: InkWell(
-                              onTap: () => _launchUrl(guest.telUrl),
-                              borderRadius: BorderRadius.circular(14),
-                              child: Container(
-                                height: 50.h,
-                                decoration: BoxDecoration(
-                                  color: AppColors.navy,
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  'Call',
-                                  style: TextStyle(
-                                    fontSize: 15.sp,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 12.h),
-
-                      // Road to Membership Tracker Card
-                      _buildRoadToMembershipCard(guest),
-                      SizedBox(height: 12.h),
-
-                      // Last Feedback Card
-                      if (guest.lastFeedback.isNotEmpty) ...[
-                        _buildCard(
-                          title: 'Last Feedback (${guest.lastFeedbackDate})',
-                          child: Text(
-                            guest.lastFeedback,
-                            style: AppTextStyles.body,
-                          ),
-                        ),
-                        SizedBox(height: 12.h),
-                      ],
-
-                      // Team Joined Card
-                      if (guest.teamJoined.isNotEmpty) ...[
-                        _buildCard(
-                          title: 'Team Joined',
-                          child: Text(
-                            guest.teamJoined,
-                            style: TextStyle(
-                              fontSize: 15.sp,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.green,
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 12.h),
-                      ],
-
-                      // Notice
-                      Center(
-                        child: Text(
-                          'Guest details are managed by the HOD',
-                          style: AppTextStyles.bodyMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Bottom Footer: Big Gold "Log a follow-up" button matching .foot
-                Container(
-                  color: Colors.white,
-                  padding:
-                      EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 20.h),
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      top: BorderSide(color: AppColors.line, width: 1),
-                    ),
-                  ),
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              LogFollowUpScreen(guestId: guest.id),
-                        ),
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(14),
-                    child: Container(
-                      height: 50.h,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: AppColors.gold,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        'Log a follow-up',
-                        style: AppTextStyles.buttonGold,
-                      ),
-                    ),
-                  ),
+                  child: state is GuestsLoadedState
+                      ? const Center(
+                          child: EmptyState(
+                              icon: AppIcons.search, message: 'We could not find this guest.'),
+                        )
+                      : const SkeletonPage(rows: 3),
                 ),
               ],
             );
-          },
-        ),
+          }
+
+          final g = guest;
+          final assignee = (g.assignedWorkerName ?? '').trim();
+          final canLog = !widget.asAdmin || assignee.isNotEmpty;
+          final logLabel = widget.asAdmin
+              ? 'Log a follow-up for ${firstNameOf(assignee)}'
+              : 'Log follow-up';
+
+          return Column(
+            children: [
+              const AppTopBar(),
+              Expanded(
+                child: PageList(
+                  children: [
+                    _Profile(guest: g, assignee: widget.asAdmin ? assignee : null),
+                    SizedBox(height: AppSizes.s24),
+                    _ContactActions(guest: g),
+                    SizedBox(height: AppSizes.s32),
+                    if (canLog)
+                      _OutcomeCard(onPick: (o) => _log(g, o))
+                    else
+                      AppCard(
+                        child: Text(
+                          'Assign this guest to a worker before logging a follow-up.',
+                          style: AppTextStyles.bodyMuted,
+                        ),
+                      ),
+                    SectionLabel('Road to membership'),
+                    _MembershipCard(guest: g),
+                    SectionLabel('Details'),
+                    _DetailsCard(guest: g),
+                    SectionLabel('History'),
+                    _HistoryCard(
+                      history: _history,
+                      failed: _historyFailed,
+                      onRetry: _loadHistory,
+                    ),
+                  ],
+                ),
+              ),
+              if (canLog)
+                Padding(
+                  padding: EdgeInsets.fromLTRB(AppSizes.gutter, AppSizes.s8, AppSizes.gutter,
+                      AppSizes.s16 + MediaQuery.paddingOf(context).bottom),
+                  child: AppButton(label: logLabel, icon: AppIcons.log, onPressed: () => _log(g)),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
+}
 
-  Widget _buildRoadToMembershipCard(GuestEntity guest) {
-    return Container(
-      padding: EdgeInsets.all(14.r),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.navy.withValues(alpha: 0.08),
-            blurRadius: 3,
-            offset: const Offset(0, 1),
+class _Profile extends StatelessWidget {
+  final GuestEntity guest;
+  final String? assignee;
+
+  const _Profile({required this.guest, this.assignee});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        AppAvatar(name: guest.name, size: AppSizes.avatarLg),
+        SizedBox(height: AppSizes.s16),
+        Text(guest.name, style: AppTextStyles.title, textAlign: TextAlign.center),
+        SizedBox(height: AppSizes.s4),
+        Text(
+          assignee == null
+              ? guest.phone
+              : '${guest.phone} · ${assignee!.isEmpty ? 'Not assigned' : 'With ${firstNameOf(assignee!)}'}',
+          style: AppTextStyles.bodyMuted,
+        ),
+        SizedBox(height: AppSizes.s16),
+        AppPill(label: guest.status, tone: StatusTone.forStatus(guest.status)),
+      ],
+    );
+  }
+}
+
+class _ContactActions extends StatelessWidget {
+  final GuestEntity guest;
+
+  const _ContactActions({required this.guest});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget action(String label, IconData icon, Color bg, Color fg, VoidCallback onTap) =>
+        Semantics(
+          button: true,
+          label: label,
+          child: SizedBox(
+            width: 88,
+            child: Column(
+              children: [
+                Material(
+                  color: bg,
+                  shape: const CircleBorder(),
+                  elevation: bg == AppColors.surface ? 0.5 : 0,
+                  shadowColor: AppColors.navy.withValues(alpha: 0.2),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: onTap,
+                    child: SizedBox(
+                      width: AppSizes.s48 + AppSizes.s8,
+                      height: AppSizes.s48 + AppSizes.s8,
+                      child: Icon(icon, size: AppSizes.iconLg, color: fg),
+                    ),
+                  ),
+                ),
+                SizedBox(height: AppSizes.s8),
+                Text(label, style: AppTextStyles.caption.copyWith(color: AppColors.inkSoft)),
+              ],
+            ),
           ),
-        ],
-      ),
+        );
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        action('Call', AppIcons.call, AppColors.navy, AppColors.onNavy,
+            () => ContactLauncher.call(guest)),
+        SizedBox(width: AppSizes.s16),
+        action('WhatsApp', AppIcons.whatsapp, AppColors.surface, AppColors.greenInk,
+            () => ContactLauncher.whatsApp(guest)),
+      ],
+    );
+  }
+}
+
+/// After the call: one tap opens the log with the outcome chosen.
+class _OutcomeCard extends StatelessWidget {
+  final ValueChanged<String> onPick;
+
+  const _OutcomeCard({required this.onPick});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: EdgeInsets.fromLTRB(AppSizes.s16, AppSizes.s16, AppSizes.s16, AppSizes.s8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Road to membership (${guest.month})',
-            style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.w600),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSizes.s8),
+            child: Text('How did the call go?', style: AppTextStyles.bodyStrong),
           ),
-          SizedBox(height: 12.h),
-
-          // Sundays
-          Row(
+          SizedBox(height: AppSizes.s4),
+          Wrap(
+            spacing: AppSizes.s8,
             children: [
-              Expanded(
-                child: Text(
-                  'Sundays (${guest.sundayAttendance} of 4)',
-                  style: AppTextStyles.bodyMuted,
+              for (final label in kQuickOutcomes)
+                GestureDetector(
+                  onTap: () => onPick(label),
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    // 36px chip plus 6px above and below makes a 48px target.
+                    padding: EdgeInsets.symmetric(vertical: (AppSizes.touch - AppSizes.chipHeight - AppSizes.s4) / 2),
+                    child: IntrinsicWidth(
+                      child: Container(
+                        height: AppSizes.chipHeight + AppSizes.s4,
+                        padding: EdgeInsets.symmetric(horizontal: AppSizes.s16 - 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.sunken,
+                          borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(outcomeIcon(label), size: AppSizes.iconSm, color: AppColors.inkSoft),
+                            SizedBox(width: AppSizes.s8 - 2),
+                            Text(label,
+                                style: AppTextStyles.centered(AppTextStyles.caption)
+                                    .copyWith(color: AppColors.ink)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              Row(
-                children: List.generate(4, (index) {
-                  final attended = index < guest.sundayAttendance;
-                  return _buildDot(attended, index + 1);
-                }),
-              ),
-            ],
-          ),
-          SizedBox(height: 10.h),
-
-          // Wednesdays
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Wednesdays (${guest.wednesdayAttendance} of 2)',
-                  style: AppTextStyles.bodyMuted,
-                ),
-              ),
-              Row(
-                children: List.generate(2, (index) {
-                  final attended = index < guest.wednesdayAttendance;
-                  return _buildDot(attended, index + 1);
-                }),
-              ),
             ],
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildDot(bool isAttended, int number) {
-    return Container(
-      width: 30.r,
-      height: 30.r,
-      margin: EdgeInsets.only(left: 6.w),
-      decoration: BoxDecoration(
-        color: isAttended ? AppColors.green : const Color(0xFFE6EBF4),
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        isAttended ? '✓' : '$number',
-        style: TextStyle(
-          color: isAttended ? Colors.white : AppColors.muted,
-          fontWeight: FontWeight.w600,
-          fontSize: 12.sp,
-        ),
-      ),
-    );
-  }
+class _MembershipCard extends StatelessWidget {
+  final GuestEntity guest;
 
-  Widget _buildCard({required String title, required Widget child}) {
-    return Container(
-      padding: EdgeInsets.all(14.r),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.navy.withValues(alpha: 0.08),
-            blurRadius: 3,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
+  const _MembershipCard({required this.guest});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget line(String label, int done, int target) => Column(
+          children: [
+            Row(
+              children: [
+                Expanded(child: Text(label, style: AppTextStyles.body)),
+                Text('${done.clamp(0, target)} of $target', style: AppTextStyles.caption),
+              ],
+            ),
+            SizedBox(height: AppSizes.s8),
+            SegmentBar(total: target, filled: done),
+          ],
+        );
+
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          line('Sundays', guest.sundayAttendance, 4),
+          SizedBox(height: AppSizes.s16),
+          line('Wednesdays', guest.wednesdayAttendance, 2),
+          SizedBox(height: AppSizes.s16),
           Text(
-            title,
-            style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.w600),
+            guest.status == 'Member'
+                ? 'Became a member. Thank you for walking with them.'
+                : '4 Sundays, or 3 Sundays and 2 Wednesdays, in one month.',
+            style: AppTextStyles.caption,
           ),
-          SizedBox(height: 8.h),
-          child,
         ],
       ),
+    );
+  }
+}
+
+class _DetailsCard extends StatelessWidget {
+  final GuestEntity guest;
+
+  const _DetailsCard({required this.guest});
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = StatusTone.forUrgency(guest.urgency);
+    return GroupedCard(
+      children: [
+        InfoTile(
+          label: 'Progress',
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              StatusDot(tone.dot),
+              SizedBox(width: AppSizes.s8),
+              Text(guestProgressLine(guest),
+                  style: AppTextStyles.body.copyWith(color: AppColors.muted)),
+            ],
+          ),
+        ),
+        InfoTile(label: 'First visit', value: MonthUtils.label(guest.month)),
+        InfoTile(label: 'Team', value: guest.teamJoined.isEmpty ? 'Not yet' : guest.teamJoined),
+      ],
+    );
+  }
+}
+
+/// Newest first. Admin entries keep the worker's name and get a small label.
+class _HistoryCard extends StatelessWidget {
+  final List<FollowUpEntry>? history;
+  final bool failed;
+  final VoidCallback onRetry;
+
+  const _HistoryCard({required this.history, required this.failed, required this.onRetry});
+
+  static String _day(String ymd) {
+    final d = DateTime.tryParse(ymd);
+    return d == null ? ymd : DateFormat('d MMM').format(d);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final list = history;
+    if (list == null) {
+      if (failed) {
+        return AppCard(
+          child: Row(
+            children: [
+              Expanded(child: Text('History did not load.', style: AppTextStyles.bodyMuted)),
+              AppButton(
+                label: 'Retry',
+                variant: AppButtonVariant.secondary,
+                expand: false,
+                onPressed: onRetry,
+              ),
+            ],
+          ),
+        );
+      }
+      return const Skeleton(child: SkeletonBox(height: 120, radius: 20));
+    }
+    if (list.isEmpty) {
+      return AppCard(
+        child: Text('No follow-ups yet. The first call is the most important one.',
+            style: AppTextStyles.bodyMuted),
+      );
+    }
+
+    return GroupedCard(
+      dividerIndent: AppSizes.s16 * 2 + AppSizes.avatarSm,
+      children: [
+        for (final e in list)
+          Padding(
+            padding: EdgeInsets.all(AppSizes.s16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: AppSizes.avatarSm,
+                  height: AppSizes.avatarSm,
+                  decoration: const BoxDecoration(color: AppColors.sunken, shape: BoxShape.circle),
+                  child: Icon(outcomeIcon(e.outcome), size: AppSizes.iconSm, color: AppColors.inkSoft),
+                ),
+                SizedBox(width: AppSizes.s16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: Text(e.outcome, style: AppTextStyles.bodyStrong)),
+                          Text(_day(e.date), style: AppTextStyles.caption),
+                        ],
+                      ),
+                      SizedBox(height: AppSizes.s4 / 2),
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: AppSizes.s8,
+                        runSpacing: AppSizes.s4,
+                        children: [
+                          Text(
+                            [
+                              if (e.workerName.isNotEmpty) firstNameOf(e.workerName),
+                              if (e.attendedSunday) 'came Sunday',
+                              if (e.attendedWednesday) 'came Wednesday',
+                              if (e.team.isNotEmpty) 'joined ${e.team}',
+                            ].join(' · '),
+                            style: AppTextStyles.caption,
+                          ),
+                          if (e.loggedByAdmin)
+                            Tooltip(
+                              message: e.loggedByName.isEmpty
+                                  ? 'Saved by an admin'
+                                  : 'Saved by ${e.loggedByName}',
+                              child: Container(
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: AppSizes.s8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.navySoft,
+                                  borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+                                ),
+                                child: Text('Logged by admin',
+                                    style: AppTextStyles.centered(AppTextStyles.caption)
+                                        .copyWith(color: AppColors.navy)),
+                              ),
+                            ),
+                        ],
+                      ),
+                      if (e.note.isNotEmpty) ...[
+                        SizedBox(height: AppSizes.s8),
+                        Text(e.note, style: AppTextStyles.body),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
