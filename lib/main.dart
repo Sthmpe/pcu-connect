@@ -22,9 +22,12 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   final localCache = LocalCache(prefs);
 
-  // Test Apps Script Web App URL (Configurable via backend deployment)
-  const appsScriptUrl =
-      'https://script.google.com/macros/s/AKfycbytest/exec';
+  // Apps Script /exec URL, set at build time:
+  // flutter build web --dart-define=APPS_SCRIPT_URL=<url>
+  const appsScriptUrl = String.fromEnvironment(
+    'APPS_SCRIPT_URL',
+    defaultValue: 'https://script.google.com/macros/s/AKfycbytest/exec',
+  );
 
   final apiClient = ApiClient(baseUrl: appsScriptUrl);
   final authRepository = AuthRepositoryImpl(apiClient: apiClient);
