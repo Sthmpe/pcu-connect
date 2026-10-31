@@ -1,61 +1,90 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../constants/app_colors.dart';
+import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
 
+/// Number tile. Tappable tiles act as filters and show a gold outline when
+/// selected.
 class MetricTileWidget extends StatelessWidget {
-  final int count;
+  final String value;
   final String label;
+  final Color? valueColor;
+  final IconData? icon;
+  final Color? iconColor;
   final bool isSelected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const MetricTileWidget({
     super.key,
-    required this.count,
+    required this.value,
     required this.label,
-    required this.isSelected,
-    required this.onTap,
+    this.valueColor,
+    this.icon,
+    this.iconColor,
+    this.isSelected = false,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: EdgeInsets.all(12.r),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFFFFAEB) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? AppColors.gold : Colors.transparent,
-            width: 2.w,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.navy.withValues(alpha: 0.08),
-              blurRadius: 3,
-              offset: const Offset(0, 1),
-            ),
-          ],
+    final radius = BorderRadius.circular(AppSizes.radiusLg);
+    return AnimatedContainer(
+      duration: AppDurations.fast,
+      decoration: BoxDecoration(
+        color: isSelected ? AppColors.goldSoft : AppColors.surface,
+        borderRadius: radius,
+        border: Border.all(
+          color: isSelected ? AppColors.gold : AppColors.line,
+          width: isSelected ? 1.5 : 1,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '$count',
-              style: AppTextStyles.tileNumber,
+        boxShadow: AppShadows.card,
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: radius,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+                AppSizes.p12, AppSizes.p12, AppSizes.p8, AppSizes.p12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        value,
+                        style: AppTextStyles.number
+                            .copyWith(color: valueColor ?? AppColors.ink),
+                      ),
+                    ),
+                    if (icon != null)
+                      Icon(icon,
+                          size: AppSizes.iconSm,
+                          color: iconColor ?? AppColors.subtle),
+                  ],
+                ),
+                SizedBox(height: AppSizes.p4),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        label,
+                        style: AppTextStyles.caption,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (onTap != null)
+                      Icon(Icons.chevron_right_rounded,
+                          size: AppSizes.iconXs, color: AppColors.subtle),
+                  ],
+                ),
+              ],
             ),
-            SizedBox(height: 2.h),
-            Text(
-              label,
-              style: AppTextStyles.tileLabel,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+          ),
         ),
       ),
     );

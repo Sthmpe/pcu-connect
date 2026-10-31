@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
 
+/// Label above a themed text field.
 class CustomTextField extends StatelessWidget {
   final String label;
   final String? hint;
@@ -12,6 +13,9 @@ class CustomTextField extends StatelessWidget {
   final Widget? suffixIcon;
   final String? Function(String?)? validator;
   final void Function(String)? onChanged;
+  final int maxLines;
+  final TextInputAction? textInputAction;
+  final Iterable<String>? autofillHints;
 
   const CustomTextField({
     super.key,
@@ -24,6 +28,9 @@ class CustomTextField extends StatelessWidget {
     this.suffixIcon,
     this.validator,
     this.onChanged,
+    this.maxLines = 1,
+    this.textInputAction,
+    this.autofillHints,
   });
 
   @override
@@ -31,21 +38,20 @@ class CustomTextField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: AppTextStyles.formLabel,
-        ),
-        SizedBox(height: AppSizes.p8),
+        Text(label, style: AppTextStyles.label),
+        SizedBox(height: AppSizes.p6),
         TextFormField(
           controller: controller,
           obscureText: obscureText,
           keyboardType: keyboardType,
           validator: validator,
           onChanged: onChanged,
-          style: AppTextStyles.body,
+          maxLines: maxLines,
+          textInputAction: textInputAction,
+          autofillHints: autofillHints,
+          style: AppTextStyles.input,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: AppTextStyles.bodyMuted,
             prefixIcon: prefixIcon,
             suffixIcon: suffixIcon,
           ),

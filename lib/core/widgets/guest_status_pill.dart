@@ -1,8 +1,51 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-import '../constants/app_colors.dart';
+import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
+import 'status_tone.dart';
 
+/// Small rounded label with an optional leading dot.
+class AppPill extends StatelessWidget {
+  final String label;
+  final StatusTone tone;
+  final bool showDot;
+
+  const AppPill({
+    super.key,
+    required this.label,
+    required this.tone,
+    this.showDot = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: AppSizes.p8, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: tone.background,
+        borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showDot) ...[
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: tone.accent,
+                shape: BoxShape.circle,
+              ),
+            ),
+            SizedBox(width: AppSizes.p4),
+          ],
+          Text(label, style: AppTextStyles.pill.copyWith(color: tone.foreground)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Guest status as shown across the app.
 class GuestStatusPill extends StatelessWidget {
   final String status;
 
@@ -10,47 +53,6 @@ class GuestStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color bg;
-    Color text;
-
-    switch (status) {
-      case 'Returning':
-        bg = AppColors.pillGreenBg;
-        text = AppColors.pillGreenText;
-        break;
-      case 'Contacted':
-        bg = AppColors.pillAmberBg;
-        text = AppColors.pillAmberText;
-        break;
-      case 'Unreachable':
-        bg = AppColors.pillRedBg;
-        text = AppColors.pillRedText;
-        break;
-      case 'New guest':
-        bg = AppColors.pillBlueBg;
-        text = AppColors.pillBlueText;
-        break;
-      case 'Member':
-        bg = AppColors.pillGoldBg;
-        text = AppColors.pillGoldText;
-        break;
-      case 'Not interested':
-      default:
-        bg = AppColors.pillNeutralBg;
-        text = AppColors.pillNeutralText;
-        break;
-    }
-
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 3.h),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        status,
-        style: AppTextStyles.pill.copyWith(color: text),
-      ),
-    );
+    return AppPill(label: status, tone: StatusTone.forStatus(status));
   }
 }

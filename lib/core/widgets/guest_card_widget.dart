@@ -1,171 +1,192 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../domain/entities/guest_entity.dart';
 import '../constants/app_colors.dart';
+import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
+import '../utils/contact_launcher.dart';
+import 'app_card.dart';
+import 'brand_marks.dart';
 import 'guest_status_pill.dart';
+import 'status_tone.dart';
 
+/// Compact guest row with one-tap Call and WhatsApp.
+///
+/// The thin left bar and the progress line carry the follow-up urgency
+/// (blue new, red overdue, amber called once, green followed up).
 class GuestCardWidget extends StatelessWidget {
   final GuestEntity guest;
   final VoidCallback onTap;
+
+  /// Shows "Assigned to ..." instead of the urgency line (admin lists).
+  final bool showAssignee;
+  final bool showActions;
 
   const GuestCardWidget({
     super.key,
     required this.guest,
     required this.onTap,
+    this.showAssignee = false,
+    this.showActions = true,
   });
-
-  Color get _borderColor {
-    switch (guest.urgency) {
-      case GuestUrgency.green:
-        return AppColors.green;
-      case GuestUrgency.amber:
-        return const Color(0xFFE39A1B);
-      case GuestUrgency.red:
-        return AppColors.red;
-      case GuestUrgency.blue:
-        return const Color(0xFF9AA3B2);
-    }
-  }
-
-  Color get _progressColor {
-    switch (guest.urgency) {
-      case GuestUrgency.green:
-        return AppColors.green;
-      case GuestUrgency.amber:
-        return const Color(0xFF8A5300);
-      case GuestUrgency.red:
-        return AppColors.red;
-      case GuestUrgency.blue:
-        return AppColors.muted;
-    }
-  }
-
-  Future<void> _launchUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: EdgeInsets.all(14.r),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.navy.withValues(alpha: 0.08),
-              blurRadius: 3,
-              offset: const Offset(0, 1),
+    final tone = StatusTone.forUrgency(guest.urgency);
+    final radius = BorderRadius.circular(AppSizes.radiusLg);
+    final assignee = guest.assignedWorkerName;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: radius,
+        border: Border.all(color: AppColors.line),
+        boxShadow: AppShadows.card,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(width: 3, color: tone.accent),
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                        AppSizes.p12, AppSizes.p12, AppSizes.p12, AppSizes.p12),
+                    child: Row(
+                      children: [
+                        AppAvatar(
+                          initials: guest.initials,
+                          size: AppSizes.avatarMd,
+                          background: tone.background,
+                          foreground: tone.foreground,
+                        ),
+                        SizedBox(width: AppSizes.p12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      guest.name,
+                                      style: AppTextStyles.itemTitle,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  SizedBox(width: AppSizes.p6),
+                                  GuestStatusPill(status: guest.status),
+                                ],
+                              ),
+                              SizedBox(height: AppSizes.p4),
+                              if (showAssignee)
+                                Text(
+                                  assignee == null || assignee.isEmpty
+                                      ? '${guest.phone} · Unassigned'
+                                      : '${guest.phone} · ${assignee.split(' ').first}',
+                                  style: AppTextStyles.caption,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                )
+                              else
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: BoxDecoration(
+                                        color: tone.accent,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    SizedBox(width: AppSizes.p6),
+                                    Flexible(
+                                      child: Text(
+                                        guest.progressText,
+                                        style: AppTextStyles.caption.copyWith(
+                                          color: tone.foreground,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
+                        ),
+                        if (showActions) ...[
+                          SizedBox(width: AppSizes.p8),
+                          ContactIconButton(
+                            tooltip: 'WhatsApp ${guest.name}',
+                            icon: WhatsAppMark(
+                                size: AppSizes.iconSm + 1,
+                                color: AppColors.greenInk),
+                            background: AppColors.greenSoft,
+                            onTap: () => ContactLauncher.whatsApp(guest),
+                          ),
+                          SizedBox(width: AppSizes.p8),
+                          ContactIconButton(
+                            tooltip: 'Call ${guest.name}',
+                            icon: Icon(Icons.call_rounded,
+                                size: AppSizes.iconSm + 1,
+                                color: AppColors.onNavy),
+                            background: AppColors.navy,
+                            onTap: () => ContactLauncher.call(guest),
+                          ),
+                        ] else
+                          Icon(Icons.chevron_right_rounded,
+                              color: AppColors.subtle, size: AppSizes.iconMd),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-          border: Border(
-            left: BorderSide(color: _borderColor, width: 6.w),
           ),
         ),
-        child: Column(
-          children: [
-            // Top Row: Avatar, Name, Phone, Status Pill
-            Row(
-              children: [
-                Container(
-                  width: 40.r,
-                  height: 40.r,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFE6EBF4),
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    guest.initials,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14.sp,
-                      color: AppColors.navy,
-                    ),
-                  ),
-                ),
-                SizedBox(width: 12.w),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(guest.name, style: AppTextStyles.cardTitle),
-                      SizedBox(height: 2.h),
-                      Text(guest.phone, style: AppTextStyles.bodyMuted),
-                    ],
-                  ),
-                ),
-                GuestStatusPill(status: guest.status),
-              ],
-            ),
-            SizedBox(height: 10.h),
-            // Bottom Row: Progress Text, WhatsApp Button, Call Button
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    guest.progressText,
-                    style: TextStyle(
-                      fontSize: 13.sp,
-                      fontWeight: FontWeight.w500,
-                      color: _progressColor,
-                    ),
-                  ),
-                ),
-                // WhatsApp Pill Button
-                InkWell(
-                  onTap: () => _launchUrl(guest.whatsAppUrl),
-                  borderRadius: BorderRadius.circular(999),
-                  child: Container(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 14.w, vertical: 7.h),
-                    decoration: BoxDecoration(
-                      color: AppColors.btnWhatsAppBg,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      'WhatsApp',
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.btnWhatsAppText,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 8.w),
-                // Call Pill Button
-                InkWell(
-                  onTap: () => _launchUrl(guest.telUrl),
-                  borderRadius: BorderRadius.circular(999),
-                  child: Container(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 14.w, vertical: 7.h),
-                    decoration: BoxDecoration(
-                      color: AppColors.btnCallBg,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      'Call',
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
+      ),
+    );
+  }
+}
+
+/// Round icon button for Call and WhatsApp in list rows.
+class ContactIconButton extends StatelessWidget {
+  final Widget icon;
+  final String tooltip;
+  final Color background;
+  final VoidCallback onTap;
+
+  const ContactIconButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.background,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: background,
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: AppSizes.iconButton,
+            height: AppSizes.iconButton,
+            child: Center(child: icon),
+          ),
         ),
       ),
     );
