@@ -1,5 +1,5 @@
 // Runs backend/PcuApi.gs in Node against a mock of the Apps Script services.
-// Usage: node backend/test/pcu_api_harness.js backend/PcuApi.gs
+// Usage: node backend/test/pcu_api_harness.js backend/Api.gs
 const fs = require('fs'); const vm = require('vm'); const crypto = require('crypto');
 const TZ = 'Africa/Lagos';
 function fmt(d, tz, pattern) {
@@ -38,6 +38,7 @@ const sheets = {
     ['W004','Inactive C','worker.c@x.com','','Worker','No'],
     ['W005','David Olanite','david@x.com','','Worker','Yes']]),
 };
+const props = { FIREBASE_WEB_API_KEY: 'KEY' };
 const tokens = { tokAdmin: 'boss@x.com', tokDavid: 'david@x.com', tokC: 'worker.c@x.com', tokStranger: 'nobody@x.com' };
 const ctx = {
   console,
@@ -51,7 +52,7 @@ const ctx = {
     DigestAlgorithm: { SHA_256: 'sha256' },
   },
   CacheService: { getScriptCache: () => ({ get: () => null, put() {} }) },
-  PropertiesService: { getScriptProperties: () => ({ getProperty: k => k === 'FIREBASE_WEB_API_KEY' ? 'KEY' : null }) },
+  PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : null) }) },
   UrlFetchApp: { fetch: (url, opts) => { const t = JSON.parse(opts.payload).idToken; const email = tokens[t];
     return { getResponseCode: () => email ? 200 : 400, getContentText: () => JSON.stringify(email ? { users: [{ email, emailVerified: true }] } : { error: {} }) }; } },
   LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
@@ -68,6 +69,16 @@ r = call({ action: 'me', idToken: 'tokAdmin' }); check('me admin', r.ok && r.dat
 r = call({ action: 'me', idToken: 'tokC' }); check('inactive denied', !r.ok && r.code === 'ACCESS_DENIED', r);
 r = call({ action: 'me', idToken: 'tokStranger' }); check('stranger denied', !r.ok && r.code === 'ACCESS_DENIED', r);
 r = call({ action: 'me', idToken: 'bad' }); check('bad token', !r.ok && r.code === 'UNAUTHENTICATED', r);
+// Mock tokens: rejected unless ALLOW_MOCK_TOKENS is exactly "true".
+r = call({ action: 'me', idToken: 'mock_token_david@x.com' }); check('mock token rejected when property unset', !r.ok && r.code === 'UNAUTHENTICATED', r);
+for (const v of ['false', 'TRUE', 'True', ' true', '1', '']) {
+  props.ALLOW_MOCK_TOKENS = v;
+  r = call({ action: 'me', idToken: 'mock_token_david@x.com' }); check(`mock token rejected when property is ${JSON.stringify(v)}`, !r.ok && r.code === 'UNAUTHENTICATED', r);
+}
+props.ALLOW_MOCK_TOKENS = 'true';
+r = call({ action: 'me', idToken: 'mock_token_david@x.com' }); check('mock token accepted when property is "true"', r.ok && r.data.role === 'Worker', r);
+r = call({ action: 'me', idToken: 'mock_token_worker.c@x.com' }); check('mock token still enforces Workers tab', !r.ok && r.code === 'ACCESS_DENIED', r);
+delete props.ALLOW_MOCK_TOKENS;
 r = call({ action: 'guests', idToken: 'tokDavid', month }); check('worker sees own guests only', r.ok && r.data.guests.every(g => g.assignedTo === 'david@x.com'), r);
 const g1 = r.data.guests.find(g => g.id === 'G1'); check('phone leading zero', g1 && g1.phone === '08000000001', g1);
 check('G1 first visit counted', g1.sundays + g1.wednesdays >= 1, g1);
@@ -108,3 +119,4 @@ r = call({ action: 'nope', idToken: 'tokAdmin' }); check('unknown action', !r.ok
 console.log('Follow-ups rows now:', sheets['Follow-ups'].rows.length - 1, '| guest G1 row:', JSON.stringify(sheets['Form Responses 1'].rows[1].slice(11, 25)));
 ctx.pcuSelfTest();
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
+process.exitCode = fails ? 1 : 0;

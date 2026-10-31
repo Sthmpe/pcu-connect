@@ -119,3 +119,15 @@ flutter pub get
 # Run on Chrome
 flutter run -d chrome
 ```
+
+---
+
+## 7. Mock Tokens (TEST sheet only)
+
+`backend/Api.gs` accepts dev `mock_token` logins only when the Apps Script
+Script Property `ALLOW_MOCK_TOKENS` is exactly `true` (lowercase, no spaces).
+Any other value, or no property at all, returns `UNAUTHENTICATED`.
+
+- Set it on the **TEST sheet** project only (Project Settings > Script properties).
+- **Never** set it on the live church sheet.
+- Verified by the Node harness: `node backend/test/pcu_api_harness.js backend/Api.gs`

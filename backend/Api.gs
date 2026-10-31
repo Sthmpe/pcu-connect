@@ -13,6 +13,9 @@
  *
  * Script Properties (Project Settings > Script properties):
  *   FIREBASE_WEB_API_KEY  The Firebase web API key (same as in firebase_options.dart).
+ *   ALLOW_MOCK_TOKENS     Optional. Only the exact value "true" lets mock_token
+ *                         logins through. Set it on the TEST sheet only, never
+ *                         on the live church sheet.
  *
  * Request:  POST body (text/plain) {"action": "...", "idToken": "<Firebase ID token>", ...}
  * Response: {"ok": true, "data": ...} or {"ok": false, "code": "...", "error": "..."}
@@ -146,8 +149,13 @@ function pcuError_(code, message) {
 function pcuVerifyUser_(idToken) {
   if (!idToken) throw pcuError_('UNAUTHENTICATED', 'Please sign in.');
 
-  // Dev mock token support for local Flutter development
+  // Dev mock tokens are only honoured when the Script Property
+  // ALLOW_MOCK_TOKENS is exactly "true". Set it on the TEST sheet only.
   if (idToken.indexOf('mock_token_') === 0 || idToken === 'mock_token') {
+    var allowMock = PropertiesService.getScriptProperties().getProperty('ALLOW_MOCK_TOKENS');
+    if (allowMock !== 'true') {
+      throw pcuError_('UNAUTHENTICATED', 'Please sign in.');
+    }
     var mockEmail = idToken === 'mock_token' ? 'davidolanite0@gmail.com' : idToken.replace('mock_token_', '').trim().toLowerCase();
     var mockWorker = pcuWorkers_().byEmail[mockEmail];
     if (!mockWorker || !mockWorker.active) {

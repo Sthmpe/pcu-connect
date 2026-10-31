@@ -284,3 +284,19 @@ migration.
 - **Next Steps:**
   - Test the Flutter Web app locally with `flutter run -d chrome`.
   - When the user is ready, deploy the Apps Script to their Google Sheet and configure Firebase Hosting for live web deployment.
+
+---
+
+## 2026-10-31 Update: Mock token security fix and devcontainer
+
+- `backend/Api.gs` `pcuVerifyUser_`: mock tokens (`mock_token`, `mock_token_<email>`)
+  are now accepted only when Script Property `ALLOW_MOCK_TOKENS` is exactly
+  `"true"`. Otherwise the call fails with `UNAUTHENTICATED`. Mock logins still
+  go through the Workers tab check. **Set it on the TEST sheet only, never on
+  the live church sheet.**
+- `backend/test/pcu_api_harness.js` now has a settable Script Properties mock and
+  checks both cases (rejected for unset, "false", "TRUE", "True", " true", "1", "";
+  accepted for "true"). Run: `node backend/test/pcu_api_harness.js backend/Api.gs`.
+- `.devcontainer/` installs Flutter (stable) and the Firebase CLI on every
+  Codespace rebuild, and adds a 4 GB swap file. Without swap, the Flutter tool's
+  first build was killed by memory pressure in this Codespace.
