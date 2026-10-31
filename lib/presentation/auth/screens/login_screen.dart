@@ -54,7 +54,7 @@ class _LoginScreenState extends State<LoginScreen> {
           if (state is AuthAuthenticatedState) {
             _enterApp(state);
           } else if (state is AuthUnauthorizedState) {
-            AppFeedback.notice(title: 'You are not on the team yet', message: state.message);
+            AppFeedback.notice(title: 'No access yet', message: state.message);
           } else if (state is AuthFailureState) {
             AppFeedback.error('Sign in did not work', state.message);
           }

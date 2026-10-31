@@ -69,7 +69,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
     if (profileResult.isFailure) {
       final msg = profileResult.failure!.message;
-      if (msg.contains('No access') || msg.contains('inactive')) {
+      if (profileResult.failure!.code == 'ACCESS_DENIED' ||
+          msg.contains('No access') ||
+          msg.contains('inactive')) {
         emit(AuthUnauthorizedState(msg));
       } else {
         emit(AuthFailureState(msg));

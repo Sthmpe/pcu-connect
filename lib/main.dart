@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -11,6 +13,8 @@ import 'core/routing/app_routes.dart';
 import 'core/storage/local_cache.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/responsive_web_shell.dart';
+import 'data/firestore/firestore_guest_repository.dart';
+import 'data/firestore/firestore_profile_source.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/repositories/guest_repository_impl.dart';
 import 'data/repositories/team_repository_impl.dart';
@@ -39,16 +43,31 @@ void main() async {
   );
 
   final apiClient = ApiClient(baseUrl: appsScriptUrl);
-  final authRepository = AuthRepositoryImpl(apiClient: apiClient);
+  // Phase 1 switch (--dart-define=DATA_SOURCE=firestore): roles and guests
+  // come from Firestore, saving stays on the Apps Script API.
+  final profileSource = AppConfig.useFirestore
+      ? FirestoreProfileSource(db: FirebaseFirestore.instance, auth: FirebaseAuth.instance)
+      : null;
+  final authRepository = AuthRepositoryImpl(
+    apiClient: apiClient,
+    profileLoader: profileSource?.load,
+  );
   // Sample repositories exist for UI work only and are compiled out of any
   // build made without --dart-define=USE_SAMPLE_DATA=true.
+  final apiGuests = GuestRepositoryImpl(
+    apiClient: apiClient,
+    authRepository: authRepository,
+    localCache: localCache,
+  );
   final IGuestRepository guestRepository = AppConfig.useSampleData
       ? SampleGuestRepository()
-      : GuestRepositoryImpl(
-          apiClient: apiClient,
-          authRepository: authRepository,
-          localCache: localCache,
-        );
+      : AppConfig.useFirestore
+          ? FirestoreGuestRepository(
+              db: FirebaseFirestore.instance,
+              authRepository: authRepository,
+              writer: apiGuests,
+            )
+          : apiGuests;
   final ITeamRepository teamRepository = AppConfig.useSampleData
       ? SampleTeamRepository()
       : TeamRepositoryImpl(apiClient: apiClient, authRepository: authRepository);

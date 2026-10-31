@@ -20,6 +20,9 @@ class GuestRepositoryImpl implements IGuestRepository {
         _localCache = localCache;
 
   @override
+  Stream<List<GuestEntity>>? watchGuests({required String month}) => null;
+
+  @override
   List<GuestEntity>? getCachedGuests({String? month}) {
     final key = 'guests.${month ?? 'current'}';
     final entry = _localCache.read(key);

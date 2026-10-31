@@ -57,6 +57,9 @@ class SampleGuestRepository implements IGuestRepository {
   }
 
   @override
+  Stream<List<GuestEntity>>? watchGuests({required String month}) => null;
+
+  @override
   List<GuestEntity>? getCachedGuests({String? month}) => null;
 
   @override

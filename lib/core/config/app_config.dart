@@ -11,4 +11,12 @@ class AppConfig {
   /// --dart-define=USE_SAMPLE_DATA=true. Never set for a release build, so
   /// the sample repositories are compiled out of it.
   static const bool useSampleData = bool.fromEnvironment('USE_SAMPLE_DATA');
+
+  /// Where guests are read from: 'api' (Apps Script, the default) or
+  /// 'firestore' (phase 1, --dart-define=DATA_SOURCE=firestore). Saving still
+  /// goes through the Apps Script API in both modes during phase 1, so the app
+  /// keeps working if Firestore is not ready.
+  static const String dataSource = String.fromEnvironment('DATA_SOURCE', defaultValue: 'api');
+
+  static bool get useFirestore => dataSource == 'firestore' && !useSampleData;
 }

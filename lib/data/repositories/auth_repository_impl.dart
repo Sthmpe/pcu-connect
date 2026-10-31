@@ -9,6 +9,10 @@ class AuthRepositoryImpl implements IAuthRepository {
   final ApiClient _apiClient;
   final FirebaseAuth? _auth;
 
+  /// When set (Firestore mode), the role comes from here instead of the
+  /// Apps Script `me` action. Mock sessions still use the API.
+  final Future<ApiResult<WorkerUser>> Function()? _profileLoader;
+
   String? _cachedIdToken;
   WorkerUser? _cachedUser;
   bool _isMock = false;
@@ -16,8 +20,10 @@ class AuthRepositoryImpl implements IAuthRepository {
   AuthRepositoryImpl({
     required ApiClient apiClient,
     FirebaseAuth? auth,
+    Future<ApiResult<WorkerUser>> Function()? profileLoader,
   })  : _apiClient = apiClient,
-        _auth = auth;
+        _auth = auth,
+        _profileLoader = profileLoader;
 
   // Resolved lazily so tests that never sign in do not need Firebase.
   FirebaseAuth get _firebaseAuth => _auth ?? FirebaseAuth.instance;
@@ -93,6 +99,12 @@ class AuthRepositoryImpl implements IAuthRepository {
   @override
   Future<ApiResult<WorkerUser>> getProfile(String idToken) async {
     _cachedIdToken = idToken;
+    final loader = _profileLoader;
+    if (loader != null && !_isMock) {
+      final profile = await loader();
+      if (profile.isSuccess) _cachedUser = profile.data;
+      return profile;
+    }
     final result = await _apiClient.postAction(
       action: 'me',
       idToken: idToken,
