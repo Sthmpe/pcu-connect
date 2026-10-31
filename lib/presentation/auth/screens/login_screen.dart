@@ -1,246 +1,284 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:get/get.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../../core/widgets/responsive_web_shell.dart';
-import '../../admin/screens/admin_shell_screen.dart';
-import '../../worker/screens/worker_shell_screen.dart';
+import '../../../core/routing/app_routes.dart';
+import '../../../core/widgets/app_feedback.dart';
+import '../../../core/widgets/brand_marks.dart';
+import '../../../core/widgets/custom_button.dart';
 import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // The session check may finish before this screen subscribes.
+    final state = context.read<AuthBloc>().state;
+    if (state is AuthAuthenticatedState) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _enterApp(state));
+    }
+  }
+
+  void _enterApp(AuthAuthenticatedState state) {
+    if (!mounted) return;
+    context.read<GuestsBloc>().add(const LoadGuestsEvent());
+    Navigator.of(context).pushReplacementNamed(
+      state.user.isAdmin ? AppRoutes.admin : AppRoutes.worker,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ResponsiveWebShell(
-      child: Scaffold(
-        backgroundColor: AppColors.bg,
-        body: BlocConsumer<AuthBloc, AuthState>(
-          listener: (context, state) {
-            if (state is AuthAuthenticatedState) {
-              context.read<GuestsBloc>().add(const LoadGuestsEvent());
-              if (state.user.isAdmin) {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const AdminShellScreen()),
-                );
-              } else {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const WorkerShellScreen()),
-                );
-              }
-            } else if (state is AuthUnauthorizedState) {
-              Get.defaultDialog(
-                title: 'Access Restricted',
-                middleText: state.message,
-                textConfirm: 'OK',
-                confirmTextColor: Colors.white,
-                buttonColor: AppColors.navy,
-                onConfirm: () => Get.back(),
-              );
-            } else if (state is AuthFailureState) {
-              Get.snackbar(
-                'Sign In Failed',
-                state.message,
-                backgroundColor: AppColors.red,
-                colorText: Colors.white,
-                snackPosition: SnackPosition.BOTTOM,
-              );
-            }
-          },
-          builder: (context, state) {
-            final isLoading = state is AuthLoadingState;
+    return Scaffold(
+      backgroundColor: AppColors.navy,
+      body: BlocConsumer<AuthBloc, AuthState>(
+        listener: (context, state) {
+          if (state is AuthAuthenticatedState) {
+            _enterApp(state);
+          } else if (state is AuthUnauthorizedState) {
+            AppFeedback.notice(title: 'No access yet', message: state.message);
+          } else if (state is AuthFailureState) {
+            AppFeedback.error('Sign in failed', state.message);
+          }
+        },
+        builder: (context, state) {
+          final checkingSession = state is AuthInitialState;
+          final isLoading = state is AuthLoadingState;
 
-            return Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24.w),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Brand Icon & Header
-                    Container(
-                      width: 80.r,
-                      height: 80.r,
-                      decoration: const BoxDecoration(
-                        color: AppColors.navy,
-                        shape: BoxShape.circle,
-                      ),
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.handshake_rounded,
-                        color: AppColors.gold,
-                        size: 44,
-                      ),
-                    ),
-                    SizedBox(height: 18.h),
-                    Text(
-                      'PCU Connect',
-                      style: TextStyle(
-                        fontSize: 28.sp,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.navy,
-                      ),
-                    ),
-                    SizedBox(height: 6.h),
-                    Text(
-                      'Pastoral Care Unit Guest Management',
-                      style: AppTextStyles.bodyMuted,
-                      textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: 48.h),
+          return Column(
+            children: [
+              Expanded(child: _Hero(checkingSession: checkingSession)),
+              AnimatedSwitcher(
+                duration: AppDurations.normal,
+                child: checkingSession
+                    ? const SizedBox(height: 0, width: double.infinity)
+                    : _SignInPanel(isLoading: isLoading),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
 
-                    // Google Sign-In Button
-                    InkWell(
-                      onTap: isLoading
-                          ? null
-                          : () {
-                              context
-                                  .read<AuthBloc>()
-                                  .add(AuthSignInRequestedEvent());
-                            },
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        height: 52.h,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color: const Color(0xFFC3CAD6), width: 1.5),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.navy.withValues(alpha: 0.06),
-                              blurRadius: 3,
-                              offset: const Offset(0, 1),
-                            ),
-                          ],
-                        ),
-                        child: isLoading
-                            ? const Center(
-                                child: CircularProgressIndicator(
-                                  color: AppColors.navy,
-                                  strokeWidth: 2.5,
-                                ),
-                              )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.g_mobiledata_rounded,
-                                      size: 32, color: AppColors.navy),
-                                  SizedBox(width: 8.w),
-                                  Text(
-                                    'Sign in with Google',
-                                    style: TextStyle(
-                                      fontSize: 16.sp,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.navy,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                      ),
-                    ),
-                    if (AppConfig.enableMockLogin) ...[
-                      SizedBox(height: 24.h),
+class _Hero extends StatelessWidget {
+  final bool checkingSession;
 
-                      // Quick Switch Options for Testing (Debug Mode Only)
-                      Container(
-                        padding: EdgeInsets.all(14.r),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppColors.line),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              'Quick Test Switch',
-                              style: TextStyle(
-                                fontSize: 12.sp,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.muted,
-                              ),
-                            ),
-                            SizedBox(height: 10.h),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: InkWell(
-                                    onTap: () {
-                                      context.read<AuthBloc>().add(
-                                            const AuthMockSignInRequestedEvent(
-                                              email: 'davidolanite0@gmail.com',
-                                              role: 'Worker',
-                                            ),
-                                          );
-                                    },
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: Container(
-                                      padding: EdgeInsets.symmetric(vertical: 8.h),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFE6EBF4),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      alignment: Alignment.center,
-                                      child: Text(
-                                        'David (Worker)',
-                                        style: TextStyle(
-                                          fontSize: 12.sp,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.navy,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(width: 8.w),
-                                Expanded(
-                                  child: InkWell(
-                                    onTap: () {
-                                      context.read<AuthBloc>().add(
-                                            const AuthMockSignInRequestedEvent(
-                                              email: 'olaniteolanight@gmail.com',
-                                              role: 'Admin',
-                                            ),
-                                          );
-                                    },
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: Container(
-                                      padding: EdgeInsets.symmetric(vertical: 8.h),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.pillGoldBg,
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      alignment: Alignment.center,
-                                      child: Text(
-                                        'Opeyemi (Admin)',
-                                        style: TextStyle(
-                                          fontSize: 12.sp,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.pillGoldText,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+  const _Hero({required this.checkingSession});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [AppColors.navy, AppColors.navyLight],
+        ),
+      ),
+      child: Stack(
+        children: [
+          // Soft gold glow, decorative only.
+          Positioned(
+            top: -80,
+            right: -60,
+            child: Container(
+              width: 220,
+              height: 220,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [
+                  AppColors.gold.withValues(alpha: 0.22),
+                  AppColors.gold.withValues(alpha: 0),
+                ]),
+              ),
+            ),
+          ),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: AppColors.gold,
+                    borderRadius: BorderRadius.circular(22),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.gold.withValues(alpha: 0.35),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
                       ),
                     ],
-                  ],
+                  ),
+                  child: const Icon(Icons.volunteer_activism_rounded,
+                      color: AppColors.navy, size: 36),
+                ),
+                SizedBox(height: AppSizes.p20),
+                Text('PCU Connect',
+                    style: AppTextStyles.brand.copyWith(color: AppColors.onNavy)),
+                SizedBox(height: AppSizes.p6),
+                Text(
+                  'Care for every guest, one call at a time',
+                  style: AppTextStyles.screenSubtitle,
+                  textAlign: TextAlign.center,
+                ),
+                if (checkingSession) ...[
+                  SizedBox(height: AppSizes.p32),
+                  const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: AppColors.gold,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SignInPanel extends StatelessWidget {
+  final bool isLoading;
+
+  const _SignInPanel({required this.isLoading});
+
+  @override
+  Widget build(BuildContext context) {
+    final bloc = context.read<AuthBloc>();
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(
+        AppSizes.p24,
+        AppSizes.p24,
+        AppSizes.p24,
+        AppSizes.p24 + MediaQuery.paddingOf(context).bottom,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSizes.radiusXl + 4)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Welcome',
+              style: AppTextStyles.detailTitle.copyWith(color: AppColors.ink)),
+          SizedBox(height: AppSizes.p4),
+          Text(
+            'Sign in with the Google account your HOD added to the team.',
+            style: AppTextStyles.secondary,
+          ),
+          SizedBox(height: AppSizes.p20),
+          AppButton(
+            label: 'Continue with Google',
+            variant: AppButtonVariant.primary,
+            isLoading: isLoading,
+            leading: Container(
+              width: 22,
+              height: 22,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: AppColors.surface,
+                shape: BoxShape.circle,
+              ),
+              child: const GoogleMark(size: 13),
+            ),
+            onPressed: () => bloc.add(AuthSignInRequestedEvent()),
+          ),
+          SizedBox(height: AppSizes.p12),
+          Row(
+            children: [
+              Icon(Icons.lock_outline_rounded,
+                  size: AppSizes.iconXs, color: AppColors.subtle),
+              SizedBox(width: AppSizes.p6),
+              Expanded(
+                child: Text(
+                  'Only approved PCU workers and leaders can sign in.',
+                  style: AppTextStyles.caption,
                 ),
               ),
-            );
-          },
-        ),
+            ],
+          ),
+          if (AppConfig.enableMockLogin) ...[
+            SizedBox(height: AppSizes.p20),
+            const _DevSwitcher(),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Debug builds only: sign in as a test worker or admin.
+class _DevSwitcher extends StatelessWidget {
+  const _DevSwitcher();
+
+  @override
+  Widget build(BuildContext context) {
+    final bloc = context.read<AuthBloc>();
+    return Container(
+      padding: EdgeInsets.all(AppSizes.p12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('DEVELOPER SWITCH', style: AppTextStyles.overline),
+          SizedBox(height: AppSizes.p8),
+          Row(
+            children: [
+              Expanded(
+                child: AppButton(
+                  label: 'David · Worker',
+                  size: AppButtonSize.small,
+                  variant: AppButtonVariant.tonal,
+                  onPressed: () => bloc.add(const AuthMockSignInRequestedEvent(
+                    email: 'davidolanite0@gmail.com',
+                    role: 'Worker',
+                  )),
+                ),
+              ),
+              SizedBox(width: AppSizes.p8),
+              Expanded(
+                child: AppButton(
+                  label: 'Opeyemi · Admin',
+                  size: AppButtonSize.small,
+                  variant: AppButtonVariant.outline,
+                  onPressed: () => bloc.add(const AuthMockSignInRequestedEvent(
+                    email: 'olaniteolanight@gmail.com',
+                    role: 'Admin',
+                  )),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

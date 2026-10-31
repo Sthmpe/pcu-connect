@@ -1,202 +1,209 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/app_feedback.dart';
+import '../../../core/widgets/app_header.dart';
+import '../../../core/widgets/custom_button.dart';
+import '../../../core/widgets/guest_status_pill.dart';
+import '../../../core/widgets/metric_tile_widget.dart';
+import '../../../core/widgets/status_tone.dart';
+import '../../../domain/entities/worker_user.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../auth/bloc/auth_event.dart';
 import '../../auth/bloc/auth_state.dart';
+import '../../guests/bloc/guests_bloc.dart';
+import '../../guests/bloc/guests_state.dart';
 
+/// Profile, personal stats (workers) and sign out. Used by both apps.
 class MeTab extends StatelessWidget {
   const MeTab({super.key});
 
+  Future<void> _signOut(BuildContext context) async {
+    final bloc = context.read<AuthBloc>();
+    final ok = await AppFeedback.confirm(
+      title: 'Sign out?',
+      message: 'You can sign back in any time with your Google account.',
+      confirmLabel: 'Sign out',
+      destructive: true,
+    );
+    if (ok) bloc.add(AuthSignOutRequestedEvent());
+  }
+
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AuthBloc, AuthState>(
-      builder: (context, state) {
-        String name = 'David Olanite';
-        String email = 'davidolanite0@gmail.com';
-        String role = 'Worker';
+    final user = context.select<AuthBloc, WorkerUser?>((bloc) {
+      final s = bloc.state;
+      return s is AuthAuthenticatedState ? s.user : null;
+    });
+    final isSigningOut =
+        context.select<AuthBloc, bool>((b) => b.state is AuthLoadingState);
 
-        if (state is AuthAuthenticatedState) {
-          name = state.user.name;
-          email = state.user.email;
-          role = state.user.role;
-        }
+    final name = user?.name ?? '';
+    final isAdmin = user?.isAdmin ?? false;
+
+    return Column(
+      children: [
+        const AppHeader(title: 'Me', subtitle: 'Your account and progress'),
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(
+                AppSizes.gutter, AppSizes.p16, AppSizes.gutter, AppSizes.p24),
+            children: [
+              AppCard(
+                child: Row(
+                  children: [
+                    AppAvatar(
+                      initials: initialsOf(name.isEmpty ? '?' : name),
+                      size: AppSizes.avatarLg,
+                      background: AppColors.gold,
+                      foreground: AppColors.navy,
+                    ),
+                    SizedBox(width: AppSizes.p12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(name.isEmpty ? 'Signed in' : name,
+                              style: AppTextStyles.cardTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
+                          SizedBox(height: AppSizes.p2),
+                          Text(user?.email ?? '',
+                              style: AppTextStyles.secondary,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
+                          SizedBox(height: AppSizes.p8),
+                          AppPill(
+                            label: user?.role ?? 'Worker',
+                            tone: isAdmin ? StatusTone.gold : StatusTone.blue,
+                            showDot: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: AppSizes.p16),
+              if (!isAdmin) const _MyStats(),
+              if (isAdmin) ...[
+                const SectionHeader(title: 'Your access'),
+                AppCard(
+                  padding: EdgeInsets.symmetric(
+                      horizontal: AppSizes.p16, vertical: AppSizes.p8),
+                  child: const Column(
+                    children: [
+                      InfoRow(
+                          icon: Icons.insights_rounded,
+                          label: 'Church-wide dashboard',
+                          value: 'Yes'),
+                      InfoRow(
+                          icon: Icons.badge_rounded,
+                          label: 'Manage workers',
+                          value: 'Yes'),
+                      InfoRow(
+                          icon: Icons.sync_alt_rounded,
+                          label: 'Receives new guests',
+                          value: 'No'),
+                    ],
+                  ),
+                ),
+              ],
+              SizedBox(height: AppSizes.p24),
+              AppButton(
+                label: 'Sign out',
+                icon: Icons.logout_rounded,
+                variant: AppButtonVariant.danger,
+                isLoading: isSigningOut,
+                onPressed: () => _signOut(context),
+              ),
+              SizedBox(height: AppSizes.p16),
+              Center(
+                child: Text('PCU Connect · Pastoral Care Unit',
+                    style: AppTextStyles.caption),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Worker stats computed from the guests already loaded for the month.
+class _MyStats extends StatelessWidget {
+  const _MyStats();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<GuestsBloc, GuestsState>(
+      builder: (context, state) {
+        if (state is! GuestsLoadedState) return const SizedBox.shrink();
+
+        final guests =
+            state.allGuests.where((g) => g.month == state.selectedMonth).toList();
+        final total = guests.length;
+        final contacted = guests.where((g) => g.callCount > 0).length;
+        final followUps = guests.fold<int>(0, (sum, g) => sum + g.followUpCount);
+        final members = guests.where((g) => g.status == 'Member').length;
+        final inTeam = guests.where((g) => g.teamJoined.isNotEmpty).length;
+        final returning =
+            guests.where((g) => g.sundayAttendance + g.wednesdayAttendance > 0).length;
+
+        double pct(int n) => total == 0 ? 0 : n / total;
+        String frac(int n) =>
+            '$n of $total · ${(pct(n) * 100).round()}%';
 
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Dark Header
-            Container(
-              color: AppColors.navy,
-              padding: EdgeInsets.fromLTRB(20.w, 42.h, 20.w, 18.h),
-              alignment: Alignment.centerLeft,
+            SectionHeader(title: state.selectedMonth),
+            Row(
+              children: [
+                Expanded(child: MetricTileWidget(value: '$total', label: 'Guests')),
+                SizedBox(width: AppSizes.p8),
+                Expanded(
+                  child: MetricTileWidget(
+                    value: '$contacted',
+                    label: 'Contacted',
+                    valueColor: AppColors.greenInk,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: AppSizes.p8),
+            Row(
+              children: [
+                Expanded(
+                    child: MetricTileWidget(value: '$followUps', label: 'Follow-ups')),
+                SizedBox(width: AppSizes.p8),
+                Expanded(
+                  child: MetricTileWidget(
+                    value: '$members',
+                    label: 'Became members',
+                    valueColor: AppColors.goldInk,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: AppSizes.p16),
+            AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('My Profile', style: AppTextStyles.headerTitle),
-                  SizedBox(height: 2.h),
-                  Text('Account & performance stats',
-                      style: AppTextStyles.headerSubtitle),
-                ],
-              ),
-            ),
-
-            // Body
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
-                children: [
-                  // Profile Card
-                  Container(
-                    padding: EdgeInsets.all(16.r),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.navy.withValues(alpha: 0.08),
-                          blurRadius: 3,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 52.r,
-                          height: 52.r,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFE6EBF4),
-                            shape: BoxShape.circle,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            name.isNotEmpty ? name.substring(0, 2).toUpperCase() : 'W',
-                            style: TextStyle(
-                              fontSize: 18.sp,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.navy,
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 14.w),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(name, style: AppTextStyles.cardTitle),
-                              SizedBox(height: 2.h),
-                              Text(email, style: AppTextStyles.bodyMuted),
-                              SizedBox(height: 4.h),
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                    horizontal: 8.w, vertical: 2.h),
-                                decoration: BoxDecoration(
-                                  color: AppColors.pillBlueBg,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  role,
-                                  style: TextStyle(
-                                    fontSize: 11.sp,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.navy,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: 14.h),
-
-                  // Stat Tiles (2x2 Grid)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatTile('6', 'Total Guests'),
-                      ),
-                      SizedBox(width: 10.w),
-                      Expanded(
-                        child: _buildStatTile('5', 'Contacted'),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 10.h),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatTile('12', 'Follow-ups'),
-                      ),
-                      SizedBox(width: 10.w),
-                      Expanded(
-                        child: _buildStatTile('2', 'Became Members'),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 16.h),
-
-                  // Funnels / Progress Bars
-                  Container(
-                    padding: EdgeInsets.all(16.r),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.navy.withValues(alpha: 0.08),
-                          blurRadius: 3,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Conversion Funnel',
-                            style: TextStyle(
-                                fontSize: 15.sp, fontWeight: FontWeight.w600)),
-                        SizedBox(height: 12.h),
-                        _buildProgressBar(
-                            'Called within 3 days', 0.83, '5 of 6 (83%)'),
-                        SizedBox(height: 10.h),
-                        _buildProgressBar(
-                            'Joined a team', 0.33, '2 of 6 (33%)'),
-                        SizedBox(height: 10.h),
-                        _buildProgressBar(
-                            'Became members', 0.33, '2 of 6 (33%)'),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: 20.h),
-
-                  // Sign Out Button
-                  InkWell(
-                    onTap: () {
-                      context.read<AuthBloc>().add(AuthSignOutRequestedEvent());
-                    },
-                    borderRadius: BorderRadius.circular(14),
-                    child: Container(
-                      height: 50.h,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.red, width: 1.5),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        'Sign Out',
-                        style: TextStyle(
-                          fontSize: 15.sp,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.red,
-                        ),
-                      ),
-                    ),
-                  ),
+                  Text('Your guests this month', style: AppTextStyles.cardTitle),
+                  SizedBox(height: AppSizes.p12),
+                  _Funnel(label: 'Contacted', detail: frac(contacted),
+                      value: pct(contacted), color: AppColors.green),
+                  _Funnel(label: 'Came back to church', detail: frac(returning),
+                      value: pct(returning), color: AppColors.blue),
+                  _Funnel(label: 'Joined a team', detail: frac(inTeam),
+                      value: pct(inTeam), color: AppColors.amber),
+                  _Funnel(label: 'Became members', detail: frac(members),
+                      value: pct(members), color: AppColors.gold, last: true),
                 ],
               ),
             ),
@@ -205,58 +212,40 @@ class MeTab extends StatelessWidget {
       },
     );
   }
+}
 
-  Widget _buildStatTile(String count, String label) {
-    return Container(
-      padding: EdgeInsets.all(14.r),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.navy.withValues(alpha: 0.06),
-            blurRadius: 3,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
+class _Funnel extends StatelessWidget {
+  final String label;
+  final String detail;
+  final double value;
+  final Color color;
+  final bool last;
+
+  const _Funnel({
+    required this.label,
+    required this.detail,
+    required this.value,
+    required this.color,
+    this.last = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: last ? 0 : AppSizes.p12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(count, style: AppTextStyles.tileNumber),
-          SizedBox(height: 2.h),
-          Text(label, style: AppTextStyles.tileLabel),
+          Row(
+            children: [
+              Expanded(child: Text(label, style: AppTextStyles.secondaryStrong)),
+              Text(detail, style: AppTextStyles.caption),
+            ],
+          ),
+          SizedBox(height: AppSizes.p6),
+          AppProgressBar(value: value, color: color),
         ],
       ),
-    );
-  }
-
-  Widget _buildProgressBar(String title, double fraction, String trailing) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(title, style: TextStyle(fontSize: 13.sp, color: AppColors.ink)),
-            Text(trailing,
-                style: TextStyle(
-                    fontSize: 12.sp,
-                    color: AppColors.muted,
-                    fontWeight: FontWeight.w500)),
-          ],
-        ),
-        SizedBox(height: 6.h),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: fraction,
-            minHeight: 8.h,
-            backgroundColor: const Color(0xFFE6EBF4),
-            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.green),
-          ),
-        ),
-      ],
     );
   }
 }
