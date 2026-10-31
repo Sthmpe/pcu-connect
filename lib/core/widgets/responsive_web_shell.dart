@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../constants/app_colors.dart';
@@ -7,11 +8,12 @@ import '../constants/app_sizes.dart';
 
 /// Keeps the whole app phone shaped.
 ///
-/// On narrow viewports the app fills the screen. On wider ones (tablet,
-/// laptop) it is drawn inside a centred phone frame. Either way ScreenUtil is
-/// configured from the frame width, never the browser window, and text is
-/// never scaled above its design size. Used once, in GetMaterialApp.builder,
-/// so dialogs, sheets and snackbars also stay inside the frame.
+/// Narrow viewports get the app full screen. Wider ones (tablet, laptop) get
+/// a centred phone frame. Either way ScreenUtil is configured from the frame
+/// width, never the browser window, `.sp` never scales text past its design
+/// size, and the text scaler is clamped so Flutter web text is not oversized.
+/// Used once, in GetMaterialApp.builder, so dialogs, sheets and snackbars stay
+/// inside the frame too.
 class ResponsiveWebShell extends StatelessWidget {
   final Widget child;
 
@@ -37,6 +39,13 @@ class ResponsiveWebShell extends StatelessWidget {
     );
   }
 
+  static MediaQueryData _clampText(MediaQueryData media) => media.copyWith(
+        textScaler: media.textScaler.clamp(
+          minScaleFactor: kIsWeb ? 0.75 : 0.85,
+          maxScaleFactor: kIsWeb ? 0.9 : 1.05,
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
@@ -45,11 +54,11 @@ class ResponsiveWebShell extends StatelessWidget {
 
     if (!framed) {
       _configureScale(screen.width);
-      return child;
+      return MediaQuery(data: _clampText(media), child: child);
     }
 
     final roomy = screen.height >= 640;
-    final width = AppSizes.frameWidth;
+    const width = AppSizes.frameWidth;
     final height = roomy
         ? math.min(screen.height - _frameMargin * 2, AppSizes.frameMaxHeight)
         : screen.height;
@@ -70,7 +79,7 @@ class ResponsiveWebShell extends StatelessWidget {
           ),
           clipBehavior: Clip.antiAlias,
           child: MediaQuery(
-            data: media.copyWith(
+            data: _clampText(media).copyWith(
               size: Size(width, height),
               padding: EdgeInsets.zero,
               viewPadding: EdgeInsets.zero,

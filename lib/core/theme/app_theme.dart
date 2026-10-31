@@ -4,11 +4,14 @@ import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
 
 /// Material 3 theme wired to the PCU Connect tokens and Rubik.
+///
+/// Values are fixed numbers here (not ScreenUtil) because the theme is built
+/// before the phone frame configures ScreenUtil.
 abstract class AppTheme {
   static ThemeData get lightTheme {
     final outline = OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: AppColors.lineStrong),
+      borderSide: const BorderSide(color: AppColors.line),
     );
 
     return ThemeData(
@@ -28,8 +31,10 @@ abstract class AppTheme {
         outline: AppColors.lineStrong,
         outlineVariant: AppColors.line,
       ),
-      splashFactory: InkSparkle.splashFactory,
-      highlightColor: AppColors.navy.withValues(alpha: 0.04),
+      splashFactory: InkRipple.splashFactory,
+      splashColor: AppColors.navy.withValues(alpha: 0.06),
+      highlightColor: AppColors.navy.withValues(alpha: 0.03),
+      hoverColor: AppColors.navy.withValues(alpha: 0.03),
       dividerTheme: const DividerThemeData(
         color: AppColors.line,
         thickness: 1,
@@ -49,11 +54,8 @@ abstract class AppTheme {
         filled: true,
         fillColor: AppColors.surface,
         isDense: true,
-        hintStyle: const TextStyle(fontSize: 13, color: AppColors.subtle),
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 12,
-        ),
+        hintStyle: const TextStyle(fontSize: 14, color: AppColors.subtle),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: outline,
         enabledBorder: outline,
         focusedBorder: outline.copyWith(
@@ -68,43 +70,33 @@ abstract class AppTheme {
         errorStyle: const TextStyle(fontSize: 12, color: AppColors.redInk),
       ),
       switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected)
-              ? AppColors.onNavy
-              : AppColors.subtle,
-        ),
+        thumbColor: const WidgetStatePropertyAll(AppColors.surface),
         trackColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected)
-              ? AppColors.green
-              : AppColors.neutralSoft,
-        ),
-        trackOutlineColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected)
-              ? AppColors.green
+              ? AppColors.navy
               : AppColors.lineStrong,
         ),
+        trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+        thumbIcon: const WidgetStatePropertyAll(null),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
         color: AppColors.navy,
-        linearTrackColor: AppColors.neutralSoft,
+        linearTrackColor: AppColors.sunken,
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: AppColors.surface,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
-      bottomSheetTheme: BottomSheetThemeData(
+      bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: AppColors.surface,
         surfaceTintColor: Colors.transparent,
         modalBarrierColor: AppColors.scrim,
         showDragHandle: true,
         dragHandleColor: AppColors.lineStrong,
+        dragHandleSize: Size(36, 4),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(20),
-          ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
       ),
       datePickerTheme: DatePickerThemeData(
@@ -113,20 +105,32 @@ abstract class AppTheme {
         headerBackgroundColor: AppColors.navy,
         headerForegroundColor: AppColors.onNavy,
         todayBorder: const BorderSide(color: AppColors.gold),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+        dayBackgroundColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? AppColors.gold : null,
         ),
+        dayForegroundColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? AppColors.navy : null,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       textSelectionTheme: TextSelectionThemeData(
         cursorColor: AppColors.navy,
         selectionColor: AppColors.gold.withValues(alpha: 0.35),
         selectionHandleColor: AppColors.navy,
       ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: AppColors.navy,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        textStyle: const TextStyle(fontSize: 12, color: AppColors.onNavy),
+        waitDuration: const Duration(milliseconds: 600),
+      ),
     );
   }
 }
 
-/// Fade with a short horizontal drift. Calm on web and mobile alike.
+/// Fade with a short horizontal drift.
 class SubtlePageTransitionsBuilder extends PageTransitionsBuilder {
   const SubtlePageTransitionsBuilder();
 
@@ -147,7 +151,7 @@ class SubtlePageTransitionsBuilder extends PageTransitionsBuilder {
       opacity: curved,
       child: SlideTransition(
         position: Tween<Offset>(
-          begin: const Offset(0.04, 0),
+          begin: const Offset(0.03, 0),
           end: Offset.zero,
         ).animate(curved),
         child: child,

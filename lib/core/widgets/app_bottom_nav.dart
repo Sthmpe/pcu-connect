@@ -5,13 +5,12 @@ import '../constants/app_text_styles.dart';
 
 class AppNavItem {
   final IconData icon;
-  final IconData activeIcon;
   final String label;
 
-  const AppNavItem(this.icon, this.activeIcon, this.label);
+  const AppNavItem(this.icon, this.label);
 }
 
-/// Bottom navigation with a soft pill behind the active icon.
+/// Bottom navigation: navy for the active tab, a small gold marker under it.
 class AppBottomNav extends StatelessWidget {
   final List<AppNavItem> items;
   final int currentIndex;
@@ -27,10 +26,9 @@ class AppBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppColors.surface,
-        border: const Border(top: BorderSide(color: AppColors.line)),
-        boxShadow: AppShadows.bar,
+        border: Border(top: BorderSide(color: AppColors.line)),
       ),
       padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: SizedBox(
@@ -38,11 +36,13 @@ class AppBottomNav extends StatelessWidget {
         child: Row(
           children: [
             for (var i = 0; i < items.length; i++)
-              Expanded(child: _NavButton(
-                item: items[i],
-                selected: i == currentIndex,
-                onTap: () => onTap(i),
-              )),
+              Expanded(
+                child: _NavButton(
+                  item: items[i],
+                  selected: i == currentIndex,
+                  onTap: () => onTap(i),
+                ),
+              ),
           ],
         ),
       ),
@@ -68,34 +68,28 @@ class _NavButton extends StatelessWidget {
       selected: selected,
       button: true,
       label: item.label,
-      child: InkWell(
+      child: GestureDetector(
         onTap: onTap,
-        splashColor: Colors.transparent,
-        highlightColor: Colors.transparent,
+        behavior: HitTestBehavior.opaque,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            Icon(item.icon, size: AppSizes.iconLg, color: color),
+            SizedBox(height: AppSizes.s4),
+            Text(
+              item.label,
+              style: (selected ? AppTextStyles.captionStrong : AppTextStyles.caption)
+                  .copyWith(color: color),
+            ),
+            SizedBox(height: AppSizes.s4),
             AnimatedContainer(
               duration: AppDurations.normal,
               curve: AppDurations.curve,
-              width: selected ? 52 : 40,
-              height: 28,
+              width: selected ? 16 : 0,
+              height: 3,
               decoration: BoxDecoration(
-                color: selected ? AppColors.navySoft : Colors.transparent,
+                color: AppColors.gold,
                 borderRadius: BorderRadius.circular(AppSizes.radiusFull),
-              ),
-              child: Icon(
-                selected ? item.activeIcon : item.icon,
-                size: AppSizes.iconMd,
-                color: color,
-              ),
-            ),
-            SizedBox(height: AppSizes.p4),
-            Text(
-              item.label,
-              style: AppTextStyles.navLabel.copyWith(
-                color: color,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
               ),
             ),
           ],
@@ -110,11 +104,7 @@ class FadeIndexedStack extends StatefulWidget {
   final int index;
   final List<Widget> children;
 
-  const FadeIndexedStack({
-    super.key,
-    required this.index,
-    required this.children,
-  });
+  const FadeIndexedStack({super.key, required this.index, required this.children});
 
   @override
   State<FadeIndexedStack> createState() => _FadeIndexedStackState();

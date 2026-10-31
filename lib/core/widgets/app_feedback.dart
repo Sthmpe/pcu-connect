@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../constants/app_colors.dart';
+import '../constants/app_icons.dart';
 import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
-import 'custom_button.dart';
+import 'app_controls.dart';
 
 /// Snackbars and dialogs. GetX is used here and nowhere else.
 abstract class AppFeedback {
   static void success(String title, String message) =>
-      _snack(title, message, Icons.check_circle_rounded, AppColors.green);
+      _snack(title, message, AppIcons.reached, AppColors.green, AppColors.greenSoft);
 
-  static void error(String title, String message) =>
-      _snack(title, friendlyError(message), Icons.error_rounded, AppColors.red);
+  static void error(String title, String message) => _snack(
+      title, friendlyError(message), AppIcons.error, AppColors.red, AppColors.redSoft);
 
   /// Turns transport errors into plain language.
   static String friendlyError(String message) {
@@ -19,36 +20,49 @@ abstract class AppFeedback {
     if (m.contains('failed to fetch') ||
         m.contains('clientexception') ||
         m.contains('socketexception') ||
+        m.contains('timeout') ||
         m.contains('timed out') ||
-        m.contains('timeout')) {
-      return 'Could not reach the server. Check your internet connection and try again.';
+        m.startsWith('http ')) {
+      return 'We could not reach the server. Check your connection and try again.';
+    }
+    if (m.contains('please sign in') || m.contains('unauthenticated')) {
+      return 'Your session has ended. Please sign in again.';
     }
     return message;
   }
 
-  static void info(String title, String message) =>
-      _snack(title, message, Icons.info_rounded, AppColors.gold);
-
-  static void _snack(String title, String message, IconData icon, Color accent) {
+  static void _snack(
+      String title, String message, IconData icon, Color color, Color tint) {
     if (Get.isSnackbarOpen) Get.closeCurrentSnackbar();
     Get.snackbar(
       title,
       message,
       snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: AppColors.navy,
-      colorText: AppColors.onNavy,
-      icon: Icon(icon, color: accent, size: 22),
+      backgroundColor: AppColors.surface,
+      icon: Padding(
+        padding: const EdgeInsets.only(left: 16),
+        child: Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(color: tint, shape: BoxShape.circle),
+          child: Icon(icon, color: color, size: 18),
+        ),
+      ),
       shouldIconPulse: false,
-      margin: const EdgeInsets.all(12),
-      borderRadius: 14,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      borderRadius: 16,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       duration: const Duration(seconds: 3),
-      animationDuration: AppDurations.slow,
+      animationDuration: AppDurations.normal,
       boxShadows: AppShadows.raised,
-      titleText: Text(title,
-          style: AppTextStyles.bodyStrong.copyWith(color: AppColors.onNavy)),
-      messageText: Text(message,
-          style: AppTextStyles.secondary.copyWith(color: AppColors.onNavyMuted)),
+      titleText: Padding(
+        padding: const EdgeInsets.only(left: 8),
+        child: Text(title, style: AppTextStyles.bodyStrong),
+      ),
+      messageText: Padding(
+        padding: const EdgeInsets.only(left: 8),
+        child: Text(message, style: AppTextStyles.caption),
+      ),
     );
   }
 
@@ -61,26 +75,21 @@ abstract class AppFeedback {
   }) async {
     final result = await Get.dialog<bool>(
       _DialogShell(
-        icon: destructive ? Icons.warning_amber_rounded : Icons.help_rounded,
-        iconColor: destructive ? AppColors.red : AppColors.navy,
-        iconBackground: destructive ? AppColors.redSoft : AppColors.navySoft,
         title: title,
         message: message,
         actions: [
           Expanded(
             child: AppButton(
               label: 'Cancel',
-              variant: AppButtonVariant.outline,
+              variant: AppButtonVariant.secondary,
               onPressed: () => Get.back(result: false),
             ),
           ),
-          SizedBox(width: AppSizes.p12),
+          SizedBox(width: AppSizes.s8),
           Expanded(
             child: AppButton(
               label: confirmLabel,
-              variant: destructive
-                  ? AppButtonVariant.danger
-                  : AppButtonVariant.primary,
+              variant: destructive ? AppButtonVariant.danger : AppButtonVariant.primary,
               onPressed: () => Get.back(result: true),
             ),
           ),
@@ -92,22 +101,14 @@ abstract class AppFeedback {
   }
 
   /// Simple notice with one button.
-  static Future<void> notice({
-    required String title,
-    required String message,
-    IconData icon = Icons.lock_rounded,
-  }) {
+  static Future<void> notice({required String title, required String message}) {
     return Get.dialog<void>(
       _DialogShell(
-        icon: icon,
-        iconColor: AppColors.amberInk,
-        iconBackground: AppColors.amberSoft,
+        icon: AppIcons.lock,
         title: title,
         message: message,
         actions: [
-          Expanded(
-            child: AppButton(label: 'OK', onPressed: () => Get.back()),
-          ),
+          Expanded(child: AppButton(label: 'Got it', onPressed: () => Get.back())),
         ],
       ),
       barrierColor: AppColors.scrim,
@@ -115,26 +116,27 @@ abstract class AppFeedback {
   }
 
   /// Shown after a follow-up is saved.
-  static Future<void> pointsEarned({required int points, required String guestName}) {
+  /// [creditedTo] is set when an admin logged it for a worker.
+  static Future<void> pointsEarned({
+    required int points,
+    required String guestName,
+    String? creditedTo,
+  }) {
     return Get.dialog<void>(
-      _PointsDialog(points: points, guestName: guestName),
+      _PointsDialog(points: points, guestName: guestName, creditedTo: creditedTo),
       barrierColor: AppColors.scrim,
     );
   }
 }
 
 class _DialogShell extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBackground;
+  final IconData? icon;
   final String title;
   final String message;
   final List<Widget> actions;
 
   const _DialogShell({
-    required this.icon,
-    required this.iconColor,
-    required this.iconBackground,
+    this.icon,
     required this.title,
     required this.message,
     required this.actions,
@@ -143,26 +145,21 @@ class _DialogShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      insetPadding: EdgeInsets.symmetric(horizontal: AppSizes.p24),
+      insetPadding: EdgeInsets.symmetric(horizontal: AppSizes.s24),
       child: Padding(
-        padding: EdgeInsets.all(AppSizes.p20),
+        padding: EdgeInsets.all(AppSizes.s24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration:
-                  BoxDecoration(color: iconBackground, shape: BoxShape.circle),
-              child: Icon(icon, color: iconColor, size: 24),
-            ),
-            SizedBox(height: AppSizes.p12),
-            Text(title,
-                style: AppTextStyles.sectionTitle, textAlign: TextAlign.center),
-            SizedBox(height: AppSizes.p6),
-            Text(message,
-                style: AppTextStyles.secondary, textAlign: TextAlign.center),
-            SizedBox(height: AppSizes.p20),
+            if (icon != null) ...[
+              Icon(icon, size: AppSizes.iconLg, color: AppColors.inkSoft),
+              SizedBox(height: AppSizes.s16),
+            ],
+            Text(title, style: AppTextStyles.title),
+            SizedBox(height: AppSizes.s8),
+            Text(message, style: AppTextStyles.bodyMuted),
+            SizedBox(height: AppSizes.s24),
             Row(children: actions),
           ],
         ),
@@ -174,65 +171,55 @@ class _DialogShell extends StatelessWidget {
 class _PointsDialog extends StatelessWidget {
   final int points;
   final String guestName;
+  final String? creditedTo;
 
-  const _PointsDialog({required this.points, required this.guestName});
+  const _PointsDialog({required this.points, required this.guestName, this.creditedTo});
 
   @override
   Widget build(BuildContext context) {
     final hasPoints = points > 0;
     return Dialog(
-      insetPadding: EdgeInsets.symmetric(horizontal: AppSizes.p24),
+      insetPadding: EdgeInsets.symmetric(horizontal: AppSizes.s24),
       child: Padding(
-        padding: EdgeInsets.all(AppSizes.p24),
+        padding: EdgeInsets.all(AppSizes.s24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0.6, end: 1),
-              duration: AppDurations.slow,
+              tween: Tween(begin: 0.7, end: 1),
+              duration: AppDurations.normal,
               curve: Curves.easeOutBack,
-              builder: (context, scale, child) =>
-                  Transform.scale(scale: scale, child: child),
+              builder: (context, s, child) => Transform.scale(scale: s, child: child),
               child: Container(
-                width: 64,
-                height: 64,
+                width: AppSizes.s48 + AppSizes.s8,
+                height: AppSizes.s48 + AppSizes.s8,
                 decoration: const BoxDecoration(
-                  color: AppColors.goldSoft,
+                  color: AppColors.greenSoft,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  hasPoints ? Icons.emoji_events_rounded : Icons.check_rounded,
-                  color: AppColors.goldInk,
-                  size: 32,
-                ),
+                child: Icon(AppIcons.check, color: AppColors.greenInk, size: AppSizes.iconLg),
               ),
             ),
-            SizedBox(height: AppSizes.p16),
+            SizedBox(height: AppSizes.s16),
             if (hasPoints)
               TweenAnimationBuilder<int>(
                 tween: IntTween(begin: 0, end: points),
-                duration: const Duration(milliseconds: 600),
-                builder: (context, v, _) => Text(
-                  '+$v points',
-                  style: AppTextStyles.numberLg.copyWith(color: AppColors.navy),
-                ),
+                duration: AppDurations.slow,
+                builder: (context, v, _) =>
+                    Text('+$v points', style: AppTextStyles.display),
               )
             else
-              Text('Follow-up saved', style: AppTextStyles.sectionTitle),
-            SizedBox(height: AppSizes.p6),
+              Text('Saved', style: AppTextStyles.display),
+            SizedBox(height: AppSizes.s8),
             Text(
-              hasPoints
-                  ? 'Follow-up for $guestName saved. Keep it going!'
-                  : 'The record for $guestName is up to date.',
-              style: AppTextStyles.secondary,
+              creditedTo == null
+                  ? 'Follow-up for $guestName is saved.'
+                  : 'Saved for $guestName. The points go to $creditedTo.',
+              style: AppTextStyles.bodyMuted,
               textAlign: TextAlign.center,
             ),
-            SizedBox(height: AppSizes.p20),
-            AppButton(
-              label: 'Done',
-              variant: AppButtonVariant.accent,
-              onPressed: () => Get.back(),
-            ),
+            SizedBox(height: AppSizes.s24),
+            AppButton(label: 'Done', onPressed: () => Get.back()),
           ],
         ),
       ),

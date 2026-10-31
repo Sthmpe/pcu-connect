@@ -1,63 +1,50 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
+import '../constants/app_icons.dart';
 import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
+import 'app_controls.dart';
 import 'app_feedback.dart';
-import 'custom_button.dart';
 
-/// Friendly empty state: icon in a soft circle, short title, one line of help.
+/// Icon, one line, one action.
 class EmptyState extends StatelessWidget {
   final IconData icon;
-  final String title;
-  final String? message;
+  final String message;
   final String? actionLabel;
   final VoidCallback? onAction;
-  final bool compact;
 
   const EmptyState({
     super.key,
     required this.icon,
-    required this.title,
-    this.message,
+    required this.message,
     this.actionLabel,
     this.onAction,
-    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: AppSizes.p32,
-        vertical: compact ? AppSizes.p24 : AppSizes.p40,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: AppSizes.s32, vertical: AppSizes.s40),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: AppSizes.avatarLg + AppSizes.p8,
-            height: AppSizes.avatarLg + AppSizes.p8,
+            width: AppSizes.s48 + AppSizes.s8,
+            height: AppSizes.s48 + AppSizes.s8,
             decoration: const BoxDecoration(
-              color: AppColors.navySoft,
+              color: AppColors.sunken,
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: AppSizes.iconLg, color: AppColors.navy),
+            child: Icon(icon, size: AppSizes.iconLg, color: AppColors.inkSoft),
           ),
-          SizedBox(height: AppSizes.p16),
-          Text(title,
-              style: AppTextStyles.cardTitle, textAlign: TextAlign.center),
-          if (message != null) ...[
-            SizedBox(height: AppSizes.p6),
-            Text(message!,
-                style: AppTextStyles.secondary, textAlign: TextAlign.center),
-          ],
+          SizedBox(height: AppSizes.s16),
+          Text(message, style: AppTextStyles.bodyMuted, textAlign: TextAlign.center),
           if (actionLabel != null && onAction != null) ...[
-            SizedBox(height: AppSizes.p16),
+            SizedBox(height: AppSizes.s16),
             AppButton(
               label: actionLabel!,
               onPressed: onAction,
-              variant: AppButtonVariant.tonal,
-              size: AppButtonSize.small,
+              variant: AppButtonVariant.secondary,
               expand: false,
             ),
           ],
@@ -67,7 +54,6 @@ class EmptyState extends StatelessWidget {
   }
 }
 
-/// Error state with a retry action.
 class ErrorState extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
@@ -78,8 +64,7 @@ class ErrorState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: EmptyState(
-        icon: Icons.wifi_off_rounded,
-        title: 'Could not load',
+        icon: AppIcons.offline,
         message: AppFeedback.friendlyError(message),
         actionLabel: 'Try again',
         onAction: onRetry,
@@ -88,100 +73,117 @@ class ErrorState extends StatelessWidget {
   }
 }
 
-/// Pulsing placeholder rows shown while the first load is in flight.
-class SkeletonList extends StatefulWidget {
-  final int count;
-  final bool withTiles;
+/// Shimmer driver shared by skeleton boxes below it.
+class Skeleton extends StatefulWidget {
+  final Widget child;
 
-  const SkeletonList({super.key, this.count = 5, this.withTiles = false});
+  const Skeleton({super.key, required this.child});
 
   @override
-  State<SkeletonList> createState() => _SkeletonListState();
+  State<Skeleton> createState() => _SkeletonState();
 }
 
-class _SkeletonListState extends State<SkeletonList>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
+class _SkeletonState extends State<Skeleton> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..repeat(reverse: true);
+    duration: const Duration(milliseconds: 1300),
+  )..repeat();
 
   @override
   void dispose() {
-    _controller.dispose();
+    _c.dispose();
     super.dispose();
   }
 
-  Widget _bar(double width, double height) => Container(
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, child) => ShaderMask(
+        blendMode: BlendMode.srcATop,
+        shaderCallback: (rect) => LinearGradient(
+          begin: Alignment(-1.5 + _c.value * 3, 0),
+          end: Alignment(-0.5 + _c.value * 3, 0),
+          colors: const [AppColors.sunken, Color(0xFFF9FAFB), AppColors.sunken],
+        ).createShader(rect),
+        child: child,
+      ),
+      child: widget.child,
+    );
+  }
+}
+
+class SkeletonBox extends StatelessWidget {
+  final double? width;
+  final double height;
+  final double? radius;
+
+  const SkeletonBox({super.key, this.width, required this.height, this.radius});
+
+  @override
+  Widget build(BuildContext context) => Container(
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color: AppColors.neutralSoft,
-          borderRadius: BorderRadius.circular(AppSizes.radiusSm),
+          color: AppColors.sunken,
+          borderRadius: BorderRadius.circular(radius ?? AppSizes.radiusSm),
         ),
       );
+}
+
+/// Placeholder for a page: optional hero block, then a card of rows.
+class SkeletonPage extends StatelessWidget {
+  final bool hero;
+  final int rows;
+
+  const SkeletonPage({super.key, this.hero = false, this.rows = 5});
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: Tween(begin: 0.45, end: 1.0).animate(_controller),
+    return Skeleton(
       child: ListView(
         physics: const NeverScrollableScrollPhysics(),
-        padding: EdgeInsets.all(AppSizes.gutter),
+        padding: EdgeInsets.fromLTRB(
+            AppSizes.gutter, AppSizes.s8, AppSizes.gutter, AppSizes.s32),
         children: [
-          if (widget.withTiles) ...[
-            Row(
-              children: List.generate(
-                3,
-                (i) => Expanded(
-                  child: Container(
-                    height: 74,
-                    margin: EdgeInsets.only(left: i == 0 ? 0 : AppSizes.p8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(AppSizes.radiusLg),
-                      border: Border.all(color: AppColors.line),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(height: AppSizes.p24),
+          if (hero) ...[
+            SkeletonBox(height: 168, radius: AppSizes.radiusLg),
+            SizedBox(height: AppSizes.s24),
           ],
-          for (var i = 0; i < widget.count; i++)
-            Container(
-              margin: EdgeInsets.only(bottom: AppSizes.p10),
-              padding: EdgeInsets.all(AppSizes.p12),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppSizes.radiusLg),
-                border: Border.all(color: AppColors.line),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: AppSizes.avatarMd,
-                    height: AppSizes.avatarMd,
-                    decoration: const BoxDecoration(
-                      color: AppColors.neutralSoft,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  SizedBox(width: AppSizes.p12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          Container(
+            padding: EdgeInsets.all(AppSizes.s16),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppSizes.radiusLg),
+            ),
+            child: Column(
+              children: [
+                for (var i = 0; i < rows; i++)
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppSizes.s8),
+                    child: Row(
                       children: [
-                        _bar(120, 12),
-                        SizedBox(height: AppSizes.p8),
-                        _bar(80, 10),
+                        SkeletonBox(
+                            width: AppSizes.avatarMd,
+                            height: AppSizes.avatarMd,
+                            radius: AppSizes.radiusFull),
+                        SizedBox(width: AppSizes.s16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SkeletonBox(width: 120, height: 12),
+                              SizedBox(height: AppSizes.s8),
+                              SkeletonBox(width: 180, height: 10),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  _bar(56, 26),
-                ],
-              ),
+              ],
             ),
+          ),
         ],
       ),
     );
@@ -197,30 +199,21 @@ class OfflineBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: EdgeInsets.only(bottom: AppSizes.p12),
-      padding: EdgeInsets.symmetric(
-          horizontal: AppSizes.p12, vertical: AppSizes.p8),
+      margin: EdgeInsets.only(bottom: AppSizes.s16),
+      padding: EdgeInsets.symmetric(horizontal: AppSizes.s16, vertical: AppSizes.s8 + 2),
       decoration: BoxDecoration(
         color: AppColors.amberSoft,
-        borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+        borderRadius: BorderRadius.circular(AppSizes.radiusSm),
       ),
       child: Row(
         children: [
-          Icon(
-            isRefreshing ? Icons.sync_rounded : Icons.cloud_off_rounded,
-            size: AppSizes.iconSm,
-            color: AppColors.amberInk,
-          ),
-          SizedBox(width: AppSizes.p8),
+          Icon(isRefreshing ? AppIcons.retry : AppIcons.offline,
+              size: AppSizes.iconSm, color: AppColors.amberInk),
+          SizedBox(width: AppSizes.s8),
           Expanded(
             child: Text(
-              isRefreshing
-                  ? 'Showing saved data while we refresh'
-                  : 'Showing saved data. You may be offline.',
-              style: AppTextStyles.caption.copyWith(
-                color: AppColors.amberInk,
-                fontWeight: FontWeight.w500,
-              ),
+              isRefreshing ? 'Updating…' : 'You are seeing saved data',
+              style: AppTextStyles.caption.copyWith(color: AppColors.amberInk),
             ),
           ),
         ],

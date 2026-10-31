@@ -41,7 +41,7 @@ abstract class AppRoutes {
         page = const AdminShellScreen();
         break;
       case guestDetail when args is GuestDetailArgs:
-        page = GuestDetailScreen(guestId: args.guestId, readOnly: args.readOnly);
+        page = GuestDetailScreen(guestId: args.guestId, asAdmin: args.asAdmin);
         break;
       case logFollowUp when args is LogFollowUpArgs:
         page = LogFollowUpScreen(
@@ -68,9 +68,9 @@ abstract class AppRoutes {
 
 class GuestDetailArgs {
   final String guestId;
-  final bool readOnly;
+  final bool asAdmin;
 
-  const GuestDetailArgs(this.guestId, {this.readOnly = false});
+  const GuestDetailArgs(this.guestId, {this.asAdmin = false});
 }
 
 class LogFollowUpArgs {
