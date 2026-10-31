@@ -783,9 +783,11 @@ function pcuLogFollowUp_(user, req) {
   } finally {
     lock.releaseLock();
   }
-  // Phase 1: keep Firestore in step. Never fails the save; the 5-minute job
-  // catches up if this does not get through.
-  if (typeof pcuPushGuestQuietly_ === 'function') pcuPushGuestQuietly_(guestId);
+  // Phase 1: keep Firestore in step, reusing what this save already loaded.
+  // Never fails the save; the 5-minute job catches up if this does not get through.
+  if (typeof pcuPushGuestDataQuietly_ === 'function') {
+    pcuPushGuestDataQuietly_(guests.table, guest, all, workers);
+  }
   return result;
 }
 

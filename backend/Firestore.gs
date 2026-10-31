@@ -439,18 +439,35 @@ function pcuNormaliseWorkerEmails_() {
 // Sending guests
 // ---------------------------------------------------------------------------
 
-/** Sends one guest (and its follow-ups) now. Used after assignment and after a save. */
+/** Sends one guest (and its follow-ups) now. Used after assignment. */
 function pcuPushGuest_(guestId) {
   if (!pcuFsEnabled_()) return 0;
   var guests = pcuGuestRows_(true);
   var guest = pcuFindGuest_(guests, guestId);
-  if (!guest || !guest.assignedTo) return 0;
-  var followUps = pcuFollowUps_(true).byGuest[guest.id] || [];
-  var workers = pcuWorkers_();
+  if (!guest) return 0;
+  return pcuPushGuestData_(guests.table, guest, pcuFollowUps_(true).byGuest[guest.id] || [], pcuWorkers_());
+}
+
+/**
+ * Sends a guest the caller has already loaded, without reading the sheet
+ * again. Used right after a save, where re-reading every row is the slow part.
+ */
+function pcuPushGuestData_(guestsTable, guest, followUps, workers) {
+  if (!pcuFsEnabled_() || !guest.assignedTo) return 0;
   var written = pcuFsCommit_(pcuGuestWrites_(guest, followUps, workers));
-  pcuSetCell_(guests.table, guest.rowIndex, PCU_FS.SYNC_KEY, pcuGuestSyncKey_(guest, followUps, workers));
-  pcuSetCell_(guests.table, guest.rowIndex, PCU_FS.SYNCED_AT, new Date());
+  pcuSetCell_(guestsTable, guest.rowIndex, PCU_FS.SYNC_KEY, pcuGuestSyncKey_(guest, followUps, workers));
+  pcuSetCell_(guestsTable, guest.rowIndex, PCU_FS.SYNCED_AT, new Date());
   return written;
+}
+
+/** Same as pcuPushGuestData_, but never fails the caller. */
+function pcuPushGuestDataQuietly_(guestsTable, guest, followUps, workers) {
+  try {
+    return pcuPushGuestData_(guestsTable, guest, followUps, workers);
+  } catch (err) {
+    console.warn('Could not send guest ' + guest.id + ' to Firestore: ' + (err && err.message));
+    return 0;
+  }
 }
 
 /** Same as pcuPushGuest_, but never fails the caller. */
