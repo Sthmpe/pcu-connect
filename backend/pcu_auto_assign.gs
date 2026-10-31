@@ -71,9 +71,16 @@ function assignRow_(sheet, row) {
   if (!assignedCol) throw new Error('No "ASSIGNED TO" header found in row ' + HEADER_ROW);
   if (row <= HEADER_ROW) return '';
 
-  // Every guest gets a permanent ID, even if no worker is available yet
+  // Every guest gets a permanent ID, even if no worker is available yet.
+  // With Firestore.gs present the ID is stable (timestamp plus phone), so a
+  // re-run can never create a second document for the same guest.
   if (idCol && !sheet.getRange(row, idCol).getValue()) {
-    sheet.getRange(row, idCol).setValue('G-' + Utilities.getUuid().slice(0, 8).toUpperCase());
+    const tsCol = h.indexOf('TIMESTAMP') + 1;
+    const phoneCol = h.indexOf('PHONE NUMBER') + 1;
+    const id = typeof pcuStableGuestId_ === 'function' && tsCol && phoneCol
+      ? pcuStableGuestId_(sheet.getRange(row, tsCol).getValue(), sheet.getRange(row, phoneCol).getValue())
+      : 'G-' + Utilities.getUuid().slice(0, 8).toUpperCase();
+    sheet.getRange(row, idCol).setValue(id);
   }
 
   if (sheet.getRange(row, assignedCol).getValue()) return ''; // already has a worker
@@ -90,6 +97,11 @@ function assignRow_(sheet, row) {
   if (statusCol && !sheet.getRange(row, statusCol).getValue()) sheet.getRange(row, statusCol).setValue('New guest');
   props.setProperty('NEXT_INDEX', String((next + 1) % workers.length));
   notifyNewGuest_(workers[next], sheet, row, h);
+  // Send the new guest to Firestore straight away (no-op until it is set up).
+  if (idCol && typeof pcuPushGuestQuietly_ === 'function') {
+    SpreadsheetApp.flush();
+    pcuPushGuestQuietly_(String(sheet.getRange(row, idCol).getValue()).trim());
+  }
   return worker;
 }
 

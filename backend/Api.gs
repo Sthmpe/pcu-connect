@@ -40,6 +40,7 @@ var PCU = {
     NAME: 'FULL NAME',
     PHONE: 'PHONE NUMBER',
     ASSIGNED_TO: 'ASSIGNED TO',
+    ASSIGNED_DATE: 'ASSIGNED DATE',
     CALL_STATUS: 'CALL STATUS',
     STATUS: 'MEMBERSHIP STATUS',
     FEEDBACK_1: 'FEEDBACK 1',
@@ -278,6 +279,16 @@ function pcuAppend_(table, valuesByHeader) {
   return table.rows.length - 1;
 }
 
+/** Copies the Workers tab to Firestore users when Firestore is set up. Never throws. */
+function pcuSyncUsersQuietly_() {
+  if (typeof pcuSyncUsers_ !== 'function') return;
+  try {
+    pcuSyncUsers_();
+  } catch (err) {
+    console.warn('Could not send workers to Firestore: ' + (err && err.message));
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Value helpers
 // ---------------------------------------------------------------------------
@@ -441,6 +452,7 @@ function pcuGuestRows_(fresh) {
       serviceDay: pcuDay_(serviceDate),
       month: pcuMonth_(serviceDate),
       assignedTo: pcuStr_(pcuCell_(t, row, PCU.G.ASSIGNED_TO)).toLowerCase(),
+      assignedDate: pcuDate_(pcuCell_(t, row, PCU.G.ASSIGNED_DATE)),
       callStatus: pcuStr_(pcuCell_(t, row, PCU.G.CALL_STATUS)),
       status: pcuStr_(pcuCell_(t, row, PCU.G.STATUS)),
       feedback1: pcuStr_(pcuCell_(t, row, PCU.G.FEEDBACK_1)),
@@ -767,10 +779,14 @@ function pcuLogFollowUp_(user, req) {
     if (team && !teamAlreadySet) points += PCU.POINTS.TEAM_JOIN;
     if (statusBefore !== PCU.STATUS.MEMBER && guest.status === PCU.STATUS.MEMBER) points += PCU.POINTS.MEMBER;
 
-    return { guest: pcuGuestJson_(guest, all, workers, true), pointsEarned: points };
+    var result = { guest: pcuGuestJson_(guest, all, workers, true), pointsEarned: points };
   } finally {
     lock.releaseLock();
   }
+  // Phase 1: keep Firestore in step. Never fails the save; the 5-minute job
+  // catches up if this does not get through.
+  if (typeof pcuPushGuestQuietly_ === 'function') pcuPushGuestQuietly_(guestId);
+  return result;
 }
 
 /** Writes the derived columns of a guest row and updates the in-memory guest. */
@@ -1064,6 +1080,7 @@ function pcuSaveWorker_(user, req) {
     pcuAppend_(workers.table, values);
     SpreadsheetApp.flush();
 
+    pcuSyncUsersQuietly_();
     return pcuWorkerJson_({
       id: id,
       name: name,
@@ -1091,6 +1108,7 @@ function pcuSetWorkerActive_(user, req) {
   pcuSetCell_(workers.table, worker.rowIndex, PCU.W.ACTIVE, active ? 'Yes' : 'No');
   SpreadsheetApp.flush();
   worker.active = active;
+  pcuSyncUsersQuietly_();
 
   var month = pcuMonth_(new Date());
   var stats = pcuWorkerStats_(month, pcuGuestRows_(), pcuFollowUps_());
