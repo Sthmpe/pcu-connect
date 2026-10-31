@@ -3,95 +3,80 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
-/// Exact Typography Tokens matching PCU Connect Design System (Rubik font)
+/// Rubik type scale. Font sizes go through `.sp`, which the app frame caps at
+/// 1.0 so text never grows past these values on wide screens.
+///
+/// body 14 · secondary 12 to 13 · section 16 · screen title 20 · numbers 24 to 28
 abstract class AppTextStyles {
-  // Page Header (26px, w600)
-  static TextStyle get headerTitle => GoogleFonts.rubik(
-        fontSize: 26.sp,
-        fontWeight: FontWeight.w600,
-        color: Colors.white,
+  static TextStyle _rubik(double size, FontWeight weight, Color color,
+          {double? height, double? letterSpacing}) =>
+      GoogleFonts.rubik(
+        fontSize: size.sp,
+        fontWeight: weight,
+        color: color,
+        height: height,
+        letterSpacing: letterSpacing,
       );
 
-  // Page Subtitle (14px, muted blue #B9C4D8)
-  static TextStyle get headerSubtitle => GoogleFonts.rubik(
-        fontSize: 14.sp,
-        fontWeight: FontWeight.w400,
-        color: const Color(0xFFB9C4D8),
-      );
+  // Headers (on navy)
+  static TextStyle get screenTitle =>
+      _rubik(20, FontWeight.w600, AppColors.onNavy, height: 1.2);
+  static TextStyle get screenSubtitle =>
+      _rubik(13, FontWeight.w400, AppColors.onNavyMuted, height: 1.35);
+  static TextStyle get detailTitle =>
+      _rubik(18, FontWeight.w600, AppColors.onNavy, height: 1.2);
 
-  // Section Header (13px, w600, uppercase, letter-spacing: 0.04em)
-  static TextStyle get sectionTitle => GoogleFonts.rubik(
-        fontSize: 13.sp,
-        fontWeight: FontWeight.w600,
-        color: AppColors.muted,
-        letterSpacing: 0.5,
-      );
+  // Sections and cards
+  static TextStyle get sectionTitle =>
+      _rubik(16, FontWeight.w600, AppColors.ink, height: 1.25);
+  static TextStyle get overline => _rubik(11, FontWeight.w600, AppColors.muted,
+      letterSpacing: 0.6, height: 1.2);
+  static TextStyle get cardTitle =>
+      _rubik(15, FontWeight.w600, AppColors.ink, height: 1.25);
+  static TextStyle get itemTitle =>
+      _rubik(14, FontWeight.w600, AppColors.ink, height: 1.25);
 
-  // Card Guest Name (16px, w600)
-  static TextStyle get cardTitle => GoogleFonts.rubik(
-        fontSize: 16.sp,
-        fontWeight: FontWeight.w600,
-        color: AppColors.ink,
-      );
+  // Body
+  static TextStyle get body =>
+      _rubik(14, FontWeight.w400, AppColors.ink, height: 1.45);
+  static TextStyle get bodyStrong =>
+      _rubik(14, FontWeight.w500, AppColors.ink, height: 1.4);
+  static TextStyle get secondary =>
+      _rubik(13, FontWeight.w400, AppColors.muted, height: 1.35);
+  static TextStyle get secondaryStrong =>
+      _rubik(13, FontWeight.w500, AppColors.inkSoft, height: 1.35);
+  static TextStyle get caption =>
+      _rubik(12, FontWeight.w400, AppColors.muted, height: 1.3);
+  static TextStyle get captionStrong =>
+      _rubik(12, FontWeight.w600, AppColors.inkSoft, height: 1.3);
 
-  // Metric Tile Big Number (26px, w700)
-  static TextStyle get tileNumber => GoogleFonts.rubik(
-        fontSize: 26.sp,
-        fontWeight: FontWeight.w700,
-        color: AppColors.ink,
-      );
+  // Numbers
+  static TextStyle get number =>
+      _rubik(24, FontWeight.w600, AppColors.ink, height: 1.1);
+  static TextStyle get numberLg =>
+      _rubik(28, FontWeight.w600, AppColors.ink, height: 1.1);
+  static TextStyle get numberSm =>
+      _rubik(18, FontWeight.w600, AppColors.ink, height: 1.1);
 
-  // Metric Tile Label (12px, muted)
-  static TextStyle get tileLabel => GoogleFonts.rubik(
-        fontSize: 12.sp,
-        fontWeight: FontWeight.w400,
-        color: AppColors.muted,
-      );
+  // Controls
+  static TextStyle get button =>
+      _rubik(14, FontWeight.w600, AppColors.onNavy, height: 1.2);
+  static TextStyle get buttonSm =>
+      _rubik(13, FontWeight.w600, AppColors.onNavy, height: 1.2);
+  static TextStyle get chip =>
+      _rubik(13, FontWeight.w500, AppColors.inkSoft, height: 1.2);
+  static TextStyle get pill =>
+      _rubik(11.5, FontWeight.w600, AppColors.neutralInk, height: 1.2);
+  static TextStyle get label =>
+      _rubik(13, FontWeight.w600, AppColors.inkSoft, height: 1.3);
+  static TextStyle get input =>
+      _rubik(14, FontWeight.w400, AppColors.ink, height: 1.4);
+  static TextStyle get navLabel =>
+      _rubik(11, FontWeight.w500, AppColors.muted, height: 1.2);
+  static TextStyle get brand =>
+      _rubik(24, FontWeight.w700, AppColors.navy, height: 1.15);
 
-  // Status Pill (12px, w600)
-  static TextStyle get pill => GoogleFonts.rubik(
-        fontSize: 12.sp,
-        fontWeight: FontWeight.w600,
-      );
-
-  // Filter Chip (14px, w500 / w600)
-  static TextStyle chip({required bool isSelected}) => GoogleFonts.rubik(
-        fontSize: 14.sp,
-        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-        color: isSelected ? Colors.white : const Color(0xFF3A455A),
-      );
-
-  // Primary Buttons (15px, w700)
-  static TextStyle get buttonPrimary => GoogleFonts.rubik(
-        fontSize: 15.sp,
-        fontWeight: FontWeight.w700,
-        color: Colors.white,
-      );
-
-  // Gold Button Text (15px, w700, Navy)
-  static TextStyle get buttonGold => GoogleFonts.rubik(
-        fontSize: 15.sp,
-        fontWeight: FontWeight.w700,
-        color: AppColors.navy,
-      );
-
-  // Body text
-  static TextStyle get body => GoogleFonts.rubik(
-        fontSize: 14.sp,
-        fontWeight: FontWeight.w400,
-        color: AppColors.ink,
-      );
-
-  static TextStyle get bodyMuted => GoogleFonts.rubik(
-        fontSize: 13.sp,
-        fontWeight: FontWeight.w400,
-        color: AppColors.muted,
-      );
-
-  // Form Label (15px, w600)
-  static TextStyle get formLabel => GoogleFonts.rubik(
-        fontSize: 15.sp,
-        fontWeight: FontWeight.w600,
-        color: AppColors.ink,
-      );
+  /// Rubik text theme so Material widgets (dialogs, pickers) match.
+  static TextTheme get textTheme =>
+      GoogleFonts.rubikTextTheme().apply(bodyColor: AppColors.ink);
 }
