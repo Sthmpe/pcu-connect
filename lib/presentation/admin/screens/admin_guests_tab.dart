@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_icons.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/routing/app_routes.dart';
-import '../../../core/widgets/app_header.dart';
-import '../../../core/widgets/filter_chip_widget.dart';
-import '../../../core/widgets/guest_card_widget.dart';
-import '../../../core/widgets/month_sheet.dart';
+import '../../../core/utils/month_utils.dart';
+import '../../../core/widgets/app_controls.dart';
+import '../../../core/widgets/app_page.dart';
+import '../../../core/widgets/app_surfaces.dart';
+import '../../../core/widgets/guest_row.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../../core/widgets/status_tone.dart';
 import '../../../domain/entities/guest_entity.dart';
 import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
 import '../../guests/bloc/guests_state.dart';
 
-/// All church guests for the admin. With [workerFilter] it is pushed as its
-/// own screen listing one worker's guests.
+/// All church guests for admins. With [workerFilter] it is pushed as its own
+/// screen listing one worker's guests.
 class AdminGuestsTab extends StatefulWidget {
   final String? workerFilter;
 
@@ -27,9 +30,9 @@ class AdminGuestsTab extends StatefulWidget {
 
 class _AdminGuestsTabState extends State<AdminGuestsTab> {
   final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
+  String _query = '';
 
-  static const _chips = [
+  static const _filters = [
     ('all', 'All'),
     ('call', 'Not called'),
     ('mem', 'Members'),
@@ -44,19 +47,19 @@ class _AdminGuestsTabState extends State<AdminGuestsTab> {
 
   List<GuestEntity> _visible(GuestsLoadedState state) {
     var list = state.myGuestsFiltered;
-    final worker = widget.workerFilter;
+    final worker = widget.workerFilter?.trim().toLowerCase();
     if (worker != null) {
-      final first = worker.split(' ').first.toLowerCase();
       list = list
-          .where((g) => (g.assignedWorkerName ?? '').toLowerCase().contains(first))
+          .where((g) => (g.assignedWorkerName ?? '').trim().toLowerCase() == worker)
           .toList();
     }
-    final q = _searchQuery.trim().toLowerCase();
+    final q = _query.trim().toLowerCase();
     if (q.isNotEmpty) {
+      final digits = q.replaceAll(RegExp(r'\D'), '');
       list = list
           .where((g) =>
               g.name.toLowerCase().contains(q) ||
-              g.phone.replaceAll(' ', '').contains(q.replaceAll(' ', '')))
+              (digits.isNotEmpty && g.phone.replaceAll(RegExp(r'\D'), '').contains(digits)))
           .toList();
     }
     return list;
@@ -67,124 +70,121 @@ class _AdminGuestsTabState extends State<AdminGuestsTab> {
     final bloc = context.read<GuestsBloc>();
     final standalone = widget.workerFilter != null;
 
-    final content = BlocBuilder<GuestsBloc, GuestsState>(
+    return BlocBuilder<GuestsBloc, GuestsState>(
       builder: (context, state) {
         final loaded = state is GuestsLoadedState ? state : null;
-        final list = loaded == null ? const <GuestEntity>[] : _visible(loaded);
-        final month = loaded?.selectedMonth ?? kAppMonths.first;
+        final month = loaded?.selectedMonth ?? MonthUtils.current();
+        final monthPill = MonthPill(
+          month: month,
+          onChanged: (m) => bloc.add(SelectMonthEvent(m)),
+        );
 
-        return Column(
-          children: [
-            AppHeader(
-              title: standalone
-                  ? "${widget.workerFilter!.split(' ').first}'s guests"
-                  : 'Guests',
-              subtitle: '$month · ${list.length} ${list.length == 1 ? 'guest' : 'guests'}',
-              onBack: standalone ? () => Navigator.pop(context) : null,
-              trailing: loaded == null
-                  ? null
-                  : HeaderActionButton(
-                      icon: Icons.calendar_month_rounded,
-                      tooltip: 'Choose month',
-                      onTap: () async {
-                        final m = await showMonthSheet(context, month);
-                        if (m != null) bloc.add(SelectMonthEvent(m));
-                      },
+        final controls = loaded == null
+            ? null
+            : Column(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: AppSizes.gutter),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (v) => setState(() => _query = v),
+                      style: AppTextStyles.body,
+                      textInputAction: TextInputAction.search,
+                      decoration: InputDecoration(
+                        hintText: 'Search by name or phone',
+                        prefixIcon: Icon(AppIcons.search,
+                            size: AppSizes.iconMd, color: AppColors.muted),
+                        suffixIcon: _query.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: 'Clear',
+                                icon: Icon(AppIcons.close,
+                                    size: AppSizes.iconSm, color: AppColors.muted),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _query = '');
+                                },
+                              ),
+                      ),
                     ),
-            ),
-            if (loaded != null) ...[
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                    AppSizes.gutter, AppSizes.p12, AppSizes.gutter, 0),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (v) => setState(() => _searchQuery = v),
-                  style: AppTextStyles.input,
-                  textInputAction: TextInputAction.search,
-                  decoration: InputDecoration(
-                    hintText: 'Search name or phone',
-                    prefixIcon: Icon(Icons.search_rounded,
-                        size: AppSizes.iconMd, color: AppColors.muted),
-                    suffixIcon: _searchQuery.isEmpty
-                        ? null
-                        : IconButton(
-                            tooltip: 'Clear search',
-                            icon: Icon(Icons.close_rounded,
-                                size: AppSizes.iconSm, color: AppColors.muted),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() => _searchQuery = '');
-                            },
-                          ),
                   ),
-                ),
-              ),
-              ChipBar(
-                chips: [
-                  for (final (key, label) in _chips)
-                    FilterChipWidget(
-                      label: label,
-                      isSelected: loaded.chipFilter == key ||
-                          (key == 'all' && loaded.chipFilter == 'fu'),
-                      onTap: () => bloc.add(ChangeChipFilterEvent(key)),
-                    ),
+                  SizedBox(height: AppSizes.s8),
+                  ChipBar(
+                    chips: [
+                      for (final (key, label) in _filters)
+                        AppChip(
+                          label: label,
+                          count: standalone ? null : loaded.countFor(key),
+                          selected: loaded.chipFilter == key ||
+                              (key == 'all' && loaded.chipFilter == 'fu'),
+                          onTap: () => bloc.add(ChangeChipFilterEvent(key)),
+                        ),
+                    ],
+                  ),
                 ],
+              );
+
+        final body = _body(context, state, loaded == null ? const [] : _visible(loaded));
+
+        if (!standalone) {
+          return AppPage(title: 'Guests', trailing: monthPill, below: controls, child: body);
+        }
+        return Scaffold(
+          body: Column(
+            children: [
+              AppTopBar(
+                title: "${firstNameOf(widget.workerFilter!)}'s guests",
+                trailing: monthPill,
               ),
+              ?controls,
+              Expanded(child: body),
             ],
-            Expanded(child: _list(context, state, list)),
-          ],
+          ),
         );
       },
     );
-
-    return standalone
-        ? Scaffold(backgroundColor: AppColors.bg, body: content)
-        : content;
   }
 
-  Widget _list(BuildContext context, GuestsState state, List<GuestEntity> list) {
+  Widget _body(BuildContext context, GuestsState state, List<GuestEntity> list) {
     if (state is GuestsFailureState) {
       return ErrorState(
         message: state.message,
         onRetry: () => context.read<GuestsBloc>().add(const LoadGuestsEvent()),
       );
     }
-    if (state is! GuestsLoadedState) return const SkeletonList();
+    if (state is! GuestsLoadedState) return const SkeletonPage();
 
-    if (list.isEmpty) {
-      return ListView(
-        children: [
+    return PageList(
+      children: [
+        if (state.isFromCache) OfflineBanner(isRefreshing: state.isRefreshing),
+        if (list.isEmpty)
           EmptyState(
-            icon: Icons.search_off_rounded,
-            title: 'No guests found',
-            message: _searchQuery.isNotEmpty
-                ? 'Nothing matches "$_searchQuery".'
-                : 'Try another filter or month.',
+            icon: AppIcons.search,
+            message: _query.isNotEmpty
+                ? 'No one matches "$_query".'
+                : 'No guests here for ${MonthUtils.name(state.selectedMonth)}.',
+            actionLabel: _query.isNotEmpty ? 'Clear search' : null,
+            onAction: () {
+              _searchController.clear();
+              setState(() => _query = '');
+            },
+          )
+        else
+          GroupedCard(
+            dividerIndent: AppSizes.s16 * 2 + AppSizes.avatarMd,
+            children: [
+              for (final g in list)
+                GuestRow(
+                  guest: g,
+                  adminView: true,
+                  onTap: () => Navigator.of(context).pushNamed(
+                    AppRoutes.guestDetail,
+                    arguments: GuestDetailArgs(g.id, asAdmin: true),
+                  ),
+                ),
+            ],
           ),
-        ],
-      );
-    }
-
-    return ListView.separated(
-      padding: EdgeInsets.fromLTRB(
-          AppSizes.gutter, AppSizes.p12, AppSizes.gutter, AppSizes.p24),
-      itemCount: list.length + (state.isFromCache ? 1 : 0),
-      separatorBuilder: (_, _) => SizedBox(height: AppSizes.p8),
-      itemBuilder: (context, i) {
-        if (state.isFromCache && i == 0) {
-          return OfflineBanner(isRefreshing: state.isRefreshing);
-        }
-        final guest = list[i - (state.isFromCache ? 1 : 0)];
-        return GuestCardWidget(
-          guest: guest,
-          showAssignee: true,
-          showActions: false,
-          onTap: () => Navigator.of(context).pushNamed(
-            AppRoutes.guestDetail,
-            arguments: GuestDetailArgs(guest.id, readOnly: true),
-          ),
-        );
-      },
+      ],
     );
   }
 }

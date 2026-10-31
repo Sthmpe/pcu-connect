@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_icons.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/widgets/app_bottom_nav.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../auth/bloc/auth_state.dart';
+import '../../common/insights_cubits.dart';
 import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
 import '../../worker/screens/me_tab.dart';
@@ -20,18 +22,29 @@ class AdminShellScreen extends StatefulWidget {
 }
 
 class _AdminShellScreenState extends State<AdminShellScreen> {
-  int _currentTabIndex = 0;
+  int _index = 0;
 
   static const _items = [
-    AppNavItem(Icons.insights_outlined, Icons.insights_rounded, 'Dashboard'),
-    AppNavItem(Icons.badge_outlined, Icons.badge_rounded, 'Team'),
-    AppNavItem(Icons.people_outline_rounded, Icons.people_rounded, 'Guests'),
-    AppNavItem(Icons.person_outline_rounded, Icons.person_rounded, 'Me'),
+    AppNavItem(AppIcons.dashboard, 'Dashboard'),
+    AppNavItem(AppIcons.team, 'Team'),
+    AppNavItem(AppIcons.guests, 'Guests'),
+    AppNavItem(AppIcons.me, 'Me'),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    context.read<DashboardCubit>().ensureLoaded();
+  }
+
+  void _select(int i) {
+    if (i == 1) context.read<TeamCubit>().ensureLoaded();
+    setState(() => _index = i);
+  }
 
   void _openGuests(String chip) {
     context.read<GuestsBloc>().add(ChangeChipFilterEvent(chip));
-    setState(() => _currentTabIndex = 2);
+    _select(2);
   }
 
   @override
@@ -43,12 +56,9 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       child: Scaffold(
         backgroundColor: AppColors.bg,
         body: FadeIndexedStack(
-          index: _currentTabIndex,
+          index: _index,
           children: [
-            AdminDashboardTab(
-              onOpenGuests: _openGuests,
-              onOpenTeam: () => setState(() => _currentTabIndex = 1),
-            ),
+            AdminDashboardTab(onOpenGuests: _openGuests, onOpenTeam: () => _select(1)),
             const AdminTeamTab(),
             const AdminGuestsTab(),
             const MeTab(),
@@ -56,8 +66,8 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
         ),
         bottomNavigationBar: AppBottomNav(
           items: _items,
-          currentIndex: _currentTabIndex,
-          onTap: (i) => setState(() => _currentTabIndex = i),
+          currentIndex: _index,
+          onTap: _select,
         ),
       ),
     );

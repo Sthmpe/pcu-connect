@@ -1,143 +1,156 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_icons.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/utils/contact_launcher.dart';
-import '../../../core/widgets/app_card.dart';
-import '../../../core/widgets/app_header.dart';
-import '../../../core/widgets/brand_marks.dart';
-import '../../../core/widgets/custom_button.dart';
-import '../../../core/widgets/guest_status_pill.dart';
+import '../../../core/utils/month_utils.dart';
+import '../../../core/widgets/app_controls.dart';
+import '../../../core/widgets/app_display.dart';
+import '../../../core/widgets/app_page.dart';
+import '../../../core/widgets/app_surfaces.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../core/widgets/status_tone.dart';
+import '../../../domain/entities/follow_up_entry.dart';
 import '../../../domain/entities/guest_entity.dart';
+import '../../../domain/repositories/i_guest_repository.dart';
 import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_state.dart';
 
-/// Outcomes offered after a call. Values match the Apps Script API.
-const List<(String, IconData, StatusTone)> kFollowUpOutcomes = [
-  ('Reached', Icons.check_circle_rounded, StatusTone.green),
-  ('No answer', Icons.phone_missed_rounded, StatusTone.amber),
-  ('Number off', Icons.phone_disabled_rounded, StatusTone.red),
-  ('Not interested', Icons.do_not_disturb_on_rounded, StatusTone.neutral),
+/// Call outcomes, exactly as the Apps Script API accepts them.
+const List<(String, IconData)> kFollowUpOutcomes = [
+  ('Reached', AppIcons.reached),
+  ('No answer', AppIcons.noAnswer),
+  ('Busy', AppIcons.busy),
+  ('Switched off', AppIcons.numberOff),
+  ('Wrong number', AppIcons.wrongNumber),
+  ('Not interested', AppIcons.notInterested),
 ];
 
-class GuestDetailScreen extends StatelessWidget {
+/// The four shown as one-tap shortcuts on the guest screen.
+const List<String> kQuickOutcomes = ['Reached', 'No answer', 'Switched off', 'Not interested'];
+
+IconData outcomeIcon(String outcome) {
+  for (final (label, icon) in kFollowUpOutcomes) {
+    if (label == outcome) return icon;
+  }
+  return AppIcons.call;
+}
+
+class GuestDetailScreen extends StatefulWidget {
   final String guestId;
 
-  /// Admins view guests without logging follow-ups.
-  final bool readOnly;
+  /// Opened from the admin app: logs are saved for the assigned worker.
+  final bool asAdmin;
 
-  const GuestDetailScreen({
-    super.key,
-    required this.guestId,
-    this.readOnly = false,
-  });
+  const GuestDetailScreen({super.key, required this.guestId, this.asAdmin = false});
 
-  void _log(BuildContext context, GuestEntity guest, [String? outcome]) {
-    Navigator.of(context).pushNamed(
+  @override
+  State<GuestDetailScreen> createState() => _GuestDetailScreenState();
+}
+
+class _GuestDetailScreenState extends State<GuestDetailScreen> {
+  List<FollowUpEntry>? _history;
+  bool _historyFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    final result = await context.read<IGuestRepository>().fetchGuestDetail(widget.guestId);
+    if (!mounted) return;
+    setState(() {
+      _historyFailed = result.isFailure;
+      if (result.isSuccess) _history = result.data!.history;
+    });
+  }
+
+  Future<void> _log(GuestEntity guest, [String? outcome]) async {
+    await Navigator.of(context).pushNamed(
       AppRoutes.logFollowUp,
       arguments: LogFollowUpArgs(guest.id, initialOutcome: outcome),
     );
+    if (mounted) _loadHistory();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bg,
       body: BlocBuilder<GuestsBloc, GuestsState>(
         builder: (context, state) {
           GuestEntity? guest;
           if (state is GuestsLoadedState) {
             for (final g in state.allGuests) {
-              if (g.id == guestId) guest = g;
+              if (g.id == widget.guestId) guest = g;
             }
           }
 
           if (guest == null) {
             return Column(
               children: [
-                AppHeader(
-                  title: 'Guest',
-                  onBack: () => Navigator.pop(context),
-                ),
+                const AppTopBar(),
                 Expanded(
                   child: state is GuestsLoadedState
                       ? const Center(
                           child: EmptyState(
-                            icon: Icons.person_search_rounded,
-                            title: 'Guest not found',
-                            message: 'This guest is not in the current list.',
-                          ),
+                              icon: AppIcons.search, message: 'We could not find this guest.'),
                         )
-                      : const SkeletonList(count: 3),
+                      : const SkeletonPage(rows: 3),
                 ),
               ],
             );
           }
 
           final g = guest;
+          final assignee = (g.assignedWorkerName ?? '').trim();
+          final canLog = !widget.asAdmin || assignee.isNotEmpty;
+          final logLabel = widget.asAdmin
+              ? 'Log a follow-up for ${firstNameOf(assignee)}'
+              : 'Log follow-up';
+
           return Column(
             children: [
-              _DetailHeader(guest: g),
+              const AppTopBar(),
               Expanded(
-                child: ListView(
-                  padding: EdgeInsets.fromLTRB(
-                      AppSizes.gutter, AppSizes.p16, AppSizes.gutter, AppSizes.p24),
+                child: PageList(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: AppButton(
-                            label: 'Call',
-                            icon: Icons.call_rounded,
-                            onPressed: () => ContactLauncher.call(g),
-                          ),
+                    _Profile(guest: g, assignee: widget.asAdmin ? assignee : null),
+                    SizedBox(height: AppSizes.s24),
+                    _ContactActions(guest: g),
+                    SizedBox(height: AppSizes.s32),
+                    if (canLog)
+                      _OutcomeCard(onPick: (o) => _log(g, o))
+                    else
+                      AppCard(
+                        child: Text(
+                          'Assign this guest to a worker before logging a follow-up.',
+                          style: AppTextStyles.bodyMuted,
                         ),
-                        SizedBox(width: AppSizes.p10),
-                        Expanded(
-                          child: AppButton(
-                            label: 'WhatsApp',
-                            variant: AppButtonVariant.whatsapp,
-                            leading: WhatsAppMark(
-                                size: AppSizes.iconMd, color: AppColors.greenInk),
-                            onPressed: () => ContactLauncher.whatsApp(g),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (!readOnly) ...[
-                      SizedBox(height: AppSizes.p16),
-                      _QuickOutcomeCard(onPick: (o) => _log(context, g, o)),
-                    ],
-                    SizedBox(height: AppSizes.p12),
+                      ),
+                    SectionLabel('Road to membership'),
                     _MembershipCard(guest: g),
-                    SizedBox(height: AppSizes.p12),
-                    _ActivityCard(guest: g),
-                    SizedBox(height: AppSizes.p16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.info_outline_rounded,
-                            size: AppSizes.iconXs, color: AppColors.muted),
-                        SizedBox(width: AppSizes.p6),
-                        Text('Guest details are managed by the HOD',
-                            style: AppTextStyles.caption),
-                      ],
+                    SectionLabel('Details'),
+                    _DetailsCard(guest: g),
+                    SectionLabel('History'),
+                    _HistoryCard(
+                      history: _history,
+                      failed: _historyFailed,
+                      onRetry: _loadHistory,
                     ),
                   ],
                 ),
               ),
-              if (!readOnly)
-                BottomActionBar(
-                  child: AppButton(
-                    label: 'Log follow-up',
-                    icon: Icons.edit_note_rounded,
-                    variant: AppButtonVariant.accent,
-                    onPressed: () => _log(context, g),
-                  ),
+              if (canLog)
+                Padding(
+                  padding: EdgeInsets.fromLTRB(AppSizes.gutter, AppSizes.s8, AppSizes.gutter,
+                      AppSizes.s16 + MediaQuery.paddingOf(context).bottom),
+                  child: AppButton(label: logLabel, icon: AppIcons.log, onPressed: () => _log(g)),
                 ),
             ],
           );
@@ -147,102 +160,127 @@ class GuestDetailScreen extends StatelessWidget {
   }
 }
 
-class _DetailHeader extends StatelessWidget {
+class _Profile extends StatelessWidget {
   final GuestEntity guest;
+  final String? assignee;
 
-  const _DetailHeader({required this.guest});
+  const _Profile({required this.guest, this.assignee});
 
   @override
   Widget build(BuildContext context) {
-    final details = [
-      guest.phone,
-      if (guest.month.isNotEmpty) 'came ${guest.month}',
-    ].join(' · ');
-
-    return AppHeader(
-      rounded: true,
-      onBack: () => Navigator.pop(context),
-      child: Row(
-        children: [
-          AppAvatar(
-            initials: guest.initials,
-            size: AppSizes.avatarLg,
-            background: AppColors.gold,
-            foreground: AppColors.navy,
-          ),
-          SizedBox(width: AppSizes.p12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(guest.name,
-                    style: AppTextStyles.detailTitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-                SizedBox(height: AppSizes.p4),
-                Text(details,
-                    style: AppTextStyles.screenSubtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-              ],
-            ),
-          ),
-          SizedBox(width: AppSizes.p8),
-          GuestStatusPill(status: guest.status),
-        ],
-      ),
+    return Column(
+      children: [
+        AppAvatar(name: guest.name, size: AppSizes.avatarLg),
+        SizedBox(height: AppSizes.s16),
+        Text(guest.name, style: AppTextStyles.title, textAlign: TextAlign.center),
+        SizedBox(height: AppSizes.s4),
+        Text(
+          assignee == null
+              ? guest.phone
+              : '${guest.phone} · ${assignee!.isEmpty ? 'Not assigned' : 'With ${firstNameOf(assignee!)}'}',
+          style: AppTextStyles.bodyMuted,
+        ),
+        SizedBox(height: AppSizes.s16),
+        AppPill(label: guest.status, tone: StatusTone.forStatus(guest.status)),
+      ],
     );
   }
 }
 
-/// After the call: one tap on the outcome opens the log with it chosen.
-class _QuickOutcomeCard extends StatelessWidget {
+class _ContactActions extends StatelessWidget {
+  final GuestEntity guest;
+
+  const _ContactActions({required this.guest});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget action(String label, IconData icon, Color bg, Color fg, VoidCallback onTap) =>
+        Semantics(
+          button: true,
+          label: label,
+          child: SizedBox(
+            width: 88,
+            child: Column(
+              children: [
+                Material(
+                  color: bg,
+                  shape: const CircleBorder(),
+                  elevation: bg == AppColors.surface ? 0.5 : 0,
+                  shadowColor: AppColors.navy.withValues(alpha: 0.2),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: onTap,
+                    child: SizedBox(
+                      width: AppSizes.s48 + AppSizes.s8,
+                      height: AppSizes.s48 + AppSizes.s8,
+                      child: Icon(icon, size: AppSizes.iconLg, color: fg),
+                    ),
+                  ),
+                ),
+                SizedBox(height: AppSizes.s8),
+                Text(label, style: AppTextStyles.caption.copyWith(color: AppColors.inkSoft)),
+              ],
+            ),
+          ),
+        );
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        action('Call', AppIcons.call, AppColors.navy, AppColors.onNavy,
+            () => ContactLauncher.call(guest)),
+        SizedBox(width: AppSizes.s16),
+        action('WhatsApp', AppIcons.whatsapp, AppColors.surface, AppColors.greenInk,
+            () => ContactLauncher.whatsApp(guest)),
+      ],
+    );
+  }
+}
+
+/// After the call: one tap opens the log with the outcome chosen.
+class _OutcomeCard extends StatelessWidget {
   final ValueChanged<String> onPick;
 
-  const _QuickOutcomeCard({required this.onPick});
+  const _OutcomeCard({required this.onPick});
 
   @override
   Widget build(BuildContext context) {
     return AppCard(
+      padding: EdgeInsets.fromLTRB(AppSizes.s16, AppSizes.s16, AppSizes.s16, AppSizes.s8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('How did the call go?', style: AppTextStyles.cardTitle),
-          SizedBox(height: AppSizes.p2),
-          Text('Pick the outcome to log it quickly.',
-              style: AppTextStyles.caption),
-          SizedBox(height: AppSizes.p12),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: AppSizes.p8,
-            crossAxisSpacing: AppSizes.p8,
-            childAspectRatio: 3.6,
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSizes.s8),
+            child: Text('How did the call go?', style: AppTextStyles.bodyStrong),
+          ),
+          SizedBox(height: AppSizes.s4),
+          Wrap(
+            spacing: AppSizes.s8,
             children: [
-              for (final (label, icon, tone) in kFollowUpOutcomes)
-                Material(
-                  color: tone.background,
-                  borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-                  child: InkWell(
-                    onTap: () => onPick(label),
-                    borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: AppSizes.p10),
-                      child: Row(
-                        children: [
-                          Icon(icon, size: AppSizes.iconSm, color: tone.foreground),
-                          SizedBox(width: AppSizes.p8),
-                          Flexible(
-                            child: Text(
-                              label,
-                              style: AppTextStyles.secondaryStrong
-                                  .copyWith(color: tone.foreground),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+              for (final label in kQuickOutcomes)
+                GestureDetector(
+                  onTap: () => onPick(label),
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    // 36px chip plus 6px above and below makes a 48px target.
+                    padding: EdgeInsets.symmetric(vertical: (AppSizes.touch - AppSizes.chipHeight - AppSizes.s4) / 2),
+                    child: IntrinsicWidth(
+                      child: Container(
+                        height: AppSizes.chipHeight + AppSizes.s4,
+                        padding: EdgeInsets.symmetric(horizontal: AppSizes.s16 - 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.sunken,
+                          borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(outcomeIcon(label), size: AppSizes.iconSm, color: AppColors.inkSoft),
+                            SizedBox(width: AppSizes.s8 - 2),
+                            Text(label, style: AppTextStyles.caption.copyWith(color: AppColors.ink)),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -262,47 +300,32 @@ class _MembershipCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isMember = guest.status == 'Member';
+    Widget line(String label, int done, int target) => Column(
+          children: [
+            Row(
+              children: [
+                Expanded(child: Text(label, style: AppTextStyles.body)),
+                Text('${done.clamp(0, target)} of $target', style: AppTextStyles.caption),
+              ],
+            ),
+            SizedBox(height: AppSizes.s8),
+            SegmentBar(total: target, filled: done),
+          ],
+        );
+
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text('Road to membership', style: AppTextStyles.cardTitle),
-              ),
-              if (isMember)
-                const AppPill(label: 'Member', tone: StatusTone.gold, showDot: true)
-              else if (guest.month.isNotEmpty)
-                Text(guest.month, style: AppTextStyles.caption),
-            ],
-          ),
-          SizedBox(height: AppSizes.p12),
-          _AttendanceRow(
-            label: 'Sundays',
-            attended: guest.sundayAttendance,
-            target: 4,
-          ),
-          SizedBox(height: AppSizes.p10),
-          _AttendanceRow(
-            label: 'Wednesdays',
-            attended: guest.wednesdayAttendance,
-            target: 2,
-          ),
-          SizedBox(height: AppSizes.p12),
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(
-                horizontal: AppSizes.p10, vertical: AppSizes.p8),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceMuted,
-              borderRadius: BorderRadius.circular(AppSizes.radiusSm),
-            ),
-            child: Text(
-              'Member after 4 Sundays, or 3 Sundays and 2 Wednesdays, in one month.',
-              style: AppTextStyles.caption,
-            ),
+          line('Sundays', guest.sundayAttendance, 4),
+          SizedBox(height: AppSizes.s16),
+          line('Wednesdays', guest.wednesdayAttendance, 2),
+          SizedBox(height: AppSizes.s16),
+          Text(
+            guest.status == 'Member'
+                ? 'Became a member. Thank you for walking with them.'
+                : '4 Sundays, or 3 Sundays and 2 Wednesdays, in one month.',
+            style: AppTextStyles.caption,
           ),
         ],
       ),
@@ -310,119 +333,146 @@ class _MembershipCard extends StatelessWidget {
   }
 }
 
-class _AttendanceRow extends StatelessWidget {
-  final String label;
-  final int attended;
-  final int target;
+class _DetailsCard extends StatelessWidget {
+  final GuestEntity guest;
 
-  const _AttendanceRow({
-    required this.label,
-    required this.attended,
-    required this.target,
-  });
+  const _DetailsCard({required this.guest});
 
   @override
   Widget build(BuildContext context) {
-    final dot = AppSizes.p24 + AppSizes.p2;
-    return Row(
+    final tone = StatusTone.forUrgency(guest.urgency);
+    return GroupedCard(
       children: [
-        Expanded(
-          child: RichText(
-            text: TextSpan(
-              style: AppTextStyles.secondary,
-              children: [
-                TextSpan(text: '$label  '),
-                TextSpan(
-                  text: '${attended.clamp(0, target)} of $target',
-                  style: AppTextStyles.secondaryStrong,
-                ),
-              ],
-            ),
+        InfoTile(
+          label: 'Progress',
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              StatusDot(tone.dot),
+              SizedBox(width: AppSizes.s8),
+              Text(guestProgressLine(guest),
+                  style: AppTextStyles.body.copyWith(color: AppColors.muted)),
+            ],
           ),
         ),
-        for (var i = 0; i < target; i++)
-          Container(
-            width: dot,
-            height: dot,
-            margin: EdgeInsets.only(left: AppSizes.p6),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: i < attended ? AppColors.green : AppColors.surface,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: i < attended ? AppColors.green : AppColors.lineStrong,
-              ),
-            ),
-            child: i < attended
-                ? Icon(Icons.check_rounded,
-                    size: AppSizes.iconXs, color: AppColors.onNavy)
-                : Text('${i + 1}', style: AppTextStyles.caption),
-          ),
+        InfoTile(label: 'First visit', value: MonthUtils.label(guest.month)),
+        InfoTile(label: 'Team', value: guest.teamJoined.isEmpty ? 'Not yet' : guest.teamJoined),
       ],
     );
   }
 }
 
-class _ActivityCard extends StatelessWidget {
-  final GuestEntity guest;
+/// Newest first. Admin entries keep the worker's name and get a small label.
+class _HistoryCard extends StatelessWidget {
+  final List<FollowUpEntry>? history;
+  final bool failed;
+  final VoidCallback onRetry;
 
-  const _ActivityCard({required this.guest});
+  const _HistoryCard({required this.history, required this.failed, required this.onRetry});
+
+  static String _day(String ymd) {
+    final d = DateTime.tryParse(ymd);
+    return d == null ? ymd : DateFormat('d MMM').format(d);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final tone = StatusTone.forUrgency(guest.urgency);
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Follow-up', style: AppTextStyles.cardTitle),
-          SizedBox(height: AppSizes.p6),
-          InfoRow(
-            icon: Icons.flag_rounded,
-            label: 'Progress',
-            value: guest.progressText,
-            valueColor: tone.foreground,
+    final list = history;
+    if (list == null) {
+      if (failed) {
+        return AppCard(
+          child: Row(
+            children: [
+              Expanded(child: Text('History did not load.', style: AppTextStyles.bodyMuted)),
+              AppButton(
+                label: 'Retry',
+                variant: AppButtonVariant.secondary,
+                expand: false,
+                onPressed: onRetry,
+              ),
+            ],
           ),
-          InfoRow(
-            icon: Icons.history_rounded,
-            label: 'Follow-ups logged',
-            value: '${guest.followUpCount}',
-          ),
-          InfoRow(
-            icon: Icons.groups_rounded,
-            label: 'Team',
-            value: guest.teamJoined.isEmpty ? 'Not yet' : guest.teamJoined,
-            valueColor: guest.teamJoined.isEmpty ? AppColors.muted : AppColors.greenInk,
-          ),
-          if (guest.lastFeedback.isNotEmpty) ...[
-            SizedBox(height: AppSizes.p8),
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(AppSizes.p12),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-                border: const Border(
-                  left: BorderSide(color: AppColors.gold, width: 3),
+        );
+      }
+      return const Skeleton(child: SkeletonBox(height: 120, radius: 20));
+    }
+    if (list.isEmpty) {
+      return AppCard(
+        child: Text('No follow-ups yet. The first call is the most important one.',
+            style: AppTextStyles.bodyMuted),
+      );
+    }
+
+    return GroupedCard(
+      dividerIndent: AppSizes.s16 * 2 + AppSizes.avatarSm,
+      children: [
+        for (final e in list)
+          Padding(
+            padding: EdgeInsets.all(AppSizes.s16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: AppSizes.avatarSm,
+                  height: AppSizes.avatarSm,
+                  decoration: const BoxDecoration(color: AppColors.sunken, shape: BoxShape.circle),
+                  child: Icon(outcomeIcon(e.outcome), size: AppSizes.iconSm, color: AppColors.inkSoft),
                 ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    guest.lastFeedbackDate.isEmpty
-                        ? 'LAST FEEDBACK'
-                        : 'LAST FEEDBACK · ${guest.lastFeedbackDate.toUpperCase()}',
-                    style: AppTextStyles.overline,
+                SizedBox(width: AppSizes.s16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: Text(e.outcome, style: AppTextStyles.bodyStrong)),
+                          Text(_day(e.date), style: AppTextStyles.caption),
+                        ],
+                      ),
+                      SizedBox(height: AppSizes.s4 / 2),
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: AppSizes.s8,
+                        runSpacing: AppSizes.s4,
+                        children: [
+                          Text(
+                            [
+                              if (e.workerName.isNotEmpty) firstNameOf(e.workerName),
+                              if (e.attendedSunday) 'came Sunday',
+                              if (e.attendedWednesday) 'came Wednesday',
+                              if (e.team.isNotEmpty) 'joined ${e.team}',
+                            ].join(' · '),
+                            style: AppTextStyles.caption,
+                          ),
+                          if (e.loggedByAdmin)
+                            Tooltip(
+                              message: e.loggedByName.isEmpty
+                                  ? 'Saved by an admin'
+                                  : 'Saved by ${e.loggedByName}',
+                              child: Container(
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: AppSizes.s8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.navySoft,
+                                  borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+                                ),
+                                child: Text('Logged by admin',
+                                    style: AppTextStyles.caption.copyWith(color: AppColors.navy)),
+                              ),
+                            ),
+                        ],
+                      ),
+                      if (e.note.isNotEmpty) ...[
+                        SizedBox(height: AppSizes.s8),
+                        Text(e.note, style: AppTextStyles.body),
+                      ],
+                    ],
                   ),
-                  SizedBox(height: AppSizes.p4),
-                  Text(guest.lastFeedback, style: AppTextStyles.body),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ],
-      ),
+          ),
+      ],
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_icons.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/widgets/app_bottom_nav.dart';
 import '../../auth/bloc/auth_bloc.dart';
@@ -18,13 +19,13 @@ class WorkerShellScreen extends StatefulWidget {
 }
 
 class _WorkerShellScreenState extends State<WorkerShellScreen> {
-  int _currentTabIndex = 0;
+  int _index = 0;
 
   static const _items = [
-    AppNavItem(Icons.today_outlined, Icons.today_rounded, 'Today'),
-    AppNavItem(Icons.people_outline_rounded, Icons.people_rounded, 'Guests'),
-    AppNavItem(Icons.emoji_events_outlined, Icons.emoji_events_rounded, 'Ranking'),
-    AppNavItem(Icons.person_outline_rounded, Icons.person_rounded, 'Me'),
+    AppNavItem(AppIcons.today, 'Today'),
+    AppNavItem(AppIcons.guests, 'Guests'),
+    AppNavItem(AppIcons.ranking, 'Ranking'),
+    AppNavItem(AppIcons.me, 'Me'),
   ];
 
   @override
@@ -36,18 +37,18 @@ class _WorkerShellScreenState extends State<WorkerShellScreen> {
       child: Scaffold(
         backgroundColor: AppColors.bg,
         body: FadeIndexedStack(
-          index: _currentTabIndex,
+          index: _index,
           children: [
-            TodayTab(onSeeAll: () => setState(() => _currentTabIndex = 1)),
+            TodayTab(onSeeAll: () => setState(() => _index = 1)),
             const MyGuestsTab(),
-            const RankingTab(),
+            RankingTab(active: _index == 2),
             const MeTab(),
           ],
         ),
         bottomNavigationBar: AppBottomNav(
           items: _items,
-          currentIndex: _currentTabIndex,
-          onTap: (i) => setState(() => _currentTabIndex = i),
+          currentIndex: _index,
+          onTap: (i) => setState(() => _index = i),
         ),
       ),
     );
