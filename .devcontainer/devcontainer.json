@@ -14,6 +14,5 @@
     "vscode": {
       "extensions": ["Dart-Code.dart-code", "Dart-Code.flutter"]
     }
-  },
-  "hostRequirements": { "memory": "8gb" }
+  }
 }
