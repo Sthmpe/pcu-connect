@@ -377,3 +377,7 @@ migration.
   entries carry `loggedByAdmin`, shown as a "Logged by admin" label to everyone. Node harness covers
   both with and without the column. The column was added to the TEST sheet's Follow-ups tab (L1).
   **Api.gs must be pasted into the Apps Script project and redeployed** for this to work live.
+
+## Backend plan
+
+Phase 2 (Firestore as the live database, sheet sync, UI checklist per phase) is in `docs/BACKEND_PLAN.md`. Not implemented yet.
