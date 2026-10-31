@@ -296,7 +296,9 @@ class _DateChip extends StatelessWidget {
               children: [
                 Icon(AppIcons.calendar, size: AppSizes.iconSm, color: AppColors.inkSoft),
                 SizedBox(width: AppSizes.s4),
-                Text(DateFormat('EEE d MMM').format(date), style: AppTextStyles.caption.copyWith(color: AppColors.ink)),
+                Text(DateFormat('EEE d MMM').format(date),
+                    style: AppTextStyles.centered(AppTextStyles.caption)
+                        .copyWith(color: AppColors.ink)),
               ],
             ),
           ),

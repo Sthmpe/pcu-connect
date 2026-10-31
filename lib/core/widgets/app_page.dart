@@ -30,10 +30,12 @@ class AppPage extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: EdgeInsets.fromLTRB(
-              AppSizes.gutter, top + AppSizes.s32, AppSizes.gutter, AppSizes.s16),
+          // 2px more inset than the content so the header sits slightly
+          // inside the cards below it.
+          padding: EdgeInsets.fromLTRB(AppSizes.gutter + 2, top + AppSizes.s32,
+              AppSizes.gutter + 2, AppSizes.s16),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
                 child: Column(

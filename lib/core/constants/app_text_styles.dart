@@ -16,7 +16,20 @@ abstract class AppTextStyles {
         color: color,
         height: height,
         letterSpacing: size >= 18 ? -0.2 : 0,
-      );
+      ).copyWith(leadingDistribution: TextLeadingDistribution.even);
+
+  /// Rubik's metrics sit text slightly off centre. Spreading the line's
+  /// leading evenly and ignoring it above the first and below the last line
+  /// puts glyphs in the true vertical centre of capsules and buttons.
+  static const TextHeightBehavior centeredHeight = TextHeightBehavior(
+    applyHeightToFirstAscent: false,
+    applyHeightToLastDescent: false,
+    leadingDistribution: TextLeadingDistribution.even,
+  );
+
+  /// Text inside pills, chips, buttons, tabs and badges.
+  static TextStyle centered(TextStyle s) =>
+      s.copyWith(height: 1.2, leadingDistribution: TextLeadingDistribution.even);
 
   static TextStyle get display => _rubik(26, semibold, AppColors.ink, 1.15);
   static TextStyle get title => _rubik(18, semibold, AppColors.ink, 1.25);

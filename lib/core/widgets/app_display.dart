@@ -30,10 +30,10 @@ class AppAvatar extends StatelessWidget {
       decoration: BoxDecoration(color: background, shape: BoxShape.circle),
       child: Text(
         initialsOf(name),
-        style: AppTextStyles.bodyStrong.copyWith(
+        textAlign: TextAlign.center,
+        style: AppTextStyles.centered(AppTextStyles.bodyStrong).copyWith(
           color: foreground,
           fontSize: size * 0.36,
-          height: 1,
         ),
       ),
     );
@@ -74,7 +74,9 @@ class AppPill extends StatelessWidget {
         children: [
           StatusDot(tone.dot, size: 6),
           SizedBox(width: AppSizes.s8 - 2),
-          Text(label, style: AppTextStyles.captionStrong.copyWith(color: tone.foreground)),
+          Text(label,
+              style: AppTextStyles.centered(AppTextStyles.captionStrong)
+                  .copyWith(color: tone.foreground)),
         ],
       ),
     );

@@ -62,6 +62,15 @@ abstract class AppShadows {
         ),
       ];
 
+  /// Lighter lift for small controls (chips, pills) so rows of them stay clean.
+  static List<BoxShadow> get control => [
+        BoxShadow(
+          color: AppColors.navy.withValues(alpha: 0.06),
+          blurRadius: 3,
+          offset: const Offset(0, 1),
+        ),
+      ];
+
   static List<BoxShadow> get raised => [
         BoxShadow(
           color: AppColors.navy.withValues(alpha: 0.14),

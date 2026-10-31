@@ -278,7 +278,9 @@ class _OutcomeCard extends StatelessWidget {
                           children: [
                             Icon(outcomeIcon(label), size: AppSizes.iconSm, color: AppColors.inkSoft),
                             SizedBox(width: AppSizes.s8 - 2),
-                            Text(label, style: AppTextStyles.caption.copyWith(color: AppColors.ink)),
+                            Text(label,
+                                style: AppTextStyles.centered(AppTextStyles.caption)
+                                    .copyWith(color: AppColors.ink)),
                           ],
                         ),
                       ),
@@ -457,7 +459,8 @@ class _HistoryCard extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(AppSizes.radiusFull),
                                 ),
                                 child: Text('Logged by admin',
-                                    style: AppTextStyles.caption.copyWith(color: AppColors.navy)),
+                                    style: AppTextStyles.centered(AppTextStyles.caption)
+                                        .copyWith(color: AppColors.navy)),
                               ),
                             ),
                         ],

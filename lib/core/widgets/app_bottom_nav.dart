@@ -78,7 +78,8 @@ class _NavButton extends StatelessWidget {
             SizedBox(height: AppSizes.s4),
             Text(
               item.label,
-              style: (selected ? AppTextStyles.captionStrong : AppTextStyles.caption)
+              style: AppTextStyles.centered(
+                      selected ? AppTextStyles.captionStrong : AppTextStyles.caption)
                   .copyWith(color: color),
             ),
             SizedBox(height: AppSizes.s4),

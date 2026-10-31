@@ -82,7 +82,8 @@ class AppButton extends StatelessWidget {
               ],
               Flexible(
                 child: Text(label,
-                    style: AppTextStyles.button.copyWith(color: c.fg),
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.centered(AppTextStyles.button).copyWith(color: c.fg),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis),
               ),
@@ -178,7 +179,8 @@ class AppChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = (selected ? AppTextStyles.captionStrong : AppTextStyles.caption)
+    final style = AppTextStyles.centered(
+            selected ? AppTextStyles.captionStrong : AppTextStyles.caption)
         .copyWith(color: selected ? AppColors.navy : AppColors.inkSoft);
     return Semantics(
       button: true,
@@ -198,7 +200,7 @@ class AppChip extends StatelessWidget {
               decoration: BoxDecoration(
                 color: selected ? AppColors.gold : AppColors.surface,
                 borderRadius: BorderRadius.circular(AppSizes.radiusFull),
-                boxShadow: selected ? null : AppShadows.card,
+                boxShadow: selected ? null : AppShadows.control,
               ),
               child: Text.rich(
                 TextSpan(children: [
@@ -214,6 +216,7 @@ class AppChip extends StatelessWidget {
                     ),
                 ]),
                 style: style,
+                textAlign: TextAlign.center,
               ),
             ),
           ),
@@ -288,7 +291,8 @@ class SegmentedPicker extends StatelessWidget {
                   ),
                   child: Text(
                     o,
-                    style: (o == value
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.centered(o == value
                             ? AppTextStyles.captionStrong
                             : AppTextStyles.caption)
                         .copyWith(
@@ -434,12 +438,13 @@ class MonthPill extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(AppSizes.radiusFull),
-                boxShadow: AppShadows.card,
+                boxShadow: AppShadows.control,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(MonthUtils.short(month), style: AppTextStyles.captionStrong),
+                  Text(MonthUtils.short(month),
+                      style: AppTextStyles.centered(AppTextStyles.captionStrong)),
                   SizedBox(width: AppSizes.s4),
                   Icon(AppIcons.chevronDown,
                       size: AppSizes.iconSm, color: AppColors.inkSoft),

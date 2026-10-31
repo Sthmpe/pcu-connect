@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
+import '../constants/app_text_styles.dart';
 
 /// Keeps the whole app phone shaped.
 ///
@@ -46,6 +47,11 @@ class ResponsiveWebShell extends StatelessWidget {
         ),
       );
 
+  static Widget _centred(Widget child) => DefaultTextHeightBehavior(
+        textHeightBehavior: AppTextStyles.centeredHeight,
+        child: child,
+      );
+
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
@@ -54,7 +60,7 @@ class ResponsiveWebShell extends StatelessWidget {
 
     if (!framed) {
       _configureScale(screen.width);
-      return MediaQuery(data: _clampText(media), child: child);
+      return MediaQuery(data: _clampText(media), child: _centred(child));
     }
 
     final roomy = screen.height >= 640;
@@ -85,7 +91,7 @@ class ResponsiveWebShell extends StatelessWidget {
               viewPadding: EdgeInsets.zero,
               viewInsets: EdgeInsets.zero,
             ),
-            child: child,
+            child: _centred(child),
           ),
         ),
       ),
