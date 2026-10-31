@@ -1,72 +1,36 @@
 {
   "indexes": [
     {
-      "collectionGroup": "team_memberships",
+      "collectionGroup": "guests",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "userId", "order": "ASCENDING" },
-        { "fieldPath": "active", "order": "ASCENDING" }
+        { "fieldPath": "assignedTo", "order": "ASCENDING" },
+        { "fieldPath": "month", "order": "ASCENDING" }
       ]
     },
     {
-      "collectionGroup": "team_memberships",
+      "collectionGroup": "followUps",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "organizationId", "order": "ASCENDING" },
-        { "fieldPath": "userId", "order": "ASCENDING" },
-        { "fieldPath": "active", "order": "ASCENDING" }
+        { "fieldPath": "guestId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },
     {
-      "collectionGroup": "team_memberships",
+      "collectionGroup": "followUps",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "unitId", "order": "ASCENDING" },
-        { "fieldPath": "active", "order": "ASCENDING" }
+        { "fieldPath": "worker", "order": "ASCENDING" },
+        { "fieldPath": "guestId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },
     {
-      "collectionGroup": "team_memberships",
+      "collectionGroup": "followUps",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "scope.unitIds", "arrayConfig": "CONTAINS" },
-        { "fieldPath": "active", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "team_memberships",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "organizationId", "order": "ASCENDING" },
-        { "fieldPath": "locationId", "order": "ASCENDING" },
-        { "fieldPath": "unitId", "order": "ASCENDING" },
-        { "fieldPath": "baseRole", "order": "ASCENDING" },
-        { "fieldPath": "availabilityStatus", "order": "ASCENDING" },
-        { "fieldPath": "active", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "contacts",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "assignedOperatorId", "order": "ASCENDING" },
-        { "fieldPath": "receivedAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "contacts",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "unitId", "order": "ASCENDING" },
-        { "fieldPath": "receivedAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "contacts",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "locationId", "order": "ASCENDING" },
-        { "fieldPath": "receivedAt", "order": "ASCENDING" }
+        { "fieldPath": "month", "order": "ASCENDING" },
+        { "fieldPath": "worker", "order": "ASCENDING" }
       ]
     }
   ],

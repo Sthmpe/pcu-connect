@@ -1,375 +1,110 @@
 rules_version = '2';
 
-// Authorization source of truth. The Flutter app never decides access -
-// every read/write is re-checked here regardless of what the client sends.
+// PCU Connect security rules (docs/BACKEND_PLAN.md).
 //
-// Model: base role (ceiling) + scoped capability map (actual access).
-// Membership doc id = "{unitId}_{userId}".
+// Every request needs a verified Google sign-in whose email has an active
+// users/{email} document. Emails are trimmed and lowercased before every
+// lookup or comparison. users and meta are written only by Apps Script
+// (service account, which bypasses these rules).
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function uid() { return request.auth.uid; }
-    function isSignedIn() { return request.auth != null; }
-    function isNonEmptyString(value, maxLength) {
-      return value is string && value.size() > 0 && value.size() <= maxLength;
+    function signedIn() {
+      return request.auth != null
+        && request.auth.token.email is string
+        && request.auth.token.email_verified == true;
     }
 
-    function isNullableString(value, maxLength) {
-      return value == null || (value is string && value.size() <= maxLength);
+    function myEmail() {
+      return request.auth.token.email.trim().lower();
     }
 
-    function isNullableTimestamp(value) {
-      return value == null || value is timestamp;
-    }
-    function isTerminologyValid(data) {
-      return !data.keys().hasAny(['terminology'])
-        || (data.terminology is map
-          && data.terminology.keys().hasOnly([
-            'organization', 'organizationPlural', 'organizationOwner',
-            'location', 'unit', 'unitManager', 'operator', 'operatorPlural',
-            'contact', 'contactPlural', 'journey'
-          ])
-          && (!data.terminology.keys().hasAny(['organization'])
-            || isNonEmptyString(data.terminology.organization, 64))
-          && (!data.terminology.keys().hasAny(['organizationPlural'])
-            || isNonEmptyString(data.terminology.organizationPlural, 64))
-          && (!data.terminology.keys().hasAny(['organizationOwner'])
-            || isNonEmptyString(data.terminology.organizationOwner, 64))
-          && (!data.terminology.keys().hasAny(['location'])
-            || isNonEmptyString(data.terminology.location, 64))
-          && (!data.terminology.keys().hasAny(['unit'])
-            || isNonEmptyString(data.terminology.unit, 64))
-          && (!data.terminology.keys().hasAny(['unitManager'])
-            || isNonEmptyString(data.terminology.unitManager, 64))
-          && (!data.terminology.keys().hasAny(['operator'])
-            || isNonEmptyString(data.terminology.operator, 64))
-          && (!data.terminology.keys().hasAny(['operatorPlural'])
-            || isNonEmptyString(data.terminology.operatorPlural, 64))
-          && (!data.terminology.keys().hasAny(['contact'])
-            || isNonEmptyString(data.terminology.contact, 64))
-          && (!data.terminology.keys().hasAny(['contactPlural'])
-            || isNonEmptyString(data.terminology.contactPlural, 64))
-          && (!data.terminology.keys().hasAny(['journey'])
-            || isNonEmptyString(data.terminology.journey, 64)));
+    function userPath(email) {
+      return /databases/$(database)/documents/users/$(email);
     }
 
-
-    function isLifecycleStage(value) {
-      return value in [
-        'received', 'assigned', 'contacted', 'returned', 'retained',
-        'integrated', 'convert', 'operator'
-      ];
+    function isMember() {
+      return signedIn()
+        && exists(userPath(myEmail()))
+        && get(userPath(myEmail())).data.active == true;
     }
 
-    function isContactUpdateValid() {
-      let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return changed.hasOnly([
-          'currentStage', 'contactedAt', 'returnedAt', 'retainedAt',
-          'notesSummary', 'updatedAt'
-        ])
-        && changed.hasAll(['updatedAt'])
-        && isLifecycleStage(request.resource.data.currentStage)
-        && request.resource.data.updatedAt is timestamp
-        && (!changed.hasAny(['contactedAt'])
-          || isNullableTimestamp(request.resource.data.contactedAt))
-        && (!changed.hasAny(['returnedAt'])
-          || isNullableTimestamp(request.resource.data.returnedAt))
-        && (!changed.hasAny(['retainedAt'])
-          || isNullableTimestamp(request.resource.data.retainedAt))
-        && (!changed.hasAny(['notesSummary'])
-          || isNullableString(request.resource.data.notesSummary, 4000));
+    function role() {
+      return get(userPath(myEmail())).data.role;
     }
 
-    function isSameContactScope(data) {
-      return isNonEmptyString(data.contactId, 256)
-        && exists(/databases/$(database)/documents/contacts/$(data.contactId))
-        && get(/databases/$(database)/documents/contacts/$(data.contactId)).data.organizationId
-            == data.organizationId
-        && get(/databases/$(database)/documents/contacts/$(data.contactId)).data.locationId
-            == data.locationId
-        && get(/databases/$(database)/documents/contacts/$(data.contactId)).data.unitId
-            == data.unitId;
+    function isAdmin() {
+      return isMember() && role() == 'admin';
     }
 
-    function isInteractionCreateValid() {
-      let data = request.resource.data;
-      return data.keys().hasOnly([
-          'contactId', 'organizationId', 'locationId', 'unitId',
-          'assignmentId', 'operatorId', 'outcome', 'phoneE164',
-          'durationSeconds', 'durationBand', 'notes', 'nextFollowUpAt',
-          'captureSource', 'createdAt', 'updatedAt'
-        ])
-        && data.keys().hasAll([
-          'contactId', 'organizationId', 'locationId', 'unitId',
-          'operatorId', 'outcome', 'phoneE164', 'durationSeconds',
-          'durationBand', 'captureSource', 'createdAt', 'updatedAt'
-        ])
-        && isSameContactScope(data)
-        && data.operatorId == uid()
-        && isNonEmptyString(data.organizationId, 128)
-        && isNonEmptyString(data.locationId, 128)
-        && isNonEmptyString(data.unitId, 128)
-        && data.outcome in [
-          'connected', 'no_answer', 'busy', 'voicemail', 'wrong_number'
-        ]
-        && isNonEmptyString(data.phoneE164, 32)
-        && data.durationSeconds is int
-        && data.durationSeconds >= 0
-        && data.durationSeconds <= 86400
-        && data.durationBand in ['under_2m', '2_5m', '5_15m', '15m_plus']
-        && isNullableString(data.assignmentId, 256)
-        && isNullableString(data.notes, 4000)
-        && isNullableTimestamp(data.nextFollowUpAt)
-        && data.captureSource == 'manual'
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+    function isWorker() {
+      return isMember() && role() == 'worker';
     }
 
-    function isFollowUpCreateValid() {
-      let data = request.resource.data;
-      return data.keys().hasOnly([
-          'contactId', 'organizationId', 'locationId', 'unitId',
-          'assignmentId', 'interactionId', 'ownerId', 'dueAt', 'status',
-          'createdAt', 'updatedAt'
-        ])
-        && data.keys().hasAll([
-          'contactId', 'organizationId', 'locationId', 'unitId',
-          'interactionId', 'ownerId', 'dueAt', 'status', 'createdAt',
-          'updatedAt'
-        ])
-        && isSameContactScope(data)
-        && data.ownerId == uid()
-        && isNullableString(data.assignmentId, 256)
-        && isNonEmptyString(data.interactionId, 256)
-        && data.dueAt is timestamp
-        && data.status == 'pending'
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+    function guestPath(guestId) {
+      return /databases/$(database)/documents/guests/$(guestId);
     }
 
-    function isStructureDocumentValid(data) {
-      return isNonEmptyString(data.organizationId, 128)
-        && isNonEmptyString(data.name, 120)
-        && isNonEmptyString(data.code, 32)
-        && data.active is bool
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+    // Fields Firebase owns on a guest. Everything else (name, phone,
+    // serviceDate, month, assignedTo, assignedName, assignedDate, sheetRow)
+    // belongs to the sheet and is only ever written by Apps Script.
+    function workFields() {
+      return ['callStatus', 'membershipStatus', 'followUpCount', 'firstCallAt',
+        'lastFeedback', 'lastFeedbackDate', 'teamJoined', 'memberSince',
+        'sundayDates', 'wednesdayDates', 'updatedAt'];
     }
 
-
-    // A user's own membership doc for a specific unit. Direct doc reads
-    // (not queries) so this is cheap to call repeatedly inside other rules.
-    function membershipFor(unitId) {
-      return get(/databases/$(database)/documents/team_memberships/$(unitId + '_' + uid())).data;
+    function canSeeGuest(data) {
+      return isAdmin() || (isWorker() && data.assignedTo == myEmail());
     }
 
-    function isActiveMember(unitId) {
-      return isSignedIn()
-        && exists(/databases/$(database)/documents/team_memberships/$(unitId + '_' + uid()))
-        && membershipFor(unitId).active == true;
+    // Points for one follow-up: base 5 or 10, plus 10 per attendance (up to
+    // 2), 20 for a team join and 30 for membership. Always a multiple of 5.
+    function validPoints(p) {
+      return p is int && p >= 5 && p <= 80 && p % 5 == 0;
     }
 
-    function hasCapability(unitId, capability) {
-      return isActiveMember(unitId)
-        && membershipFor(unitId).permissions[capability] == true;
+    function validFollowUp(d) {
+      return d.keys().hasAll(['guestId', 'worker', 'loggedBy', 'callDate', 'month',
+          'outcome', 'points', 'createdAt'])
+        && d.keys().hasOnly(['guestId', 'worker', 'loggedBy', 'callDate', 'month',
+          'outcome', 'note', 'attendedSunday', 'sundayDate', 'attendedWednesday',
+          'wednesdayDate', 'team', 'points', 'syncedToSheet', 'createdAt'])
+        && d.guestId is string
+        && d.outcome in ['Reached', 'No answer', 'Busy', 'Switched off',
+          'Wrong number', 'Not interested']
+        && (!('note' in d) || (d.note is string && d.note.size() <= 2000))
+        && (!('team' in d) || d.team in ['', 'Workforce', 'Evangelism'])
+        && (!('syncedToSheet' in d) || d.syncedToSheet == false)
+        && validPoints(d.points)
+        && d.worker == get(guestPath(d.guestId)).data.assignedTo
+        && d.loggedBy == myEmail();
     }
 
-    function isOrgOwner(organizationId) {
-      return isSignedIn()
-        && exists(/databases/$(database)/documents/organization_owners/$(organizationId + '_' + uid()));
-    }
-
-    function isOrganizationMember(organizationId) {
-      return isSignedIn()
-        && exists(/databases/$(database)/documents/organization_memberships/$(organizationId + '_' + uid()))
-        && get(/databases/$(database)/documents/organization_memberships/$(organizationId + '_' + uid())).data.active == true;
-    }
-
-    // Own membership docs only. Nobody reads someone else's membership
-    // directly - unit management screens go through a Cloud/Edge Function
-    // that returns a filtered list instead.
-    match /team_memberships/{membershipId} {
-      allow read: if isSignedIn() && resource.data.userId == uid();
-      allow write: if false; // only manage-access (Admin SDK) writes these
-    }
-
-    // organization_owners/{orgId_uid} - existence marks someone as Pastor
-    // for that org. Only ever written by a trusted server process /
-    // Firebase console, never the app.
-    match /organization_owners/{docId} {
-      allow read: if isSignedIn() && resource.data.userId == uid();
+    match /users/{email} {
+      allow read: if isMember() && (email == myEmail() || isAdmin());
       allow write: if false;
     }
 
-    // Written by trusted access-management code. This gives rules a
-    // deterministic organization-level membership lookup for tenant-safe
-    // structure reads.
-    match /organization_memberships/{docId} {
-      allow read: if isSignedIn() && resource.data.userId == uid();
+    match /meta/{doc} {
+      allow read: if isAdmin();
       allow write: if false;
     }
 
-    match /profiles/{userId} {
-      allow read: if isSignedIn() && uid() == userId;
-      allow create: if isSignedIn() && uid() == userId
-        && request.resource.data.keys().hasOnly([
-          'fullName', 'phoneE164', 'photoPath', 'createdAt', 'updatedAt'
-        ])
-        && request.resource.data.keys().hasAll([
-          'fullName', 'phoneE164', 'createdAt', 'updatedAt'
-        ])
-        && isNonEmptyString(request.resource.data.fullName, 120)
-        && isNonEmptyString(request.resource.data.phoneE164, 32)
-        && (!request.resource.data.keys().hasAny(['photoPath'])
-          || isNullableString(request.resource.data.photoPath, 512))
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.updatedAt is timestamp;
-      allow update: if isSignedIn() && uid() == userId
-        && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['fullName', 'phoneE164', 'photoPath', 'updatedAt'])
-        && isNonEmptyString(request.resource.data.fullName, 120)
-        && isNonEmptyString(request.resource.data.phoneE164, 32)
-        && (!request.resource.data.keys().hasAny(['photoPath'])
-          || isNullableString(request.resource.data.photoPath, 512))
-        && request.resource.data.updatedAt is timestamp;
-      allow delete: if false;
+    match /guests/{guestId} {
+      allow read: if canSeeGuest(resource.data);
+      allow create, delete: if false;
+      allow update: if canSeeGuest(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(workFields());
     }
 
-    match /contacts/{contactId} {
-      allow read: if isOrgOwner(resource.data.organizationId)
-        || hasCapability(resource.data.unitId, 'contacts.view_all')
-        || (isActiveMember(resource.data.unitId) && resource.data.assignedOperatorId == uid());
-      allow update: if isContactUpdateValid()
-        && ((isActiveMember(resource.data.unitId)
-              && resource.data.assignedOperatorId == uid())
-          || hasCapability(resource.data.unitId, 'contacts.edit'));
-      allow create, delete: if false; // server-only (contact intake / fair assignment)
-    }
-
-    match /assignments/{assignmentId} {
-      allow read: if isOrgOwner(resource.data.organizationId)
-        || hasCapability(resource.data.unitId, 'assignments.view')
-        || (isActiveMember(resource.data.unitId) && resource.data.operatorId == uid());
-      allow write: if false; // trusted assignment/reassignment functions only
-    }
-
-    match /interactions/{interactionId} {
-      allow read: if isOrgOwner(resource.data.organizationId)
-        || hasCapability(resource.data.unitId, 'contacts.view_all')
-        || (isActiveMember(resource.data.unitId) && resource.data.operatorId == uid());
-      allow create: if isActiveMember(request.resource.data.unitId)
-        && isInteractionCreateValid()
-        && (get(/databases/$(database)/documents/contacts/$(request.resource.data.contactId)).data.assignedOperatorId
-              == uid()
-          || hasCapability(request.resource.data.unitId, 'contacts.edit'));
-      allow update: if false; // interactions are immutable call records
-      allow delete: if false;
-    }
-
-    match /follow_ups/{followUpId} {
-      allow read: if isOrgOwner(resource.data.organizationId)
-        || hasCapability(resource.data.unitId, 'followups.manage_all')
-        || (isActiveMember(resource.data.unitId) && resource.data.ownerId == uid());
-      allow create: if isActiveMember(request.resource.data.unitId)
-        && isFollowUpCreateValid();
-      allow update: if (hasCapability(resource.data.unitId, 'followups.manage_all')
-          || (isActiveMember(resource.data.unitId) && resource.data.ownerId == uid()))
-        && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['dueAt', 'status', 'updatedAt'])
-        && request.resource.data.ownerId == resource.data.ownerId
-        && request.resource.data.status in ['pending', 'completed', 'cancelled']
-        && request.resource.data.dueAt is timestamp
-        && request.resource.data.updatedAt is timestamp;
-      allow delete: if false;
-    }
-
-    match /contact_status_history/{eventId} {
-      allow read: if isOrgOwner(resource.data.organizationId)
-        || hasCapability(resource.data.unitId, 'contacts.view_all')
-        || hasCapability(resource.data.unitId, 'audit.view');
-      allow write: if false; // written only by trusted server code
-    }
-
-    match /audit_logs/{logId} {
-      allow read: if isOrgOwner(resource.data.organizationId)
-        || hasCapability(resource.data.unitId, 'audit.view');
-      allow write: if false;
-    }
-
-    match /organizations/{orgId} {
-      allow read: if isOrgOwner(orgId) || isOrganizationMember(orgId);
-      allow create: if isOrgOwner(orgId)
-        && request.resource.data.keys().hasOnly([
-          'name', 'code', 'active', 'terminology', 'createdAt', 'updatedAt'
-        ])
-        && request.resource.data.keys().hasAll([
-          'name', 'code', 'active', 'createdAt', 'updatedAt'
-        ])
-        && isNonEmptyString(request.resource.data.name, 120)
-        && isNonEmptyString(request.resource.data.code, 32)
-        && request.resource.data.active is bool
-        && isTerminologyValid(request.resource.data)
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.updatedAt is timestamp;
-      allow update: if isOrgOwner(orgId)
-        && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['name', 'code', 'active', 'terminology', 'updatedAt'])
-        && isNonEmptyString(request.resource.data.name, 120)
-        && isNonEmptyString(request.resource.data.code, 32)
-        && request.resource.data.active is bool
-        && isTerminologyValid(request.resource.data)
-        && request.resource.data.updatedAt is timestamp;
-      allow delete: if false;
-    }
-
-    match /locations/{locationId} {
-      allow read: if isOrgOwner(resource.data.organizationId)
-        || isOrganizationMember(resource.data.organizationId);
-      allow create: if isOrgOwner(request.resource.data.organizationId)
-        && request.resource.data.keys().hasOnly([
-          'organizationId', 'name', 'code', 'active', 'createdAt', 'updatedAt'
-        ])
-        && request.resource.data.keys().hasAll([
-          'organizationId', 'name', 'code', 'active', 'createdAt', 'updatedAt'
-        ])
-        && isStructureDocumentValid(request.resource.data);
-      allow update: if isOrgOwner(resource.data.organizationId)
-        && request.resource.data.organizationId == resource.data.organizationId
-        && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['name', 'code', 'active', 'updatedAt'])
-        && isStructureDocumentValid(request.resource.data);
-      allow delete: if false;
-    }
-
-    match /units/{unitId} {
-      allow read: if isOrgOwner(resource.data.organizationId)
-        || isOrganizationMember(resource.data.organizationId);
-      allow create: if isOrgOwner(request.resource.data.organizationId)
-        && request.resource.data.keys().hasOnly([
-          'organizationId', 'locationId', 'name', 'code', 'active',
-          'createdAt', 'updatedAt'
-        ])
-        && request.resource.data.keys().hasAll([
-          'organizationId', 'locationId', 'name', 'code', 'active',
-          'createdAt', 'updatedAt'
-        ])
-        && isStructureDocumentValid(request.resource.data)
-        && isNonEmptyString(request.resource.data.locationId, 128)
-        && exists(/databases/$(database)/documents/locations/$(request.resource.data.locationId))
-        && get(/databases/$(database)/documents/locations/$(request.resource.data.locationId)).data.organizationId
-            == request.resource.data.organizationId;
-      allow update: if isOrgOwner(resource.data.organizationId)
-        && request.resource.data.organizationId == resource.data.organizationId
-        && request.resource.data.locationId == resource.data.locationId
-        && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['name', 'code', 'active', 'updatedAt'])
-        && isStructureDocumentValid(request.resource.data);
-      allow delete: if false;
-    }
-
-    // Deny everything else by default.
-    match /{document=**} {
-      allow read, write: if false;
+    match /followUps/{followUpId} {
+      // Workers see follow-ups credited to them (including ones an admin logged).
+      allow read: if isAdmin() || (isWorker() && resource.data.worker == myEmail());
+      // Workers log for their own guests; admins log on behalf of the assigned worker.
+      allow create: if validFollowUp(request.resource.data)
+        && (isAdmin() || (isWorker() && request.resource.data.worker == myEmail()));
+      allow update, delete: if false;
     }
   }
 }
