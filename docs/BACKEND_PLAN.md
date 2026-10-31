@@ -117,14 +117,30 @@ UI checklist:
 ### 1. Firestore setup and read only guests
 Backend: Firestore project, rules, users sync with normalised emails, stable GUEST IDs, migration of the last 12 months of guests and follow-ups in batches with a progress marker, the 5-minute job for sheet-owned fields and reassignments. App reads guests from Firestore (read only).
 
+Status (branch phase-1-firestore): code, rules and tests done; waiting on setup that needs the owner's accounts (see "Phase 1 setup" below).
+Built so far:
+- Switch: `--dart-define=DATA_SOURCE=firestore` (default `api`). Saving stays on the Apps Script API in phase 1, which then sends the change to Firestore, so the app works whichever way the switch is set.
+- `firestore.rules` and `firestore.indexes.json` for the new model (old app rules kept in `legacy/`). 26 emulator tests in `firestore-tests/` (`npm test`).
+- `backend/Firestore.gs`: REST client with service account JWT, batch commits of 500, resume markers, stable GUEST IDs, users sync with clean emails, 5-minute job with reassignments, migration. 41 checks in `backend/test/pcu_firestore_harness.js`.
+- App: `FirestoreGuestRepository` (live lists, history from followUps), `FirestoreProfileSource` (role from users), `LagosTime`, mappers, live updates in GuestsBloc. Dart tests in `test/features/firestore_phase1_test.dart`.
+
 UI checklist:
-- [ ] Today, Guests, Guest detail and admin Guests read from Firestore with no visible change in layout
-- [ ] Live updates: lists refresh on their own, no pull to refresh needed
-- [ ] A reassigned guest leaves the old worker's list and appears in the new one within minutes
-- [ ] Loading uses skeletons; first load after sign-in feels instant from cache
-- [ ] Empty states for "no guests yet" still read well with Firestore data
-- [ ] Error messages stay plain ("We could not load your guests. Try again.")
-- [ ] Sign-in copy for people not in users: "You are not on the team yet. Ask your HOD to add you."
+- [x] Today, Guests, Guest detail and admin Guests read from Firestore with no visible change in layout
+- [x] Live updates: lists refresh on their own, no pull to refresh needed
+- [x] A reassigned guest leaves the old worker's list and appears in the new one within minutes
+- [x] Loading uses skeletons; first load after sign-in feels instant from cache
+- [x] Empty states for "no guests yet" still read well with Firestore data
+- [x] Error messages stay plain ("We could not load your guests. Try again.")
+- [x] Sign-in copy for people not in users: "You are not on the team yet. Ask your HOD to add you."
+- [ ] Checked end to end against the test project after setup
+
+#### Phase 1 setup (owner only)
+1. Firebase console, project pcu-workflow: Firestore Database exists (created earlier). Deploy the new rules and indexes: `firebase deploy --only firestore --project pcu-workflow`.
+2. Google Cloud console, IAM and Admin, Service accounts: create `pcu-sheet-sync`, give it only the Cloud Datastore User role, then Keys, Add key, JSON.
+3. Apps Script project of the TEST sheet: add `Firestore.gs`, replace `Api.gs` and `pcu_auto_assign.gs` with the repo versions.
+4. Project Settings, Script Properties: add `FIRESTORE_SA_KEY` with the whole JSON key as the value. Delete the downloaded file.
+5. In the editor run, in order: `pcuFirestoreCheck`, `pcuSetupSyncColumns`, `pcuMigrate` (repeat until the log says done), `pcuInstallFirestoreTriggers`.
+6. Deploy, Manage deployments, Edit, New version (same URL).
 
 ### 2. Follow-ups written by the app
 Backend: app writes follow-ups with batch writes (offline safe) and rules; log on behalf moves to Firestore; dates use Africa/Lagos.

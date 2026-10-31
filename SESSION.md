@@ -381,3 +381,10 @@ migration.
 ## Backend plan
 
 Phase 2 (Firestore as the live database, sheet sync, UI checklist per phase) is in `docs/BACKEND_PLAN.md`. Not implemented yet.
+
+## 2026-10-31 Update: Phase 1 (Firestore, read only) on branch phase-1-firestore
+
+Code, rules and tests are done; the switch defaults to the Apps Script API, so nothing changes until
+`--dart-define=DATA_SOURCE=firestore` is used. Details and the owner's setup steps are under
+"Phase 1" in `docs/BACKEND_PLAN.md`. Tests: `flutter test`, `node backend/test/pcu_firestore_harness.js`,
+`node backend/test/pcu_api_harness.js backend/Api.gs`, and `npm test` in `firestore-tests/` (needs Java).
