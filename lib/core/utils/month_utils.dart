@@ -16,6 +16,14 @@ abstract class MonthUtils {
     ];
   }
 
+  /// The month before [key]: '2026-01' -> '2025-12'.
+  static String previous(String key) {
+    final d = _parse(key);
+    return d == null ? key : keyOf(DateTime(d.year, d.month - 1));
+  }
+
+  static bool isCurrent(String key) => key == current();
+
   static DateTime? _parse(String key) {
     final parts = key.split('-');
     if (parts.length != 2) return null;
@@ -35,6 +43,17 @@ abstract class MonthUtils {
   static String short(String key) {
     final d = _parse(key);
     return d == null ? key : DateFormat('MMM y').format(d);
+  }
+
+  /// Chip label: 'This month' for the current month, else 'Sep', or 'Dec 2025'
+  /// when the year differs from now.
+  static String chip(String key) {
+    if (isCurrent(key)) return 'This month';
+    final d = _parse(key);
+    if (d == null) return key;
+    return d.year == DateTime.now().year
+        ? DateFormat('MMM').format(d)
+        : DateFormat('MMM y').format(d);
   }
 
   /// '2026-10' -> 'October'

@@ -38,13 +38,29 @@ abstract class _MonthCubit<T> extends Cubit<LoadState<T>> {
   void reset() => emit(LoadState<T>(month: MonthUtils.current()));
 }
 
-class RankingCubit extends _MonthCubit<Ranking> {
+class RankingCubit extends _MonthCubit<RankingView> {
   final ITeamRepository _repo;
 
   RankingCubit(this._repo);
 
+  /// The month's standings, plus last month's ranks for the up and down markers.
   @override
-  Future<ApiResult<Ranking>> fetch(String month) => _repo.fetchRanking(month: month);
+  Future<ApiResult<RankingView>> fetch(String month) async {
+    final results = await Future.wait([
+      _repo.fetchRanking(month: month),
+      _repo.fetchRanking(month: MonthUtils.previous(month)),
+    ]);
+    final current = results[0];
+    if (current.isFailure) return ApiResult.failure(current.failure!);
+    final previous = results[1];
+    return ApiResult.success(RankingView(
+      ranking: current.data!,
+      previousRanks: previous.isSuccess
+          // Only workers who scored last month have a meaningful place to compare.
+          ? {for (final e in previous.data!.entries) if (e.points > 0) e.email: e.rank}
+          : const {},
+    ));
+  }
 }
 
 class DashboardCubit extends _MonthCubit<DashboardSummary> {

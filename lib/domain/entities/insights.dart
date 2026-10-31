@@ -49,6 +49,26 @@ class Ranking extends Equatable {
   List<Object?> get props => [month, entries, me];
 }
 
+/// A month's ranking plus where each worker stood the month before.
+class RankingView extends Equatable {
+  final Ranking ranking;
+
+  /// Email to rank in the previous month. Empty when unknown.
+  final Map<String, int> previousRanks;
+
+  const RankingView({required this.ranking, this.previousRanks = const {}});
+
+  /// Places gained since last month (positive is up), or null when the
+  /// worker was not ranked last month.
+  int? movement(RankingEntry e) {
+    final before = previousRanks[e.email];
+    return before == null ? null : before - e.rank;
+  }
+
+  @override
+  List<Object?> get props => [ranking, previousRanks];
+}
+
 class TopWorker extends Equatable {
   final String email;
   final String name;

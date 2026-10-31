@@ -35,70 +35,110 @@ class _RankingTabState extends State<RankingTab> {
   @override
   Widget build(BuildContext context) {
     final cubit = context.read<RankingCubit>();
-    return BlocBuilder<RankingCubit, LoadState<Ranking>>(
+    return BlocBuilder<RankingCubit, LoadState<RankingView>>(
       builder: (context, state) {
         return AppPage(
           title: 'Ranking',
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              MonthPill(month: state.month, onChanged: cubit.load),
-              AppIconButton(
-                icon: AppIcons.info,
-                tooltip: 'How points work',
-                background: Colors.transparent,
-                onTap: () => showPointsSheet(context),
-              ),
+          trailing: AppIconButton(
+            icon: AppIcons.info,
+            tooltip: 'How points work',
+            background: Colors.transparent,
+            onTap: () => showPointsSheet(context),
+          ),
+          below: ChipBar(
+            chips: [
+              for (final m in MonthUtils.recent(6))
+                AppChip(
+                  label: MonthUtils.chip(m),
+                  selected: m == state.month,
+                  onTap: () => cubit.load(m),
+                ),
             ],
           ),
-          child: _body(context, state),
+          child: AnimatedSwitcher(
+            duration: AppDurations.normal,
+            child: KeyedSubtree(
+              key: ValueKey('${state.month}-${state.data != null}'),
+              child: _body(context, state),
+            ),
+          ),
         );
       },
     );
   }
 
-  Widget _body(BuildContext context, LoadState<Ranking> state) {
-    final data = state.data;
-    if (data == null) {
+  Widget _body(BuildContext context, LoadState<RankingView> state) {
+    final view = state.data;
+    final loadingOtherMonth = state.isLoading && view?.ranking.month != state.month;
+    if (view == null || loadingOtherMonth) {
       if (state.status == LoadStatus.failure) {
         return ErrorState(
           message: state.message ?? '',
           onRetry: () => context.read<RankingCubit>().load(),
         );
       }
-      return const SkeletonPage(hero: true, rows: 3);
+      return const SkeletonPage(hero: true, rows: 4);
     }
 
-    if (data.entries.isEmpty) {
+    final ranking = view.ranking;
+    final isPast = !MonthUtils.isCurrent(state.month);
+    final monthName = MonthUtils.name(state.month);
+
+    if (ranking.entries.isEmpty) {
       return Center(
         child: EmptyState(
           icon: AppIcons.ranking,
-          message: 'No points yet in ${MonthUtils.name(state.month)}.',
+          message: 'No one was ranked in $monthName.',
           actionLabel: 'How points work',
           onAction: () => showPointsSheet(context),
         ),
       );
     }
 
-    final me = data.me;
-    final rest = data.entries.skip(3).toList();
-    return PageList(
-      children: [
-        _TopThree(entries: data.entries.take(3).toList(), meEmail: me?.email),
-        if (me != null) ...[
-          SizedBox(height: AppSizes.s16),
-          _MyPosition(me: me, entries: data.entries),
-        ],
-        if (rest.isNotEmpty) ...[
-          SectionLabel('Everyone else'),
+    final me = ranking.me;
+    final anyPoints = ranking.entries.first.points > 0;
+    return RefreshIndicator(
+      color: AppColors.navy,
+      onRefresh: () => context.read<RankingCubit>().load(),
+      child: PageList(
+        children: [
+          if (anyPoints)
+            _TopThree(entries: ranking.entries.take(3).toList(), meEmail: me?.email)
+          else
+            AppCard(
+              child: Text(
+                isPast
+                    ? 'No points were earned in $monthName.'
+                    : 'No points yet this month. The first follow-up starts the board.',
+                style: AppTextStyles.bodyMuted,
+              ),
+            ),
+          if (me != null && anyPoints) ...[
+            SizedBox(height: AppSizes.s16),
+            _MyPosition(me: me, entries: ranking.entries, isPast: isPast),
+          ],
+          SectionLabel(isPast ? 'Final standings, $monthName' : 'Standings so far'),
           GroupedCard(
             dividerIndent: AppSizes.s16 + AppSizes.s24 + AppSizes.s16 + AppSizes.avatarSm,
             children: [
-              for (final e in rest) _RankRow(entry: e, isMe: e.email == me?.email),
+              for (final e in ranking.entries)
+                _RankRow(
+                  entry: e,
+                  isMe: e.email == me?.email,
+                  movement: view.movement(e),
+                ),
             ],
           ),
+          if (ranking.entries.any((e) => (view.movement(e) ?? 0) != 0)) ...[
+            SizedBox(height: AppSizes.s8),
+            Text(
+              'Arrows compare with ${MonthUtils.name(MonthUtils.previous(state.month))}.',
+              style: AppTextStyles.caption,
+              textAlign: TextAlign.center,
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -148,10 +188,10 @@ class _TopThree extends StatelessWidget {
                                     border: Border.all(color: AppColors.surface, width: 2),
                                   ),
                                   child: Text(
-                                    '${i + 1}',
-                                    style: AppTextStyles.captionStrong.copyWith(
+                                    '${entries[i].rank}',
+                                    textAlign: TextAlign.center,
+                                    style: AppTextStyles.centered(AppTextStyles.captionStrong).copyWith(
                                       color: i == 0 ? AppColors.navy : AppColors.onNavy,
-                                      height: 1,
                                     ),
                                   ),
                                 ),
@@ -177,32 +217,38 @@ class _TopThree extends StatelessWidget {
   }
 }
 
+String _ordinal(int n) {
+  if (n % 100 >= 11 && n % 100 <= 13) return '${n}th';
+  switch (n % 10) {
+    case 1:
+      return '${n}st';
+    case 2:
+      return '${n}nd';
+    case 3:
+      return '${n}rd';
+    default:
+      return '${n}th';
+  }
+}
+
 class _MyPosition extends StatelessWidget {
   final RankingEntry me;
   final List<RankingEntry> entries;
+  final bool isPast;
 
-  const _MyPosition({required this.me, required this.entries});
-
-  static String _ordinal(int n) {
-    if (n % 100 >= 11 && n % 100 <= 13) return '${n}th';
-    switch (n % 10) {
-      case 1:
-        return '${n}st';
-      case 2:
-        return '${n}nd';
-      case 3:
-        return '${n}rd';
-      default:
-        return '${n}th';
-    }
-  }
+  const _MyPosition({required this.me, required this.entries, required this.isPast});
 
   @override
   Widget build(BuildContext context) {
     final ahead = entries.where((e) => e.points > me.points).toList();
+    final String headline = isPast
+        ? 'You finished ${_ordinal(me.rank)} with ${me.points} points'
+        : 'You are ${_ordinal(me.rank)} with ${me.points} points';
     final String line;
     if (me.rank == 1) {
-      line = 'You lead this month. Well done.';
+      line = isPast ? 'Top of the team. Well done.' : 'You lead this month. Well done.';
+    } else if (isPast) {
+      line = 'Thank you for every call.';
     } else if (ahead.isNotEmpty) {
       final gap = ahead.last.points - me.points;
       line = '$gap ${gap == 1 ? 'point' : 'points'} to move up';
@@ -224,8 +270,7 @@ class _MyPosition extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('You are ${_ordinal(me.rank)} with ${me.points} points',
-                    style: AppTextStyles.bodyStrong.copyWith(color: AppColors.goldInk)),
+                Text(headline, style: AppTextStyles.bodyStrong.copyWith(color: AppColors.goldInk)),
                 SizedBox(height: AppSizes.s4 / 2),
                 Text(line, style: AppTextStyles.caption.copyWith(color: AppColors.goldInk)),
               ],
@@ -240,8 +285,9 @@ class _MyPosition extends StatelessWidget {
 class _RankRow extends StatelessWidget {
   final RankingEntry entry;
   final bool isMe;
+  final int? movement;
 
-  const _RankRow({required this.entry, required this.isMe});
+  const _RankRow({required this.entry, required this.isMe, this.movement});
 
   @override
   Widget build(BuildContext context) {
@@ -253,17 +299,54 @@ class _RankRow extends StatelessWidget {
         children: [
           SizedBox(
             width: AppSizes.s24,
-            child: Text('${entry.rank}', style: AppTextStyles.caption),
+            child: Text('${entry.rank}',
+                style: isMe ? AppTextStyles.captionStrong.copyWith(color: AppColors.goldInk) : AppTextStyles.caption),
           ),
           SizedBox(width: AppSizes.s16),
           AppAvatar(name: entry.name, size: AppSizes.avatarSm),
           SizedBox(width: AppSizes.s16),
           Expanded(
             child: Text(isMe ? 'You' : entry.name,
-                style: AppTextStyles.body, maxLines: 1, overflow: TextOverflow.ellipsis),
+                style: isMe ? AppTextStyles.bodyStrong : AppTextStyles.body,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
           ),
-          Text('${entry.points} pts', style: AppTextStyles.bodyStrong),
+          _Movement(movement),
+          SizedBox(width: AppSizes.s8),
+          SizedBox(
+            width: 64,
+            child: Text('${entry.points} pts',
+                textAlign: TextAlign.right, style: AppTextStyles.bodyStrong),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// Small up or down marker against last month. Nothing when unchanged or new.
+class _Movement extends StatelessWidget {
+  final int? places;
+
+  const _Movement(this.places);
+
+  @override
+  Widget build(BuildContext context) {
+    final p = places;
+    if (p == null || p == 0) return const SizedBox(width: 32);
+    final up = p > 0;
+    final color = up ? AppColors.greenInk : AppColors.redInk;
+    return Tooltip(
+      message: up ? 'Up $p since last month' : 'Down ${-p} since last month',
+      child: SizedBox(
+        width: 32,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Icon(up ? AppIcons.up : AppIcons.down, size: 12, color: color),
+            Text('${p.abs()}', style: AppTextStyles.caption.copyWith(color: color)),
+          ],
+        ),
       ),
     );
   }
@@ -289,7 +372,8 @@ Future<void> showPointsSheet(BuildContext context) {
           children: [
             Text('How points work', style: AppTextStyles.title),
             SizedBox(height: AppSizes.s4),
-            Text('Points reset at the start of every month.', style: AppTextStyles.bodyMuted),
+            Text('Points start again at the beginning of every month.',
+                style: AppTextStyles.bodyMuted),
             SizedBox(height: AppSizes.s16),
             for (final (pts, rule, note) in rules)
               Padding(
@@ -298,13 +382,16 @@ Future<void> showPointsSheet(BuildContext context) {
                   children: [
                     Container(
                       width: AppSizes.s48,
-                      padding: EdgeInsets.symmetric(vertical: AppSizes.s4),
+                      height: 24,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: AppColors.sunken,
                         borderRadius: BorderRadius.circular(AppSizes.radiusFull),
                       ),
-                      child: Text(pts, style: AppTextStyles.captionStrong.copyWith(color: AppColors.ink)),
+                      child: Text(pts,
+                          textAlign: TextAlign.center,
+                          style: AppTextStyles.centered(AppTextStyles.captionStrong)
+                              .copyWith(color: AppColors.ink)),
                     ),
                     SizedBox(width: AppSizes.s16),
                     Expanded(child: Text(rule, style: AppTextStyles.body)),
