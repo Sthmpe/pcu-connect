@@ -64,7 +64,9 @@ var PCU = {
     SUNDAY_DATE: 'SUNDAY DATE',
     WEDNESDAY: 'ATTENDED WEDNESDAY?',
     WEDNESDAY_DATE: 'WEDNESDAY DATE',
-    TEAM: 'JOINED TEAM'
+    TEAM: 'JOINED TEAM',
+    // Optional. Who actually saved the row when an admin logs for a worker.
+    LOGGED_BY: 'LOGGED BY'
   },
   W: {
     ID: 'ID',
@@ -401,6 +403,8 @@ function pcuFollowUps_(fresh) {
       id: pcuStr_(pcuCell_(t, row, PCU.F.ID)),
       guestId: guestId,
       workerEmail: pcuStr_(pcuCell_(t, row, PCU.F.WORKER)).toLowerCase(),
+      // Blank when the column is missing or the row predates it.
+      loggedBy: pcuStr_(pcuCell_(t, row, PCU.F.LOGGED_BY)).toLowerCase(),
       date: pcuDate_(pcuCell_(t, row, PCU.F.DATE)),
       outcome: pcuStr_(pcuCell_(t, row, PCU.F.OUTCOME)),
       note: pcuStr_(pcuCell_(t, row, PCU.F.NOTE)),
@@ -588,6 +592,8 @@ function pcuGuestJson_(guest, followUps, workers, withHistory) {
       .reverse()
       .map(function (f) {
         var worker = workers.byEmail[f.workerEmail];
+        var loggedBy = f.loggedBy || f.workerEmail;
+        var logger = workers.byEmail[loggedBy];
         return {
           id: f.id,
           date: pcuDay_(f.date),
@@ -599,7 +605,10 @@ function pcuGuestJson_(guest, followUps, workers, withHistory) {
           wednesdayDate: pcuDay_(f.wednesdayDate),
           team: f.team,
           workerEmail: f.workerEmail,
-          workerName: worker ? worker.name : ''
+          workerName: worker ? worker.name : '',
+          loggedByEmail: loggedBy,
+          loggedByName: logger ? logger.name : '',
+          loggedByAdmin: loggedBy !== f.workerEmail
         };
       });
   }
@@ -700,6 +709,12 @@ function pcuLogFollowUp_(user, req) {
     if (!user.isAdmin && guest.assignedTo !== user.email) {
       throw pcuError_('FORBIDDEN', 'This guest is assigned to someone else.');
     }
+    // The follow-up always counts for the assigned worker, so an admin logging
+    // on their behalf never earns points or calls. ASSIGNED TO is not changed.
+    var creditEmail = user.isAdmin ? guest.assignedTo : user.email;
+    if (!creditEmail) {
+      throw pcuError_('VALIDATION', 'Assign this guest to a worker before logging a follow-up.');
+    }
 
     var before = (followUps.byGuest[guestId] || []).slice();
     var statusBefore = guest.status || PCU.STATUS.NEW;
@@ -709,7 +724,8 @@ function pcuLogFollowUp_(user, req) {
     var entry = {
       id: Utilities.getUuid().substring(0, 8),
       guestId: guestId,
-      workerEmail: user.email,
+      workerEmail: creditEmail,
+      loggedBy: user.email,
       date: now,
       outcome: outcome,
       note: note,
@@ -723,7 +739,8 @@ function pcuLogFollowUp_(user, req) {
     var values = {};
     values[PCU.F.ID] = entry.id;
     values[PCU.F.GUEST] = guestId;
-    values[PCU.F.WORKER] = user.email;
+    values[PCU.F.WORKER] = creditEmail;
+    values[PCU.F.LOGGED_BY] = user.email;
     values[PCU.F.DATE] = now;
     values[PCU.F.OUTCOME] = outcome;
     values[PCU.F.NOTE] = note;
