@@ -300,3 +300,19 @@ migration.
 - `.devcontainer/` installs Flutter (stable) and the Firebase CLI on every
   Codespace rebuild, and adds a 4 GB swap file. Without swap, the Flutter tool's
   first build was killed by memory pressure in this Codespace.
+
+## 2026-10-31 Update: Firebase Auth
+
+- Added `firebase_core` and `firebase_auth`; removed `google_sign_in` and the unused `flutter_dotenv`.
+- `lib/firebase_options.dart` (web, project pcu-workflow) is initialised in `main.dart`.
+- `AuthRepositoryImpl`: `signInWithPopup(GoogleAuthProvider)`, sends the Firebase ID token
+  (`getIdToken()`) to Apps Script, restores the persisted session on startup, and
+  `signOut` calls `FirebaseAuth.signOut`.
+- `ApiClient.postAuthed` retries once with a refreshed token when the backend returns
+  `UNAUTHENTICATED`. Failures now carry the backend `code`.
+- Mock login buttons show only when `AppConfig.enableMockLogin` (debug builds, or
+  `--dart-define=ENABLE_MOCK_LOGIN=true`). The backend still needs `ALLOW_MOCK_TOKENS=true`.
+- Removed the `YOUR_GOOGLE_CLIENT_ID` placeholder from `web/index.html`.
+- Guests now load after sign-in (not at app start), so no request is sent without a token.
+- Still manual: deploy Apps Script and set `FIREBASE_WEB_API_KEY`, enable Google sign-in in Firebase,
+  add the hosting domain to authorized domains.

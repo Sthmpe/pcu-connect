@@ -45,7 +45,10 @@ class ApiClient {
             return ApiResult.success(decoded['data']);
           } else {
             return ApiResult.failure(
-              ServerFailure(decoded['error']?.toString() ?? 'Server error'),
+              ServerFailure(
+                decoded['error']?.toString() ?? 'Server error',
+                decoded['code']?.toString(),
+              ),
             );
           }
         }
@@ -58,6 +61,29 @@ class ApiClient {
     } catch (e) {
       return ApiResult.failure(NetworkFailure(e.toString()));
     }
+  }
+
+  /// Sends [action] with a token from [getToken]. If the backend answers
+  /// UNAUTHENTICATED, asks for a refreshed token and retries once.
+  Future<ApiResult<dynamic>> postAuthed({
+    required String action,
+    required Future<String?> Function({bool forceRefresh}) getToken,
+    Map<String, dynamic>? payload,
+  }) async {
+    final token = await getToken();
+    if (token == null) {
+      return const ApiResult.failure(
+        AuthFailure('Please sign in.', 'UNAUTHENTICATED'),
+      );
+    }
+    final first =
+        await postAction(action: action, idToken: token, payload: payload);
+    if (first.isSuccess || first.failure?.code != 'UNAUTHENTICATED') {
+      return first;
+    }
+    final fresh = await getToken(forceRefresh: true);
+    if (fresh == null || fresh == token) return first;
+    return postAction(action: action, idToken: fresh, payload: payload);
   }
 
   void dispose() {

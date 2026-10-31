@@ -25,19 +25,30 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthCheckSessionEvent event,
     Emitter<AuthState> emit,
   ) async {
-    final token = _authRepository.currentIdToken;
-    final user = _authRepository.currentUser;
+    var token = _authRepository.currentIdToken;
+    var user = _authRepository.currentUser;
 
-    if (token != null && user != null) {
-      if (!user.active) {
-        emit(const AuthUnauthorizedState(
-            'Your account is inactive. Please contact your HOD.'));
-      } else {
-        _localCache.setScope(user.email);
-        emit(AuthAuthenticatedState(user: user, idToken: token));
+    if (token == null || user == null) {
+      token = await _authRepository.restoreSession();
+      if (token == null) {
+        emit(AuthUnauthenticatedState());
+        return;
       }
+      final profile = await _authRepository.getProfile(token);
+      if (profile.isFailure) {
+        await _authRepository.signOut();
+        emit(AuthUnauthenticatedState());
+        return;
+      }
+      user = profile.data!;
+    }
+
+    if (!user.active) {
+      emit(const AuthUnauthorizedState(
+          'Your account is inactive. Please contact your HOD.'));
     } else {
-      emit(AuthUnauthenticatedState());
+      _localCache.setScope(user.email);
+      emit(AuthAuthenticatedState(user: user, idToken: token));
     }
   }
 
@@ -76,6 +87,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     emit(AuthLoadingState());
+    _authRepository.useMockSession(event.email);
     // For local dev/test fast-switching between Worker (David) and Admin (Opeyemi)
     final user = WorkerUser(
       id: event.role == 'Admin' ? 'W001' : 'W005',

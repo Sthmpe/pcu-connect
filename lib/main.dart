@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -9,15 +10,16 @@ import 'core/storage/local_cache.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/repositories/guest_repository_impl.dart';
 import 'domain/repositories/i_auth_repository.dart';
+import 'firebase_options.dart';
 import 'domain/repositories/i_guest_repository.dart';
 import 'presentation/auth/bloc/auth_bloc.dart';
 import 'presentation/auth/bloc/auth_event.dart';
 import 'presentation/auth/screens/login_screen.dart';
 import 'presentation/guests/bloc/guests_bloc.dart';
-import 'presentation/guests/bloc/guests_event.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   final prefs = await SharedPreferences.getInstance();
   final localCache = LocalCache(prefs);
@@ -72,8 +74,7 @@ class PCUConnectApp extends StatelessWidget {
             )..add(AuthCheckSessionEvent()),
           ),
           BlocProvider<GuestsBloc>(
-            create: (ctx) => GuestsBloc(guestRepository: guestRepository)
-              ..add(const LoadGuestsEvent()),
+            create: (ctx) => GuestsBloc(guestRepository: guestRepository),
           ),
         ],
         child: ScreenUtilInit(

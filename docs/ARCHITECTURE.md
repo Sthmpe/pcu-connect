@@ -7,7 +7,7 @@ PCU Connect is built as a responsive Flutter Web application backed by a Google 
 ```text
 Flutter Web (Firebase Hosting)
    |
-   |  1. Google Sign-In (or Dev Switcher in Debug Mode) -> ID token
+   |  1. Firebase Auth Google sign-in (or Dev Switcher in Debug Mode) -> Firebase ID token
    |  2. HTTP POST (Content-Type: text/plain, JSON: { action, idToken, ...payload })
    v
 Google Apps Script Web App (backend/Api.gs)
@@ -43,7 +43,7 @@ lib/
 +-- data/
 |   +-- repositories/     # AuthRepositoryImpl, GuestRepositoryImpl
 +-- presentation/
-    +-- auth/             # AuthBloc, LoginScreen (Google Sign-In + kDebugMode Switchers)
+    +-- auth/             # AuthBloc, LoginScreen (Firebase Google sign-in + debug-only Switchers)
     +-- worker/           # WorkerShellScreen, TodayTab, MyGuestsTab, GuestDetailScreen, LogFollowUpScreen, RankingTab, MeTab
     +-- admin/            # AdminShellScreen, AdminDashboardTab, AdminTeamTab, AdminGuestsTab
 ```

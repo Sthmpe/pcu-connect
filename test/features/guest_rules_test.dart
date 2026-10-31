@@ -24,6 +24,16 @@ class MockAuthRepository implements IAuthRepository {
       throw UnimplementedError();
 
   @override
+  Future<String?> restoreSession() async => null;
+
+  @override
+  Future<String?> getIdToken({bool forceRefresh = false}) async =>
+      forceRefresh ? null : 'mock_token_david';
+
+  @override
+  void useMockSession(String email) {}
+
+  @override
   Future<void> signOut() async {}
 }
 

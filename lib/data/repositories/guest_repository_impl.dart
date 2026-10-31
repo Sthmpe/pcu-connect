@@ -37,15 +37,14 @@ class GuestRepositoryImpl implements IGuestRepository {
     String? month,
     String? filter,
   }) async {
-    final idToken = _authRepository.currentIdToken ?? 'mock_token';
     final payload = <String, dynamic>{
       if (month != null) 'month': month,
       if (filter != null) 'filter': filter,
     };
 
-    final result = await _apiClient.postAction(
+    final result = await _apiClient.postAuthed(
       action: 'guests',
-      idToken: idToken,
+      getToken: _authRepository.getIdToken,
       payload: payload,
     );
 
@@ -79,10 +78,9 @@ class GuestRepositoryImpl implements IGuestRepository {
 
   @override
   Future<ApiResult<GuestEntity>> fetchGuestDetail(String guestId) async {
-    final idToken = _authRepository.currentIdToken ?? 'mock_token';
-    final result = await _apiClient.postAction(
+    final result = await _apiClient.postAuthed(
       action: 'guest',
-      idToken: idToken,
+      getToken: _authRepository.getIdToken,
       payload: {'id': guestId},
     );
 
@@ -129,10 +127,9 @@ class GuestRepositoryImpl implements IGuestRepository {
       }
     }
 
-    final idToken = _authRepository.currentIdToken ?? 'mock_token';
-    final result = await _apiClient.postAction(
+    final result = await _apiClient.postAuthed(
       action: 'logFollowUp',
-      idToken: idToken,
+      getToken: _authRepository.getIdToken,
       payload: {
         'guestId': guestId,
         'outcome': outcome,

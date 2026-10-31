@@ -1,13 +1,15 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/responsive_web_shell.dart';
 import '../../admin/screens/admin_shell_screen.dart';
 import '../../worker/screens/worker_shell_screen.dart';
+import '../../guests/bloc/guests_bloc.dart';
+import '../../guests/bloc/guests_event.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
@@ -23,6 +25,7 @@ class LoginScreen extends StatelessWidget {
         body: BlocConsumer<AuthBloc, AuthState>(
           listener: (context, state) {
             if (state is AuthAuthenticatedState) {
+              context.read<GuestsBloc>().add(const LoadGuestsEvent());
               if (state.user.isAdmin) {
                 Navigator.of(context).pushReplacement(
                   MaterialPageRoute(builder: (_) => const AdminShellScreen()),
@@ -143,7 +146,7 @@ class LoginScreen extends StatelessWidget {
                               ),
                       ),
                     ),
-                    if (kDebugMode) ...[
+                    if (AppConfig.enableMockLogin) ...[
                       SizedBox(height: 24.h),
 
                       // Quick Switch Options for Testing (Debug Mode Only)

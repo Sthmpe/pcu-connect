@@ -9,7 +9,7 @@ Guest follow-up, retention, and integration platform for the church Pastoral Car
 ```text
 Flutter Web (Firebase Hosting)
    │
-   │  1. Google Sign-In -> ID token
+   │  1. Firebase Auth Google sign-in (popup) -> Firebase ID token
    │  2. HTTP POST (Content-Type: text/plain, JSON: { action, idToken, ...payload })
    ▼
 Google Apps Script Web App (backend/Api.gs)
