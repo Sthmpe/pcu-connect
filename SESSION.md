@@ -347,3 +347,33 @@ migration.
 - **`font_awesome_flutter` 10.12 does not compile on Flutter 3.44** (`IconData` is final).
   It is no longer imported anywhere in `lib/`; the dependency is still in pubspec.
 - No business logic, repository or API changes.
+
+## 2026-10-31 Update: Premium redesign, real API data, admin logs for workers
+
+- **Design system v2:** neutral surfaces, navy for structure, gold only for the primary
+  action and selected state. Rubik at four sizes (display 26, title 18, body 14,
+  caption 12) and two weights. 8px spacing, radii 12 and 20, cards use soft shadows and
+  no borders, 48px touch targets. Icons are Lucide 300 only, through `core/constants/app_icons.dart`
+  (`lucide_icons_flutter`). `font_awesome_flutter` was removed (it does not compile on Flutter 3.44).
+- **Kit** in `core/widgets/`: `app_page.dart` (AppPage large title, AppTopBar), `app_surfaces.dart`
+  (AppCard, GroupedCard, SectionLabel, StatGrid, InfoTile), `app_controls.dart` (AppButton,
+  AppIconButton, AppChip, ChipBar, SegmentedPicker, AppSwitchRow, AppTextField, MonthPill),
+  `app_display.dart` (AppAvatar, StatusDot, AppPill, ProgressRing, SegmentBar), `guest_row.dart`,
+  skeleton loaders in `state_views.dart`.
+- **Text scaler clamp** (web 0.75 to 0.9) lives in `ResponsiveWebShell` next to the ScreenUtil setup.
+  With `.sp` capped at 1.0, body text renders at about 12.6px on web.
+- **Month fix:** the API uses month keys like `2026-10`; the app used `Oct 2026`, so real guest
+  lists would have filtered to nothing. `MonthUtils` now drives every month, and picking a
+  month fetches it (`SelectMonthEvent` reloads).
+- **Outcome fix:** the app sent `Number off`, which `Api.gs` rejects. Outcomes now match
+  `PCU.OUTCOMES` exactly.
+- **Real data:** Ranking, Dashboard and Team use `ITeamRepository` (`ranking`, `dashboard`,
+  `team`, `saveWorker`, `setWorkerActive`) through cubits in `presentation/common/insights_cubits.dart`.
+  `GuestsBloc` no longer falls back to seed data. Sample repositories in `data/sample/` are only
+  wired with `--dart-define=USE_SAMPLE_DATA=true`, so they are compiled out of release builds.
+- **Admin logs for a worker:** opening a guest from the admin app shows "Log a follow-up for
+  <worker>". `pcuLogFollowUp_` credits `guest.assignedTo` (WORKER column) and writes the real user to
+  the optional `LOGGED BY` column; ASSIGNED TO never changes; admins stay out of rankings. History
+  entries carry `loggedByAdmin`, shown as a "Logged by admin" label to everyone. Node harness covers
+  both with and without the column. The column was added to the TEST sheet's Follow-ups tab (L1).
+  **Api.gs must be pasted into the Apps Script project and redeployed** for this to work live.
