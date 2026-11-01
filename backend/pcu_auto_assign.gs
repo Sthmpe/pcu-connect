@@ -560,19 +560,7 @@ function testAddGuests() {
 
   withLock_(() => {
     for (let i = 1; i <= HOW_MANY; i++) {
-      const row = new Array(h.length).fill('');
-      const now = new Date();
-      if (col('TIMESTAMP') >= 0) row[col('TIMESTAMP')] = now;
-      if (col('SERVICE DATE') >= 0) row[col('SERVICE DATE')] = now;
-      if (col('FULL NAME') >= 0) row[col('FULL NAME')] = TEST_PREFIX + ' ' + Utilities.formatDate(now, TZ, 'HHmmss') + '-' + i;
-      if (col('PHONE NUMBER') >= 0) row[col('PHONE NUMBER')] = "'0800000000" + i;
-      if (col('GENDER') >= 0) row[col('GENDER')] = i % 2 ? 'Female' : 'Male';
-      if (col('MARITAL STATUS') >= 0) row[col('MARITAL STATUS')] = 'SINGLE';
-
-      const newRow = sheet.getLastRow() + 1;
-      sheet.getRange(newRow, 1, 1, row.length).setValues([row]);
-      SpreadsheetApp.flush();
-      const worker = assignRow_(sheet, newRow);
+      const worker = assignRow_(sheet, appendTestGuest_(sheet, h, col, i));
       if (worker) run.push(worker);
     }
   });
@@ -580,20 +568,73 @@ function testAddGuests() {
   alert_(HOW_MANY + ' test guests added and assigned. Scroll to the bottom of ' + RESPONSES_SHEET + '.');
 }
 
-/** Deletes every row whose FULL NAME starts with "TEST Guest". */
-function removeTestGuests() {
-  const ui = SpreadsheetApp.getUi();
+/** Appends one TEST guest (service date today) and returns its row number. */
+function appendTestGuest_(sheet, h, col, i) {
+  const row = new Array(h.length).fill('');
+  const now = new Date();
+  if (col('TIMESTAMP') >= 0) row[col('TIMESTAMP')] = now;
+  if (col('SERVICE DATE') >= 0) row[col('SERVICE DATE')] = now;
+  if (col('FULL NAME') >= 0) row[col('FULL NAME')] = TEST_PREFIX + ' ' + Utilities.formatDate(now, TZ, 'HHmmss') + '-' + i;
+  if (col('PHONE NUMBER') >= 0) row[col('PHONE NUMBER')] = "'0800000000" + (i % 10);
+  if (col('GENDER') >= 0) row[col('GENDER')] = i % 2 ? 'Female' : 'Male';
+  if (col('MARITAL STATUS') >= 0) row[col('MARITAL STATUS')] = 'SINGLE';
+  const newRow = sheet.getLastRow() + 1;
+  sheet.getRange(newRow, 1, 1, row.length).setValues([row]);
+  SpreadsheetApp.flush();
+  return newRow;
+}
+
+/**
+ * Admin-only API action (addTestGuest): one TEST guest, service date today,
+ * through the real assignment path (rotation, GUEST ID, Firestore, the
+ * worker's notice and the admin summary). Remove test guests clears it.
+ */
+function addTestGuest_() {
   const sheet = responses_();
+  const h = headers_(sheet);
+  const col = name => h.indexOf(name);
+  const out = {};
+  withLock_(() => {
+    const row = appendTestGuest_(sheet, h, col, 1);
+    out.assignedTo = assignRow_(sheet, row);
+    out.name = String(sheet.getRange(row, col('FULL NAME') + 1).getValue());
+    out.guestId = String(sheet.getRange(row, col('GUEST ID') + 1).getValue()).trim();
+  });
+  notifyAssignSummary_(out.assignedTo ? [out.assignedTo] : []);
+  return out;
+}
+
+/** Row numbers (1-based) of every TEST guest on Form Responses 1. */
+function testGuestRows_(sheet, data) {
   const nameCol = headers_(sheet).indexOf('FULL NAME');
-  const data = sheet.getDataRange().getValues();
   const rows = [];
   for (let i = HEADER_ROW; i < data.length; i++) {
     if (String(data[i][nameCol]).indexOf(TEST_PREFIX) === 0) rows.push(i + 1);
   }
+  return rows;
+}
+
+/** Deletes every TEST guest row, and those guests (with their follow-ups) in Firestore. Returns rows deleted. */
+function removeTestGuestsNow_() {
+  const sheet = responses_();
+  const data = sheet.getDataRange().getValues();
+  const rows = testGuestRows_(sheet, data);
+  const idCol = headers_(sheet).indexOf('GUEST ID');
+  const ids = rows.map(r => String(data[r - 1][idCol] || '').trim()).filter(Boolean);
+  withLock_(() => rows.slice().reverse().forEach(r => sheet.deleteRow(r)));
+  // The app reads Firestore: remove them there too.
+  if (ids.length && typeof pcuDeleteGuestsQuietly_ === 'function') pcuDeleteGuestsQuietly_(ids);
+  return rows.length;
+}
+
+/** Menu: deletes every row whose FULL NAME starts with "TEST Guest", and those guests in Firestore. */
+function removeTestGuests() {
+  const ui = SpreadsheetApp.getUi();
+  const sheet = responses_();
+  const rows = testGuestRows_(sheet, sheet.getDataRange().getValues());
   if (!rows.length) { ui.alert('No test guests found.'); return; }
   if (ui.alert('Delete ' + rows.length + ' test guest row(s)?', ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
-  rows.reverse().forEach(r => sheet.deleteRow(r));
-  ui.alert(rows.length + ' test guest row(s) deleted.');
+  ui.alert(removeTestGuestsNow_() + ' test guest row(s) deleted.');
 }
 
 /* ------------------------------------------------------------------ */

@@ -184,6 +184,12 @@ function pcuHandlers_() {
       result.to = range.to;
       return result;
     },
+    // pcu_auto_assign.gs: admin only, one TEST guest through the real assignment path.
+    addTestGuest: function (user) {
+      pcuRequireAdmin_(user);
+      if (!activeWorkers_().length) throw pcuError_('VALIDATION', 'There is no active worker to give the test guest to.');
+      return addTestGuest_();
+    },
     // Firestore.gs: admin only, read-only report of sheet versus Firestore.
     health: function (user) {
       if (typeof pcuHealth_ !== 'function') throw pcuError_('NOT_READY', 'Not set up yet.');

@@ -655,5 +655,26 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
   check('a second tap assigns nothing', twice.ok && twice.data.assigned === 0, twice);
 }
 
+// --- Admin-only TEST guest through the real assignment path, and clean-up
+{
+  const { ctx, sheets, store, call } = setup();
+  ctx.pcuSetupSyncColumns();
+  check('adding a test guest is admin only', call({ action: 'addTestGuest', idToken: 'tokDavid' }).code === 'FORBIDDEN');
+  const r = call({ action: 'addTestGuest', idToken: 'tokAdmin' });
+  const rows = sheets['Form Responses 1'].rows;
+  const row = rows.find(x => x[4] === r.data.name);
+  check('a TEST guest, service date today, assigned in rotation with a GUEST ID', r.ok && /^TEST Guest /.test(r.data.name) && row
+    && ymd(row[3]) === ymd(now) && ['david@x.com', 'worker.a@x.com'].includes(r.data.assignedTo) && /^G-[0-9A-F]{8}$/.test(r.data.guestId), r);
+  check('it reaches Firestore with its worker', store['guests/' + r.data.guestId] && store['guests/' + r.data.guestId].assignedTo === r.data.assignedTo);
+  check('the admins get the one-guest summary', Object.keys(store).some(k => k.startsWith('users/boss@x.com/notifications/') && /^1 guest assigned: /.test(store[k].body)));
+  store['followUps/testfu'] = { guestId: r.data.guestId, worker: r.data.assignedTo, month: '2026-11', syncedToSheet: true };
+  sheets['Follow-ups'].rows.push(['testfu', r.data.guestId, r.data.assignedTo, now, 'Reached', '', '', '', '', '', '', '']);
+  const removed = ctx.removeTestGuestsNow_();
+  check('Remove test guests clears the sheet row, the Firestore guest, its follow-up and its Follow-ups row', removed === 1
+    && !rows.some(x => x[4] === r.data.name) && !store['guests/' + r.data.guestId] && !store['followUps/testfu']
+    && !sheets['Follow-ups'].rows.some(x => x[0] === 'testfu'), [removed]);
+  check('real guests stay', !!store['guests/G1'] || rows.some(x => x[20] === 'G1'));
+}
+
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
 process.exitCode = fails ? 1 : 0;

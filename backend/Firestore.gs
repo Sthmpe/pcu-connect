@@ -563,6 +563,38 @@ function pcuPushGuestsQuietly_(ids) {
   }
 }
 
+/**
+ * Removes guests from Firestore with their follow-ups and Follow-ups tab rows
+ * (used by Remove test guests). Never fails the caller. Returns docs deleted.
+ */
+function pcuDeleteGuestsQuietly_(ids) {
+  try {
+    if (!pcuFsEnabled_() || !ids.length) return 0;
+    var want = {};
+    ids.forEach(function (id) {
+      want[id] = true;
+    });
+    var paths = ids.map(function (id) {
+      return 'guests/' + id;
+    });
+    ids.forEach(function (id) {
+      pcuFsQueryEqual_('followUps', 'guestId', id).forEach(function (f) {
+        paths.push('followUps/' + f.id);
+      });
+    });
+    var deleted = pcuFsDeleteDocs_(paths);
+    var fu = pcuTable_(PCU.SHEETS.FOLLOW_UPS, true);
+    var guestCol = pcuCol_(fu, PCU.F.GUEST);
+    for (var i = fu.rows.length - 1; i >= 0; i--) {
+      if (want[pcuStr_(fu.rows[i][guestCol])]) fu.sheet.deleteRow(i + 2);
+    }
+    return deleted;
+  } catch (err) {
+    console.warn('Could not remove test guests from Firestore: ' + (err && err.message));
+    return 0;
+  }
+}
+
 /** Same as pcuPushGuest_, but never fails the caller. */
 function pcuPushGuestQuietly_(guestId) {
   try {
