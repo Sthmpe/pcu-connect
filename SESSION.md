@@ -694,3 +694,34 @@ firebase hosting:clone pcu-workflow:@876dfe9dc93285cf pcu-workflow:live --projec
 - The older API-mode build stays available too:
   `firebase hosting:clone pcu-workflow:@876dfe9dc93285cf pcu-workflow:live --project pcu-workflow`
 - Preview checked first: firestore-test version 63e41d84fc3d7b93, render_check first frame 2.4 s, no page errors; icon_check OK.
+
+## 2026-11-01 The 25-step job: Today, worker tools, HOD tools, live
+
+Branch phase-1-firestore, one commit per step (ffbbfcb .. this commit). Live: **1b849c98077e028a** (released
+2026-11-01 21:11:59 UTC). Rollback: `firebase hosting:clone pcu-workflow:@67e0f6f810be26ff pcu-workflow:live --project pcu-workflow`.
+Apps Script: existing deployment `AKfycby0H6Sk...` now @17 (gender, lastCallDate, attended days, nudge, sync result
+and SHEET_URL). Firestore rules deployed (config/messageTemplates, nudges).
+
+What was built:
+- Today (steps 1-5): WorkRules constants; New, Outstanding, Retry, Follow-up due; pills and the gold Today badge;
+  daily goal ring.
+- Worker (6-11): Guests search by name or phone and long-press to copy a number; first visit as a full date;
+  "How did the call go?" sheet on return from Call or WhatsApp (CallReturnWatcher: only after a real leave, once per
+  tap; saves through saveFollowUp, the same path as the full form); gender from the sheet; WhatsApp templates
+  (config/messageTemplates, HOD editor under Me > WhatsApp messages); Road to membership mini calendar.
+- Me and ranking (12-16): own ranking row gold only outside the top three; notifications Today and Earlier, tap
+  opens the guest; sync chip (Offline, saves will sync / Syncing / All synced); Add to Home Screen card after the
+  first save; gold confetti once per guest that becomes a member, and "You helped N guests become members" on Me.
+- HOD (17-22): Needs attention (read-only; the app has no reassign); red outstanding counts on Team; Nudge;
+  "Sheet is a day behind. Sync now." banner; "Synced 6 follow-ups for 4 guests" and Open the sheet; twelve-month trend.
+
+Checks: flutter analyze clean, 197 app tests, 64 emulator rules tests, the three backend harnesses, live smoke test
+(me, guests, pushCheck), preview and live render_check and icon_check.
+
+Notes for next time:
+- pushCheck on the live script now answers 200 (FCM validate_only), so the service account appears to have the FCM
+  role and pushes should go out. Confirm on a phone.
+- Gender reached every assigned guest in Firestore (the 5-minute push). Unassigned guests from the migration get it
+  when assigned; to fill them all now run pcuMigrateRestart then pcuMigrate in the Apps Script editor.
+- No real nudge was sent during testing (it would email a real person); the live action was checked for FORBIDDEN
+  (worker) and VALIDATION (unknown worker).

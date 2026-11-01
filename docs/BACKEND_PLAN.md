@@ -19,7 +19,7 @@ Each field has exactly one owner, so the sheet and Firestore never fight.
 
 | Sheet column | Owner | Direction |
 | --- | --- | --- |
-| GUEST ID, FULL NAME, PHONE NUMBER, SERVICE DATE, ASSIGNED TO, ASSIGNED DATE | Sheet | Sheet to Firestore (every 5 minutes) |
+| GUEST ID, FULL NAME, PHONE NUMBER, GENDER, SERVICE DATE, ASSIGNED TO, ASSIGNED DATE | Sheet | Sheet to Firestore (every 5 minutes) |
 | CALL STATUS, MEMBERSHIP STATUS, FEEDBACK 1, FEEDBACK 2, FEEDBACK 1 DATE, FEEDBACK 2 DATE, FOLLOW-UP COUNT, LAST FEEDBACK, LAST FEEDBACK DATE, TEAM JOINED, MEMBERSHIP DATE | Firebase | Firestore to sheet (nightly, weekly, Sync to sheet) |
 | Follow-ups tab (all columns, including Logged by) | Firebase | Firestore to sheet, append only |
 
@@ -42,9 +42,11 @@ Each field has exactly one owner, so the sheet and Firestore never fight.
 
 ## Firestore data model
 - users/{normalised email}: name, email, phone, role (admin or worker), active. Written only by Apps Script.
-- guests/{guestId}: name, phone, serviceDate, month (yyyy-MM), assignedTo (normalised email), assignedDate, callStatus, membershipStatus, followUpCount, firstCallAt, lastFeedback, lastFeedbackDate, teamJoined, memberSince, sundayDates[], wednesdayDates[], sheetRow, syncedToSheetAt.
+- guests/{guestId}: name, phone, gender (Male, Female or ''), serviceDate, month (yyyy-MM), assignedTo (normalised email), assignedDate, callStatus, membershipStatus, followUpCount, firstCallAt, lastFeedback, lastFeedbackDate, teamJoined, memberSince, sundayDates[], wednesdayDates[], sheetRow, syncedToSheetAt.
 - followUps/{id}: guestId, worker (credited worker email), loggedBy (who actually saved it), callDate, month, outcome, note, attendedSunday, sundayDate, attendedWednesday, wednesdayDate, team, points, syncedToSheet (bool), createdAt.
-- meta/sync: lastSheetSyncAt, lastResult, running.
+- meta/sync: lastSheetSyncAt, lastResult (followUps, followUpGuests, guests, ...), running, sheetUrl (from the SHEET_URL Script Property, for "Open the sheet").
+- config/messageTemplates: thanks, missedCall, checkIn (WhatsApp wording with {title}, {name}, {worker}, {service}), updatedAt, updatedBy. Read by every active user, written only by an active admin (all three, 1 to 1000 characters, server time, own email).
+- nudges/{id}: worker, workerName, sentBy, sentByName, sentAt, outstanding, personalLine, title, body, inApp, pushSent, pushError, emailSent. Written only by Apps Script (action nudge); admins read.
 
 ## Emails
 - Every email is normalised everywhere: trimmed and lowercased. This applies to users document ids, assignedTo, worker, loggedBy, the Workers tab and every comparison in Apps Script and the app.
@@ -217,7 +219,12 @@ UI checklist:
 - Permission needed: the service account must have the role "Firebase Cloud Messaging API Admin"
   (roles/firebasecloudmessaging.admin), in addition to Cloud Datastore User. The admin-only API action pushCheck
   checks it without sending anything (FCM validate_only).
-- In the app: a bell with an unread count and a list stored at users/{email}/notifications.
+- In the app: a bell with an unread count and a list stored at users/{email}/notifications, grouped Today and Earlier
+  (Lagos day). A notice about a guest (tag guest-{id}) opens that guest, loaded by ID when their month is not on screen.
+- Nudge (admin-only action nudge): title "A gentle nudge from your HOD", body "You have {n} guests waiting for a call.
+  A quick call today makes a big difference. We are cheering you on." plus one optional personal line (200 characters).
+  At most one per worker per 24 hours (checked and logged in nudges under the script lock). It always writes the in-app
+  notice and sends an email (MailApp), so neither needs the FCM role; the push goes out only when that role is in place.
 - Sound: the app plays its own short chime (assets/sounds/notify.wav, made by tool/sound/make_chime.py) when a
   notification arrives while the app is open. Web push cannot use a custom sound when the app is closed or in the
   background; the phone then plays its normal notification sound.
