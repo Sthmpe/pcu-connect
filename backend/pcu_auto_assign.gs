@@ -197,7 +197,12 @@ function countByWorker_(emails) {
  */
 function assignSummaryText_(emails) {
   if (!emails.length) return '';
-  const counts = countByWorker_(emails);
+  const n = emails.length;
+  return n + (n === 1 ? ' guest' : ' guests') + ' assigned: ' + workerCountsText_(countByWorker_(emails));
+}
+
+/** "David 2, Worker A 1" for { email: count }, named as assignSummaryText_ describes. */
+function workerCountsText_(counts) {
   const full = {};
   const short = {};
   allWorkers_().forEach(w => {
@@ -206,11 +211,10 @@ function assignSummaryText_(emails) {
     full[w.email] = name.replace(/^TEST\s+/i, '');
     short[w.email] = test ? full[w.email] : full[w.email].split(/\s+/)[0];
   });
-  const first = Object.keys(counts).map(e => short[e] || e);
+  const emails = Object.keys(counts);
+  const first = emails.map(e => short[e] || e);
   const clash = first.some((f, i) => first.indexOf(f) !== i);
-  const parts = Object.keys(counts).map((e, i) => (clash ? full[e] || e : first[i]) + ' ' + counts[e]);
-  const n = emails.length;
-  return n + (n === 1 ? ' guest' : ' guests') + ' assigned: ' + parts.join(', ');
+  return emails.map((e, i) => (clash ? full[e] || e : first[i]) + ' ' + counts[e]).join(', ');
 }
 
 /**

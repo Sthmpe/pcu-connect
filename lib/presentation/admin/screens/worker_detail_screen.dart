@@ -14,7 +14,9 @@ import '../../../core/widgets/app_surfaces.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../core/widgets/status_tone.dart';
 import '../../../domain/entities/team_member.dart';
+import '../../../data/repositories/redistribute_repository.dart';
 import '../../common/insights_cubits.dart';
+import '../widgets/redistribute_sheet.dart';
 import '../../common/load_state.dart';
 
 class WorkerDetailScreen extends StatelessWidget {
@@ -24,6 +26,7 @@ class WorkerDetailScreen extends StatelessWidget {
 
   Future<void> _toggle(BuildContext context, TeamMember w, bool active) async {
     final cubit = context.read<TeamCubit>();
+    final redistribute = context.read<IRedistributeRepository>();
     if (!active) {
       final ok = await AppFeedback.confirm(
         title: 'Pause ${w.firstName}?',
@@ -36,12 +39,25 @@ class WorkerDetailScreen extends StatelessWidget {
     final result = await cubit.setActive(w.id, active);
     if (result.isFailure) {
       AppFeedback.error('Not changed', result.failure!.message);
-    } else {
-      AppFeedback.success(
-        active ? '${w.firstName} is back in' : '${w.firstName} is paused',
-        active ? 'New guests will be shared with them.' : 'No new guests will go to them.',
-      );
+      return;
     }
+    AppFeedback.success(
+      active ? '${w.firstName} is back in' : '${w.firstName} is paused',
+      active ? 'New guests will be shared with them.' : 'No new guests will go to them.',
+    );
+    if (active || !context.mounted) return;
+    // Paused with guests never called: offer to move them now.
+    final waiting = await redistribute.preview(fromEmail: w.email, mode: RedistributeMode.uncalled);
+    final n = waiting.data?.guests ?? 0;
+    if (n == 0 || !context.mounted) return;
+    final move = await AppFeedback.confirm(
+      title: '${w.firstName} still has $n ${n == 1 ? 'guest' : 'guests'} to call',
+      message: 'Redistribute them to other active workers now, so nobody waits?',
+      confirmLabel: 'Redistribute',
+    );
+    if (!move || !context.mounted) return;
+    await showRedistributeSheet(context,
+        repo: redistribute, workerEmail: w.email, workerName: w.name, mode: RedistributeMode.uncalled);
   }
 
   @override
@@ -117,6 +133,14 @@ class WorkerDetailScreen extends StatelessWidget {
                                 size: AppSizes.iconMd, color: AppColors.subtle),
                             onTap: () => Navigator.of(context)
                                 .pushNamed(AppRoutes.workerGuests, arguments: w.name),
+                          ),
+                          InfoTile(
+                            icon: AppIcons.team,
+                            label: "Redistribute ${w.firstName}'s guests",
+                            trailing: Icon(AppIcons.chevronRight,
+                                size: AppSizes.iconMd, color: AppColors.subtle),
+                            onTap: () => showRedistributeSheet(context,
+                                repo: context.read<IRedistributeRepository>(), workerEmail: w.email, workerName: w.name),
                           ),
                         ],
                       ),

@@ -190,6 +190,11 @@ function pcuHandlers_() {
       if (!activeWorkers_().length) throw pcuError_('VALIDATION', 'There is no active worker to give the test guest to.');
       return addTestGuest_();
     },
+    // Firestore.gs: admin only, move a worker's waiting guests to other workers.
+    redistribute: function (user, req) {
+      if (typeof pcuRedistribute_ !== 'function') throw pcuError_('NOT_READY', 'Not set up yet.');
+      return pcuRedistribute_(user, req);
+    },
     // Firestore.gs: admin only, read-only report of sheet versus Firestore.
     health: function (user) {
       if (typeof pcuHealth_ !== 'function') throw pcuError_('NOT_READY', 'Not set up yet.');

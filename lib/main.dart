@@ -34,6 +34,7 @@ import 'data/firestore/message_templates_repository.dart';
 import 'data/firestore/nudge_repository.dart';
 import 'data/firestore/trend_repository.dart';
 import 'data/repositories/assign_repository.dart';
+import 'data/repositories/redistribute_repository.dart';
 import 'data/firestore/worker_calls_repository.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/repositories/guest_repository_impl.dart';
@@ -142,6 +143,7 @@ void main() async {
     installPrompt: InstallPromptCubit(prefs: prefs, support: InstallSupport()),
     celebrations: MemberCelebrations(prefs),
     assignRepository: AssignRepository(apiClient: apiClient, authRepository: authRepository),
+    redistributeRepository: RedistributeRepository(apiClient: apiClient, authRepository: authRepository),
     nudgeRepository: NudgeRepository(
       apiClient: apiClient,
       authRepository: authRepository,
@@ -179,6 +181,9 @@ class PCUConnectApp extends StatelessWidget {
   /// The HOD's "Assign guests" (Apps Script; the sheet owns assignment).
   final IAssignRepository? assignRepository;
 
+  /// The HOD's redistribute (Apps Script; the sheet owns assignment).
+  final IRedistributeRepository? redistributeRepository;
+
   const PCUConnectApp({
     super.key,
     required this.authRepository,
@@ -193,6 +198,7 @@ class PCUConnectApp extends StatelessWidget {
     this.celebrations,
     this.nudgeRepository,
     this.assignRepository,
+    this.redistributeRepository,
   });
 
   @override
@@ -217,6 +223,8 @@ class PCUConnectApp extends StatelessWidget {
         if (celebrations != null) RepositoryProvider<MemberCelebrations>.value(value: celebrations!),
         if (nudgeRepository != null) RepositoryProvider<INudgeRepository>.value(value: nudgeRepository!),
         if (assignRepository != null) RepositoryProvider<IAssignRepository>.value(value: assignRepository!),
+        if (redistributeRepository != null)
+          RepositoryProvider<IRedistributeRepository>.value(value: redistributeRepository!),
         // The Dashboard's twelve-month trend (Firestore mode).
         if (AppConfig.useFirestore)
           RepositoryProvider<ITrendRepository>(create: (_) => FirestoreTrendRepository(FirebaseFirestore.instance)),

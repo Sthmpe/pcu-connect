@@ -266,6 +266,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Who moved which guest to whom, and when: written only by Apps Script
+    // (admin-only action redistribute). Admins read it.
+    match /reassignments/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /config/messageTemplates {
       allow read: if isMember();
       allow create, update: if isAdmin() && validTemplates(request.resource.data);

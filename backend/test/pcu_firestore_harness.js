@@ -697,5 +697,45 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
     && sheets.Workers.rows.filter(r => String(r[2]).trim().toLowerCase() === 'app.added@x.com').length === 1 && store['users/app.added@x.com'], [added, again]);
 }
 
+// --- Redistribute (admin only, preview equals result, safe twice)
+{
+  const { ctx, sheets, store, call } = setup();
+  sheets.Workers.rows.push(['W007', 'Ada Two', 'ada2@x.com', '0803 111 2222', 'Worker', 'Yes']);
+  const rows = sheets['Form Responses 1'].rows;
+  rows.push(guestRow('R1', 'Waiting Four', daysAgo(4), 'david@x.com', 8000000041));
+  rows.push(guestRow('R2', 'Waiting Five', daysAgo(5), 'david@x.com', 8000000042));
+  rows.push(guestRow('R3', 'Waiting Four Too', daysAgo(4), 'david@x.com', 8000000043));
+  ctx.pcuSetupSyncColumns();
+  ctx.pcuMigrate();
+  ctx.pcuTable_('Workers', true);
+  const base = { action: 'redistribute', fromEmail: 'david@x.com' };
+  check('redistribute is admin only', call({ ...base, idToken: 'tokDavid', preview: true }).code === 'FORBIDDEN');
+  const pv = call({ ...base, idToken: 'tokAdmin', mode: 'outstanding', preview: true });
+  check('outstanding: never called, since go-live, more than 3 days; oldest first, spread evenly', pv.ok && pv.data.guests === 3
+    && pv.data.candidates.map(c => c.id).join() === 'R2,R1,R3' && pv.data.text === '3 guests: Ada 2, Worker A 1', pv.data);
+  check('never to an admin, an inactive worker or the source', pv.data.plan.every(x => !['boss@x.com', 'worker.c@x.com', 'david@x.com'].includes(x.email)), pv.data.plan);
+  const unc = call({ ...base, idToken: 'tokAdmin', mode: 'uncalled', preview: true });
+  check('all uncalled includes newer and older guests, never a called one', unc.data.guests > 3 && !unc.data.candidates.some(c => c.id === 'G2'), unc.data.candidates);
+  const fuBefore = JSON.stringify(Object.keys(store).filter(k => k.startsWith('followUps/')).map(k => [k, store[k].worker]));
+  const done = call({ ...base, idToken: 'tokAdmin', mode: 'outstanding' });
+  check('preview counts equal the result counts', done.ok && done.data.moved === pv.data.guests && done.data.text === pv.data.text, done.data);
+  const to = id => rows.find(x => x[20] === id)[13];
+  check('the sheet owns assignment: ASSIGNED TO changed', to('R2') === 'ada2@x.com' && to('R1') === 'worker.a@x.com' && to('R3') === 'ada2@x.com', [to('R2'), to('R1'), to('R3')]);
+  check('Firestore follows the sheet', store['guests/R2'].assignedTo === 'ada2@x.com' && store['guests/R1'].assignedTo === 'worker.a@x.com');
+  const tab = sheets.Reassignments.rows;
+  check('a Reassignments tab row per guest, with who and when', tab.length === 4 && tab[1][1] === 'R2' && tab[1][3] === 'david@x.com' && tab[1][4] === 'ada2@x.com' && tab[1][5] === 'boss@x.com' && tab[1][6] === 'Outstanding', tab);
+  const logs = Object.keys(store).filter(k => k.startsWith('reassignments/')).map(k => store[k]);
+  check('and a reassignments document per guest', logs.length === 3 && logs.every(l => l.from === 'david@x.com' && l.by === 'boss@x.com' && l.mode === 'outstanding'));
+  check('follow-up history and points stay with whoever made the calls', JSON.stringify(Object.keys(store).filter(k => k.startsWith('followUps/')).map(k => [k, store[k].worker])) === fuBefore);
+  const bell = e => Object.keys(store).filter(k => k.startsWith('users/' + e + '/notifications/')).map(k => store[k]);
+  check('the new workers and the previous worker are told', bell('ada2@x.com').some(n => /^2 guests were passed to you from David/.test(n.body))
+    && bell('worker.a@x.com').some(n => /^1 guest was passed to you/.test(n.body)) && bell('david@x.com').some(n => /^3 of your guests were passed/.test(n.body)));
+  const twice = call({ ...base, idToken: 'tokAdmin', mode: 'outstanding' });
+  check('a second tap moves nothing', twice.ok && twice.data.moved === 0 && sheets.Reassignments.rows.length === 4, twice.data);
+  const sel = call({ ...base, idToken: 'tokAdmin', mode: 'selected', guestIds: ['G1', 'R3'], toEmails: ['worker.a@x.com'] });
+  check('selected: only the chosen guests still with the source, to the chosen worker', sel.ok && sel.data.moved === 1 && to('G1') === 'worker.a@x.com' && to('R3') === 'ada2@x.com', sel.data);
+  check('an admin cannot be the only recipient', call({ ...base, idToken: 'tokAdmin', mode: 'uncalled', toEmails: ['boss@x.com'], preview: true }).code === 'VALIDATION');
+}
+
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
 process.exitCode = fails ? 1 : 0;

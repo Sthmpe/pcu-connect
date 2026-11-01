@@ -509,3 +509,25 @@ describe('nudges', () => {
     await assertFails(getDoc(doc(as(ADA), 'users', DAVID, 'notifications', 'n1')));
   });
 });
+
+describe('reassignments', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'reassignments', 'R1'), { guestId: 'G1', from: DAVID, to: ADA, by: ADMIN, mode: 'outstanding', at: new Date() });
+    });
+  });
+  test('admins read the log; workers do not, not even the ones involved', async () => {
+    await assertSucceeds(getDoc(doc(as(ADMIN), 'reassignments', 'R1')));
+    await assertFails(getDoc(doc(as(DAVID), 'reassignments', 'R1')));
+    await assertFails(getDoc(doc(as(ADA), 'reassignments', 'R1')));
+  });
+  test('nobody writes it from the app (only Apps Script)', async () => {
+    await assertFails(setDoc(doc(as(ADMIN), 'reassignments', 'R2'), { guestId: 'G2', from: ADA, to: DAVID, by: ADMIN, at: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as(ADMIN), 'reassignments', 'R1'), { to: DAVID }));
+    await assertFails(deleteDoc(doc(as(ADMIN), 'reassignments', 'R1')));
+  });
+  test('a worker cannot move a guest by writing assignedTo', async () => {
+    await assertFails(updateDoc(doc(as(DAVID), 'guests', 'G1'), { assignedTo: ADA }));
+    await assertFails(updateDoc(doc(as(ADMIN), 'guests', 'G1'), { assignedTo: ADA }));
+  });
+});

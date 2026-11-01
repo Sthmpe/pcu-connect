@@ -1506,6 +1506,199 @@ function PCU_FS_GO_LIVE_() {
 }
 
 // ---------------------------------------------------------------------------
+// Redistribute (admin only): move a worker's waiting guests to others
+// ---------------------------------------------------------------------------
+
+var PCU_REDIS = {
+  TAB: 'Reassignments',
+  HEADERS: ['TIMESTAMP', 'GUEST ID', 'GUEST NAME', 'FROM', 'TO', 'BY', 'REASON'],
+  OUTSTANDING_AFTER_DAYS: 3,
+  MODES: { outstanding: 'Outstanding', uncalled: 'All uncalled', selected: 'Selected' }
+};
+
+/**
+ * The plan for one redistribution, from the sheet (owner of ASSIGNED TO) and
+ * Firestore (owner of the calls). Candidates are the source worker's guests
+ * never called: "outstanding" (since go-live, more than 3 days since the
+ * visit), "uncalled" (any), or "selected" (those of guestIds still with the
+ * source). They are dealt oldest visit first, evenly, to the recipients:
+ * active workers only, never admins and never the source. The same function
+ * makes the preview and the move, so their counts agree.
+ */
+function pcuRedistributePlan_(req, guests) {
+  var from = pcuEmail_(req.fromEmail);
+  var mode = PCU_REDIS.MODES[req.mode] ? req.mode : 'outstanding';
+  var workers = pcuWorkers_();
+  var source = workers.byEmail[from];
+  if (!source) throw pcuError_('VALIDATION', 'Choose a worker whose guests to move.');
+  var wanted = null;
+  if (req.toEmails && req.toEmails.length) {
+    wanted = {};
+    req.toEmails.forEach(function (e) {
+      wanted[pcuEmail_(e)] = true;
+    });
+  }
+  var recipients = workers.list
+    .filter(function (w) {
+      return w.active && !w.isAdmin && w.email !== from && (!wanted || wanted[w.email]);
+    })
+    .sort(function (a, b) {
+      return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+    });
+  if (!recipients.length) throw pcuError_('VALIDATION', 'Choose at least one active worker to receive the guests.');
+
+  var mine = guests.list.filter(function (g) {
+    return pcuEmail_(g.assignedTo) === from;
+  });
+  var docs = pcuFsGetDocs_(
+    mine.map(function (g) {
+      return 'guests/' + g.id;
+    })
+  );
+  var followUps = pcuFollowUps_(true);
+  var today = pcuToday_();
+  var goLive = PCU_FS_GO_LIVE_();
+  var selected = {};
+  (req.guestIds || []).forEach(function (id) {
+    selected[pcuStr_(id)] = true;
+  });
+  var candidates = mine.filter(function (g) {
+    var doc = docs['guests/' + g.id];
+    var calls = doc ? Number(doc.followUpCount) || 0 : pcuCallCount_(g, followUps.byGuest[g.id] || []);
+    if (calls > 0) return false;
+    if (mode === 'selected') return !!selected[g.id];
+    if (mode === 'uncalled') return true;
+    return !!g.serviceDay && g.serviceDay >= goLive && pcuDaysBetween_(g.serviceDay, today) > PCU_REDIS.OUTSTANDING_AFTER_DAYS;
+  });
+  candidates.sort(function (a, b) {
+    return a.serviceDay < b.serviceDay ? -1 : a.serviceDay > b.serviceDay ? 1 : a.rowIndex - b.rowIndex;
+  });
+  var moves = candidates.map(function (g, i) {
+    return { guest: g, to: recipients[i % recipients.length] };
+  });
+  var counts = {};
+  moves.forEach(function (m) {
+    counts[m.to.email] = (counts[m.to.email] || 0) + 1;
+  });
+  var n = moves.length;
+  var text = n === 0
+    ? 'No guests to move.'
+    : n + (n === 1 ? ' guest: ' : ' guests: ') + (typeof workerCountsText_ === 'function' ? workerCountsText_(counts) : JSON.stringify(counts));
+  return { from: from, source: source, mode: mode, recipients: recipients, moves: moves, counts: counts, text: text, candidates: candidates };
+}
+
+/** Admin only. req.preview true: the plan; otherwise the move, under the shared lock. */
+function pcuRedistribute_(user, req) {
+  pcuRequireAdmin_(user);
+  if (!pcuFsEnabled_()) throw pcuError_('NOT_READY', 'Not set up yet.');
+  if (req.preview) {
+    var plan = pcuRedistributePlan_(req, pcuGuestRows_(true));
+    return pcuRedistributeJson_(plan, false);
+  }
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw pcuError_('BUSY', 'Another change is running. Try again in a moment.');
+  var done;
+  try {
+    // Fresh data inside the lock: a second tap finds nothing left to move.
+    var guests = pcuGuestRows_(true);
+    done = pcuRedistributePlan_(req, guests);
+    if (done.moves.length) pcuRedistributeApply_(user, done, guests);
+  } finally {
+    lock.releaseLock();
+  }
+  if (done.moves.length) pcuRedistributeNotify_(done);
+  return pcuRedistributeJson_(done, true);
+}
+
+function pcuRedistributeJson_(plan, moved) {
+  return {
+    mode: plan.mode,
+    guests: plan.moves.length,
+    moved: moved ? plan.moves.length : 0,
+    text: plan.text,
+    plan: plan.recipients.map(function (w) {
+      return { email: w.email, name: w.name, count: plan.counts[w.email] || 0 };
+    }),
+    candidates: plan.candidates.map(function (g) {
+      return { id: g.id, name: g.name, serviceDate: g.serviceDay };
+    })
+  };
+}
+
+/** ASSIGNED TO in the sheet first (it owns assignment), then Firestore, then both logs. */
+function pcuRedistributeApply_(user, plan, guests) {
+  var now = new Date();
+  plan.moves.forEach(function (m) {
+    pcuSetCell_(guests.table, m.guest.rowIndex, PCU.G.ASSIGNED_TO, m.to.email);
+    pcuSetCell_(guests.table, m.guest.rowIndex, PCU.G.ASSIGNED_DATE, now);
+    m.guest.assignedTo = m.to.email;
+  });
+  SpreadsheetApp.flush();
+  pcuTable_(PCU.SHEETS.GUESTS, true);
+  pcuPushGuests_(
+    plan.moves.map(function (m) {
+      return m.guest.id;
+    })
+  );
+
+  var ss = SpreadsheetApp.getActive();
+  var tab = ss.getSheetByName(PCU_REDIS.TAB);
+  if (!tab) {
+    tab = ss.insertSheet(PCU_REDIS.TAB);
+    tab.getRange(1, 1, 1, PCU_REDIS.HEADERS.length).setValues([PCU_REDIS.HEADERS]);
+  }
+  var by = pcuEmail_(user.email);
+  var reason = PCU_REDIS.MODES[plan.mode];
+  var rows = plan.moves.map(function (m) {
+    return [now, m.guest.id, m.guest.name, plan.from, m.to.email, by, reason];
+  });
+  tab.getRange(tab.getLastRow() + 1, 1, rows.length, PCU_REDIS.HEADERS.length).setValues(rows);
+
+  pcuFsCommit_(
+    plan.moves.map(function (m) {
+      return pcuFsSet_('reassignments/' + Utilities.getUuid(), {
+        guestId: m.guest.id,
+        guestName: m.guest.name,
+        from: plan.from,
+        to: m.to.email,
+        by: by,
+        mode: plan.mode,
+        at: now
+      });
+    })
+  );
+}
+
+/** Tells each new worker and the previous worker: in-app, push if registered, email. */
+function pcuRedistributeNotify_(plan) {
+  var fromFirst = String(plan.source.name || plan.from).replace(/^TEST\s+/i, '').split(/\s+/)[0];
+  var tell = function (worker, title, body) {
+    pcuSaveNotification_(worker.email, { title: title, body: body, tag: 'reassigned' });
+    pcuSendPush_(worker.email, { title: title, body: body, tag: 'reassigned' });
+    if (!/@/.test(worker.email) || /@example\.(com|org)$/i.test(worker.email)) return;
+    try {
+      MailApp.sendEmail({
+        to: worker.email,
+        subject: title,
+        body: body + '\n\n' + pcuAppLink_() + '/',
+        htmlBody: typeof emailShell_ === 'function' ? emailShell_(title, '<p>' + body + '</p>') : body
+      });
+    } catch (err) {
+      console.warn('Reassignment email to ' + worker.email + ' failed: ' + (err && err.message));
+    }
+  };
+  plan.recipients.forEach(function (w) {
+    var n = plan.counts[w.email] || 0;
+    if (!n) return;
+    tell(w, 'New guests for you', n + (n === 1 ? ' guest was' : ' guests were') + ' passed to you from ' + fromFirst +
+      '. They have been waiting since their visit, so a call soon means a lot.');
+  });
+  var total = plan.moves.length;
+  tell(plan.source, 'Some guests were shared', total + (total === 1 ? ' of your guests was' : ' of your guests were') +
+    ' passed to other workers so they get a call soon. Your calls and points stay with you.');
+}
+
+// ---------------------------------------------------------------------------
 // Nudge (admin only): a friendly reminder to a worker with guests waiting
 // ---------------------------------------------------------------------------
 
