@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../presentation/guests/bloc/guests_filter_cubit.dart';
 import '../../presentation/common/notifications_screen.dart';
 import '../../presentation/admin/screens/add_worker_screen.dart';
 import '../../presentation/admin/screens/admin_guests_tab.dart';
@@ -58,7 +60,8 @@ abstract class AppRoutes {
         page = const AddWorkerScreen();
         break;
       case workerGuests when args is String:
-        page = AdminGuestsTab(workerFilter: args);
+        // Its own month and chip, separate from the HOD's Guests tab.
+        page = BlocProvider(create: (_) => GuestsFilterCubit(), child: AdminGuestsTab(workerFilter: args));
         break;
       case notifications:
         page = const NotificationsScreen();

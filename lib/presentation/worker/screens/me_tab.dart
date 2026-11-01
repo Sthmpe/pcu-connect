@@ -16,6 +16,7 @@ import '../../auth/bloc/auth_event.dart';
 import '../../auth/bloc/auth_state.dart';
 import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_state.dart';
+import '../../guests/widgets/watch_months.dart';
 import 'ranking_tab.dart';
 
 /// Profile, this month at a glance (workers), and sign out. Both apps use it.
@@ -107,24 +108,29 @@ class _MonthStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<GuestsBloc, GuestsState>(
-      builder: (context, state) {
-        if (state is! GuestsLoadedState) return const SizedBox.shrink();
-        final guests = state.monthGuests;
-        final followUps = guests.fold<int>(0, (sum, g) => sum + g.followUpCount);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionLabel(MonthUtils.label(state.selectedMonth)),
-            StatGrid(items: [
-              StatItem('${state.countFor('all')}', 'Guests'),
-              StatItem('${state.countFor('fu')}', 'Called'),
-              StatItem('$followUps', 'Follow-ups logged'),
-              StatItem('${state.countFor('mem')}', 'Became members'),
-            ]),
-          ],
-        );
-      },
+    // This calendar month, whatever month the Guests screen shows.
+    final month = MonthUtils.current();
+    return WatchMonths(
+      months: [month],
+      child: BlocBuilder<GuestsBloc, GuestsState>(
+        builder: (context, state) {
+          if (!(state.of(month)?.hasData ?? false)) return const SizedBox.shrink();
+          final guests = state.guestsOf(month);
+          final followUps = guests.fold<int>(0, (sum, g) => sum + g.followUpCount);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SectionLabel(MonthUtils.label(month)),
+              StatGrid(items: [
+                StatItem('${GuestFilters.count(guests, 'all')}', 'Guests'),
+                StatItem('${GuestFilters.count(guests, 'fu')}', 'Called'),
+                StatItem('$followUps', 'Follow-ups logged'),
+                StatItem('${GuestFilters.count(guests, 'mem')}', 'Became members'),
+              ]),
+            ],
+          );
+        },
+      ),
     );
   }
 }

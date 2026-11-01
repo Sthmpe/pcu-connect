@@ -15,10 +15,13 @@ import '../../../core/widgets/status_tone.dart';
 import '../../../domain/entities/guest_entity.dart';
 import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
+import '../../guests/bloc/guests_filter_cubit.dart';
 import '../../guests/bloc/guests_state.dart';
+import '../../guests/widgets/watch_months.dart';
 
 /// All church guests for admins. With [workerFilter] it is pushed as its own
-/// screen listing one worker's guests.
+/// screen listing one worker's guests. Its month and chip come from the
+/// GuestsFilterCubit above it (one per screen), never from the Dashboard.
 class AdminGuestsTab extends StatefulWidget {
   final String? workerFilter;
 
@@ -45,8 +48,8 @@ class _AdminGuestsTabState extends State<AdminGuestsTab> {
     super.dispose();
   }
 
-  List<GuestEntity> _visible(GuestsLoadedState state) {
-    var list = state.myGuestsFiltered;
+  List<GuestEntity> _visible(GuestsState state, GuestsFilter filter) {
+    var list = GuestFilters.apply(state.guestsOf(filter.month), filter.chip);
     final worker = widget.workerFilter?.trim().toLowerCase();
     if (worker != null) {
       list = list
@@ -67,102 +70,101 @@ class _AdminGuestsTabState extends State<AdminGuestsTab> {
 
   @override
   Widget build(BuildContext context) {
-    final bloc = context.read<GuestsBloc>();
     final standalone = widget.workerFilter != null;
 
-    return BlocBuilder<GuestsBloc, GuestsState>(
-      builder: (context, state) {
-        final loaded = state is GuestsLoadedState ? state : null;
-        final month = loaded?.selectedMonth ?? MonthUtils.current();
-        final monthPill = MonthPill(
-          month: month,
-          onChanged: (m) => bloc.add(SelectMonthEvent(m)),
-        );
+    return BlocBuilder<GuestsFilterCubit, GuestsFilter>(
+      builder: (context, filter) {
+        final selection = context.read<GuestsFilterCubit>();
+        return WatchMonths(
+          months: [filter.month],
+          child: BlocBuilder<GuestsBloc, GuestsState>(
+            builder: (context, state) {
+              final loaded = state.of(filter.month)?.hasData ?? false;
+              final monthGuests = state.guestsOf(filter.month);
+              final monthPill = MonthPill(month: filter.month, onChanged: selection.selectMonth);
 
-        final controls = loaded == null
-            ? null
-            : Column(
-                children: [
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: AppSizes.gutter),
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (v) => setState(() => _query = v),
-                      style: AppTextStyles.body,
-                      textInputAction: TextInputAction.search,
-                      decoration: InputDecoration(
-                        hintText: 'Search by name or phone',
-                        prefixIcon: Icon(AppIcons.search,
-                            size: AppSizes.iconMd, color: AppColors.muted),
-                        suffixIcon: _query.isEmpty
-                            ? null
-                            : IconButton(
-                                tooltip: 'Clear',
-                                icon: Icon(AppIcons.close,
-                                    size: AppSizes.iconSm, color: AppColors.muted),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() => _query = '');
-                                },
-                              ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: AppSizes.s8),
-                  ChipBar(
-                    chips: [
-                      for (final (key, label) in _filters)
-                        AppChip(
-                          label: label,
-                          count: standalone ? null : loaded.countFor(key),
-                          selected: loaded.chipFilter == key ||
-                              (key == 'all' && loaded.chipFilter == 'fu'),
-                          onTap: () => bloc.add(ChangeChipFilterEvent(key)),
+              final controls = !loaded
+                  ? null
+                  : Column(
+                      children: [
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: AppSizes.gutter),
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (v) => setState(() => _query = v),
+                            style: AppTextStyles.body,
+                            textInputAction: TextInputAction.search,
+                            decoration: InputDecoration(
+                              hintText: 'Search by name or phone',
+                              prefixIcon: Icon(AppIcons.search, size: AppSizes.iconMd, color: AppColors.muted),
+                              suffixIcon: _query.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      tooltip: 'Clear',
+                                      icon: Icon(AppIcons.close, size: AppSizes.iconSm, color: AppColors.muted),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        setState(() => _query = '');
+                                      },
+                                    ),
+                            ),
+                          ),
                         ),
-                    ],
-                  ),
-                ],
+                        SizedBox(height: AppSizes.s8),
+                        ChipBar(
+                          chips: [
+                            for (final (key, label) in _filters)
+                              AppChip(
+                                label: label,
+                                count: standalone ? null : GuestFilters.count(monthGuests, key),
+                                selected: filter.chip == key || (key == 'all' && filter.chip == 'fu'),
+                                onTap: () => selection.selectChip(key),
+                              ),
+                          ],
+                        ),
+                      ],
+                    );
+
+              final body = _body(context, filter, state, loaded ? _visible(state, filter) : const []);
+
+              if (!standalone) {
+                return AppPage(title: 'Guests', trailing: monthPill, below: controls, child: body);
+              }
+              return Scaffold(
+                body: Column(
+                  children: [
+                    AppTopBar(title: "${firstNameOf(widget.workerFilter!)}'s guests", trailing: monthPill),
+                    ?controls,
+                    Expanded(child: body),
+                  ],
+                ),
               );
-
-        final body = _body(context, state, loaded == null ? const [] : _visible(loaded));
-
-        if (!standalone) {
-          return AppPage(title: 'Guests', trailing: monthPill, below: controls, child: body);
-        }
-        return Scaffold(
-          body: Column(
-            children: [
-              AppTopBar(
-                title: "${firstNameOf(widget.workerFilter!)}'s guests",
-                trailing: monthPill,
-              ),
-              ?controls,
-              Expanded(child: body),
-            ],
+            },
           ),
         );
       },
     );
   }
 
-  Widget _body(BuildContext context, GuestsState state, List<GuestEntity> list) {
-    if (state is GuestsFailureState) {
+  Widget _body(BuildContext context, GuestsFilter filter, GuestsState state, List<GuestEntity> list) {
+    final failure = state.failureFor([filter.month]);
+    if (failure != null) {
       return ErrorState(
-        message: state.message,
-        onRetry: () => context.read<GuestsBloc>().add(const LoadGuestsEvent()),
+        message: failure,
+        onRetry: () => context.read<GuestsBloc>().add(WatchMonthsEvent([filter.month])),
       );
     }
-    if (state is! GuestsLoadedState) return const SkeletonPage();
+    if (state.waitingFor([filter.month])) return const SkeletonPage();
 
     return PageList(
       children: [
-        if (state.isFromCache) OfflineBanner(isRefreshing: state.isRefreshing),
+        if (state.fromCacheIn([filter.month])) OfflineBanner(isRefreshing: state.refreshingIn([filter.month])),
         if (list.isEmpty)
           EmptyState(
             icon: AppIcons.search,
             message: _query.isNotEmpty
                 ? 'No one matches "$_query".'
-                : 'No guests here for ${MonthUtils.name(state.selectedMonth)}.',
+                : 'No guests here for ${MonthUtils.name(filter.month)}.',
             actionLabel: _query.isNotEmpty ? 'Clear search' : null,
             onAction: () {
               _searchController.clear();

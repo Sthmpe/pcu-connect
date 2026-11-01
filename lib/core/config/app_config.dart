@@ -20,6 +20,12 @@ class AppConfig {
 
   static bool get useFirestore => dataSource == 'firestore' && !useSampleData;
 
+  /// Today shows guests not yet called whose first visit is on or after this
+  /// Lagos day: the day the app went live, the same rule as the 6pm reminder
+  /// (GO_LIVE in backend/pcu_auto_assign.gs). Older guests were followed up
+  /// in the sheet before the app existed.
+  static const String chaseFrom = '2026-10-28';
+
   /// Public VAPID key for Firebase Cloud Messaging web push (project
   /// pcu-workflow). Public by design; a build can override it with
   /// `--dart-define=FCM_VAPID_KEY=...`.

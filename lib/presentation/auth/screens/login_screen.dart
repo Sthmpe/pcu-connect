@@ -9,9 +9,7 @@ import '../../../core/routing/app_routes.dart';
 import '../../../core/widgets/app_controls.dart';
 import '../../../core/widgets/app_feedback.dart';
 import '../../../core/widgets/brand_marks.dart';
-import '../../common/insights_cubits.dart';
-import '../../guests/bloc/guests_bloc.dart';
-import '../../guests/bloc/guests_event.dart';
+import '../../common/session_reset.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
@@ -37,10 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _enterApp(AuthAuthenticatedState state) {
     if (!mounted) return;
     // Clear anything left from a previous account on this device.
-    context.read<RankingCubit>().reset();
-    context.read<DashboardCubit>().reset();
-    context.read<TeamCubit>().reset();
-    context.read<GuestsBloc>().add(const LoadGuestsEvent());
+    resetSessionState(context);
     Navigator.of(context).pushReplacementNamed(
       state.user.isAdmin ? AppRoutes.admin : AppRoutes.worker,
     );

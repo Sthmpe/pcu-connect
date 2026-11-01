@@ -84,19 +84,15 @@ class _GuestDetailScreenState extends State<GuestDetailScreen> {
     return Scaffold(
       body: BlocBuilder<GuestsBloc, GuestsState>(
         builder: (context, state) {
-          GuestEntity? guest;
-          if (state is GuestsLoadedState) {
-            for (final g in state.allGuests) {
-              if (g.id == widget.guestId) guest = g;
-            }
-          }
+          // From whichever month it was opened in (the cache holds every loaded month).
+          final GuestEntity? guest = state.find(widget.guestId);
 
           if (guest == null) {
             return Column(
               children: [
                 const AppTopBar(),
                 Expanded(
-                  child: state is GuestsLoadedState
+                  child: state.months.values.every((m) => m.status != MonthStatus.loading)
                       ? const Center(
                           child: EmptyState(
                               icon: AppIcons.search, message: 'We could not find this guest.'),

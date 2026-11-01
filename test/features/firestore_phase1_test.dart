@@ -8,7 +8,6 @@ import 'package:workflow/domain/entities/guest_entity.dart';
 import 'package:workflow/domain/repositories/i_guest_repository.dart';
 import 'package:workflow/presentation/guests/bloc/guests_bloc.dart';
 import 'package:workflow/presentation/guests/bloc/guests_event.dart';
-import 'package:workflow/presentation/guests/bloc/guests_state.dart';
 
 /// Live repository double: tests push lists into [controller].
 class _LiveRepo implements IGuestRepository {
@@ -144,52 +143,48 @@ void main() {
   });
 
   group('GuestsBloc with a live source', () {
-    test('lists update on their own and keep the chosen filter', () async {
+    test('lists update on their own', () async {
       final repo = _LiveRepo();
       final bloc = GuestsBloc(guestRepository: repo);
-      bloc.add(const LoadGuestsEvent(month: '2026-10'));
+      bloc.add(const WatchMonthsEvent(['2026-10']));
       await Future<void>.delayed(Duration.zero);
       repo.controller.add([_guest('G1', '2026-10')]);
       await Future<void>.delayed(Duration.zero);
-      expect((bloc.state as GuestsLoadedState).allGuests.length, 1);
-
-      bloc.add(const ChangeChipFilterEvent('call'));
-      await Future<void>.delayed(Duration.zero);
+      expect(bloc.state.guestsOf('2026-10').length, 1);
       // A new guest is assigned, or one is reassigned away: the list just changes.
       repo.controller.add([_guest('G1', '2026-10'), _guest('G2', '2026-10')]);
       await Future<void>.delayed(Duration.zero);
-      final s = bloc.state as GuestsLoadedState;
-      expect(s.allGuests.length, 2);
-      expect(s.chipFilter, 'call', reason: 'filter kept across live updates');
-
+      expect(bloc.state.guestsOf('2026-10').length, 2);
       repo.controller.add([_guest('G2', '2026-10')]);
       await Future<void>.delayed(Duration.zero);
-      expect((bloc.state as GuestsLoadedState).allGuests.map((g) => g.id), ['G2']);
+      expect(bloc.state.guestsOf('2026-10').map((g) => g.id), ['G2']);
       await bloc.close();
     });
 
-    test('a stream error shows a plain message', () async {
+    test('a stream error shows a plain message and the next watch tries again', () async {
       final repo = _LiveRepo();
       final bloc = GuestsBloc(guestRepository: repo);
-      bloc.add(const LoadGuestsEvent(month: '2026-10'));
+      bloc.add(const WatchMonthsEvent(['2026-10']));
       await Future<void>.delayed(Duration.zero);
       repo.controller.addError(Exception('permission-denied'));
       await Future<void>.delayed(Duration.zero);
-      expect(bloc.state, isA<GuestsFailureState>());
-      expect((bloc.state as GuestsFailureState).message, 'We could not load your guests. Try again.');
+      expect(bloc.state.failureFor(['2026-10']), 'We could not load your guests. Try again.');
+      expect(bloc.liveMonths, isEmpty);
+      bloc.add(const WatchMonthsEvent(['2026-10']));
+      await Future<void>.delayed(Duration.zero);
+      expect(bloc.liveMonths, {'2026-10'});
       await bloc.close();
     });
 
-    test('changing month subscribes to that month', () async {
+    test('watching another month adds it and keeps the first', () async {
       final repo = _LiveRepo();
       final bloc = GuestsBloc(guestRepository: repo);
-      bloc.add(const LoadGuestsEvent(month: '2026-10'));
+      bloc.add(const WatchMonthsEvent(['2026-10']));
       await Future<void>.delayed(Duration.zero);
-      repo.controller.add([_guest('G1', '2026-10')]);
+      bloc.add(const WatchMonthsEvent(['2026-09', '2026-10']));
       await Future<void>.delayed(Duration.zero);
-      bloc.add(const SelectMonthEvent('2026-09'));
-      await Future<void>.delayed(Duration.zero);
-      expect(repo.watched.last, '2026-09');
+      expect(repo.watched, ['2026-10', '2026-09']);
+      expect(bloc.liveMonths, {'2026-09', '2026-10'});
       await bloc.close();
     });
   });

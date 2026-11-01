@@ -1,156 +1,121 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../core/utils/month_utils.dart';
+import '../../../domain/entities/guest_entity.dart';
 import '../../../domain/repositories/i_guest_repository.dart';
 import 'guests_event.dart';
 import 'guests_state.dart';
 
+/// The app's guest cache, by month. Screens ask for the months they show
+/// ([WatchMonthsEvent]) and keep their own selection, so no screen's month
+/// can leak into another's.
 class GuestsBloc extends Bloc<GuestsEvent, GuestsState> {
-  final IGuestRepository _guestRepository;
+  final IGuestRepository _repo;
 
-  /// Live subscription when the repository supports it (Firestore).
-  StreamSubscription<List<dynamic>>? _live;
-  String? _liveMonth;
+  /// One live listener per month (Firestore).
+  final Map<String, StreamSubscription<List<GuestEntity>>> _live = {};
 
   GuestsBloc({required IGuestRepository guestRepository})
-      : _guestRepository = guestRepository,
-        super(GuestsInitialState()) {
-    on<LoadGuestsEvent>(_onLoadGuests);
-    on<ChangeTileFilterEvent>(_onChangeTileFilter);
-    on<ChangeChipFilterEvent>(_onChangeChipFilter);
-    on<SelectMonthEvent>(_onSelectMonth);
+      : _repo = guestRepository,
+        super(const GuestsState()) {
+    on<WatchMonthsEvent>(_onWatch);
+    on<RefreshMonthsEvent>(_onRefresh);
+    on<ResetGuestsEvent>(_onReset);
     on<GuestsStreamedEvent>(_onStreamed);
     on<GuestsStreamFailedEvent>(_onStreamFailed);
   }
 
+  /// Months with a live listener right now (for tests and diagnostics).
+  Set<String> get liveMonths => _live.keys.toSet();
+
   @override
   Future<void> close() async {
-    await _live?.cancel();
+    for (final s in _live.values) {
+      await s.cancel();
+    }
+    _live.clear();
     return super.close();
   }
 
-  /// Subscribes to the month's live list. Returns false when the repository
-  /// has no live source, so the caller falls back to a one-off fetch.
-  bool _watch(String month) {
-    final stream = _guestRepository.watchGuests(month: month);
-    if (stream == null) return false;
-    if (_liveMonth == month && _live != null) return true;
-    _live?.cancel();
-    _liveMonth = month;
-    _live = stream.listen(
-      (guests) => add(GuestsStreamedEvent(month, guests)),
-      onError: (Object e) => add(GuestsStreamFailedEvent(
-          month, 'We could not load your guests. Try again.')),
-    );
-    return true;
+  Future<void> _onWatch(WatchMonthsEvent event, Emitter<GuestsState> emit) async {
+    final todo = <String>[];
+    for (final month in event.months.toSet()) {
+      final current = state.of(month);
+      if (current != null && current.status != MonthStatus.failed) continue;
+      if (_live.containsKey(month)) continue;
+      final stream = _repo.watchGuests(month: month);
+      if (stream != null) {
+        emit(state.put(month, MonthGuests(status: MonthStatus.loading, guests: current?.guests ?? const [])));
+        _live[month] = stream.listen(
+          (guests) => add(GuestsStreamedEvent(month, guests)),
+          onError: (Object e) => add(GuestsStreamFailedEvent(month, 'We could not load your guests. Try again.')),
+        );
+      } else {
+        todo.add(month);
+      }
+    }
+    await Future.wait(todo.map((m) => _fetch(m, emit)));
   }
 
-  void _onStreamed(GuestsStreamedEvent event, Emitter<GuestsState> emit) {
-    if (event.month != _liveMonth) return;
-    final previous = state is GuestsLoadedState ? state as GuestsLoadedState : null;
-    final same = previous?.selectedMonth == event.month;
-    emit(GuestsLoadedState(
-      allGuests: event.guests,
-      selectedMonth: event.month,
-      tileFilter: same ? previous!.tileFilter : 'all',
-      chipFilter: same ? previous!.chipFilter : 'all',
+  Future<void> _onRefresh(RefreshMonthsEvent event, Emitter<GuestsState> emit) async {
+    final months = (event.months.isEmpty ? state.months.keys : event.months)
+        .where((m) => !_live.containsKey(m))
+        .toSet();
+    await Future.wait(months.map((m) => _fetch(m, emit)));
+  }
+
+  /// One month from a source that cannot push updates (the Apps Script API).
+  Future<void> _fetch(String month, Emitter<GuestsState> emit) async {
+    final previous = state.of(month);
+    final cached = previous?.guests.isNotEmpty == true ? null : _repo.getCachedGuests(month: month);
+    if (previous != null && previous.hasData) {
+      emit(state.put(month, MonthGuests(status: MonthStatus.loaded, guests: previous.guests, refreshing: true)));
+    } else if (cached != null && cached.isNotEmpty) {
+      emit(state.put(month, MonthGuests(status: MonthStatus.loaded, guests: cached, fromCache: true, refreshing: true)));
+    } else {
+      emit(state.put(month, const MonthGuests(status: MonthStatus.loading)));
+    }
+
+    final result = await _repo.fetchGuests(month: month);
+    if (isClosed || state.of(month) == null) return; // reset while waiting
+    if (result.isSuccess) {
+      emit(state.put(month, MonthGuests(status: MonthStatus.loaded, guests: result.data!)));
+      return;
+    }
+    final now = state.of(month)!;
+    emit(state.put(
+      month,
+      now.guests.isNotEmpty
+          ? MonthGuests(status: MonthStatus.loaded, guests: now.guests, fromCache: true)
+          : MonthGuests(status: MonthStatus.failed, message: result.failure?.message ?? 'Could not load guests.'),
     ));
   }
 
+  void _onStreamed(GuestsStreamedEvent event, Emitter<GuestsState> emit) {
+    if (!_live.containsKey(event.month)) return; // stopped (reset) since
+    emit(state.put(event.month, MonthGuests(status: MonthStatus.loaded, guests: event.guests)));
+  }
+
   void _onStreamFailed(GuestsStreamFailedEvent event, Emitter<GuestsState> emit) {
-    if (event.month != _liveMonth) return;
-    // Let the next load subscribe again.
-    _live?.cancel();
-    _live = null;
-    _liveMonth = null;
-    final current = state;
-    if (current is GuestsLoadedState) {
-      emit(current.copyWith(isFromCache: true, isRefreshing: false));
-    } else {
-      emit(GuestsFailureState(event.message));
-    }
+    final sub = _live.remove(event.month);
+    if (sub == null) return;
+    sub.cancel();
+    final now = state.of(event.month);
+    emit(state.put(
+      event.month,
+      now != null && now.guests.isNotEmpty
+          ? MonthGuests(status: MonthStatus.loaded, guests: now.guests, fromCache: true)
+          // Failed: the next WatchMonthsEvent for this month tries again.
+          : MonthGuests(status: MonthStatus.failed, message: event.message),
+    ));
   }
 
-  /// The month currently shown, as an API key ('2026-10').
-  String get _currentMonth {
-    final s = state;
-    return s is GuestsLoadedState ? s.selectedMonth : MonthUtils.current();
+  Future<void> _onReset(ResetGuestsEvent event, Emitter<GuestsState> emit) async {
+    final subs = _live.values.toList();
+    _live.clear();
+    for (final s in subs) {
+      await s.cancel();
+    }
+    emit(const GuestsState());
   }
-
-  Future<void> _onLoadGuests(
-    LoadGuestsEvent event,
-    Emitter<GuestsState> emit,
-  ) async {
-    final month = event.month ?? _currentMonth;
-    final previous = state is GuestsLoadedState ? state as GuestsLoadedState : null;
-    final sameMonth = previous?.selectedMonth == month;
-
-    // Live source: the stream delivers the list and every later change.
-    if (_guestRepository.watchGuests(month: month) != null) {
-      if (!sameMonth) emit(GuestsLoadingState());
-      if (_liveMonth != month || _live == null) _watch(month);
-      return;
-    }
-
-    final cached = _guestRepository.getCachedGuests(month: month);
-    if (sameMonth) {
-      emit(previous!.copyWith(isRefreshing: true));
-    } else if (cached != null && cached.isNotEmpty) {
-      emit(GuestsLoadedState(
-        allGuests: cached,
-        selectedMonth: month,
-        isFromCache: true,
-        isRefreshing: true,
-      ));
-    } else {
-      emit(GuestsLoadingState());
-    }
-
-    final result = await _guestRepository.fetchGuests(month: month);
-    if (result.isSuccess) {
-      emit(GuestsLoadedState(
-        allGuests: result.data!,
-        selectedMonth: month,
-        tileFilter: sameMonth ? previous!.tileFilter : 'all',
-        chipFilter: sameMonth ? previous!.chipFilter : 'all',
-      ));
-      return;
-    }
-
-    final current = state;
-    if (current is GuestsLoadedState) {
-      emit(current.copyWith(isFromCache: true, isRefreshing: false));
-    } else {
-      emit(GuestsFailureState(result.failure?.message ?? 'Could not load guests.'));
-    }
-  }
-
-  void _onChangeTileFilter(
-    ChangeTileFilterEvent event,
-    Emitter<GuestsState> emit,
-  ) {
-    if (state is GuestsLoadedState) {
-      final current = state as GuestsLoadedState;
-      final newTile = current.tileFilter == event.tile ? 'all' : event.tile;
-      emit(current.copyWith(tileFilter: newTile));
-    }
-  }
-
-  void _onChangeChipFilter(
-    ChangeChipFilterEvent event,
-    Emitter<GuestsState> emit,
-  ) {
-    if (state is GuestsLoadedState) {
-      final current = state as GuestsLoadedState;
-      emit(current.copyWith(chipFilter: event.chip));
-    }
-  }
-
-  /// Guests are fetched per month, so a new month means a new request.
-  Future<void> _onSelectMonth(
-    SelectMonthEvent event,
-    Emitter<GuestsState> emit,
-  ) =>
-      _onLoadGuests(LoadGuestsEvent(month: event.month), emit);
 }

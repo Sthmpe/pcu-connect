@@ -1,149 +1,99 @@
 import 'package:equatable/equatable.dart';
 import '../../../domain/entities/guest_entity.dart';
 
-abstract class GuestsState extends Equatable {
-  const GuestsState();
-  @override
-  List<Object?> get props => [];
-}
+enum MonthStatus { loading, loaded, failed }
 
-class GuestsInitialState extends GuestsState {}
+/// One month of guests in the cache.
+class MonthGuests extends Equatable {
+  final MonthStatus status;
+  final List<GuestEntity> guests;
 
-class GuestsLoadingState extends GuestsState {}
+  /// Shown from the device copy because the latest fetch failed.
+  final bool fromCache;
+  final bool refreshing;
+  final String? message;
 
-class GuestsLoadedState extends GuestsState {
-  final List<GuestEntity> allGuests;
-  final String selectedMonth;
-  final String tileFilter; // 'all' | 'call' | 'fu' | 'mem'
-  final String chipFilter; // 'all' | 'call' | 'fu' | 'mem' | 'team'
-  final bool isFromCache;
-  final bool isRefreshing;
-
-  const GuestsLoadedState({
-    required this.allGuests,
-    required this.selectedMonth,
-    this.tileFilter = 'all',
-    this.chipFilter = 'all',
-    this.isFromCache = false,
-    this.isRefreshing = false,
+  const MonthGuests({
+    required this.status,
+    this.guests = const [],
+    this.fromCache = false,
+    this.refreshing = false,
+    this.message,
   });
 
-  /// Guests whose first visit was in the selected month.
-  List<GuestEntity> get monthGuests =>
-      allGuests.where((g) => g.month == selectedMonth).toList();
-
-  /// Number of this month's guests matching a filter key
-  /// ('all' | 'call' | 'fu' | 'mem' | 'team').
-  int countFor(String filter) {
-    final list = monthGuests;
-    switch (filter) {
-      case 'call':
-        return list.where((g) => g.callCount == 0).length;
-      case 'fu':
-        return list.where((g) => g.callCount > 0).length;
-      case 'mem':
-        return list.where((g) => g.status == 'Member').length;
-      case 'team':
-        return list.where((g) => g.teamJoined.isNotEmpty).length;
-      default:
-        return list.length;
-    }
-  }
-
-  /// The guest who has waited longest without a call, if any.
-  GuestEntity? get nextToCall {
-    final waiting = monthGuests.where((g) => g.callCount == 0).toList()
-      ..sort((a, b) => b.daysSinceVisit.compareTo(a.daysSinceVisit));
-    return waiting.isEmpty ? null : waiting.first;
-  }
-
-  // Today Tab computed metrics
-  int get todayCallCount =>
-      allGuests.where((g) => g.month == selectedMonth && g.callCount == 0).length;
-
-  int get todayFollowedUpCount =>
-      allGuests.where((g) => g.month == selectedMonth && g.callCount > 0).length;
-
-  int get todayMemberCount => allGuests
-      .where((g) => g.month == selectedMonth && g.status == 'Member')
-      .length;
-
-  // Filtered list for "Today" tab
-  List<GuestEntity> get todayFilteredGuests {
-    final list = allGuests.where((g) => g.month == selectedMonth).toList();
-    List<GuestEntity> filtered;
-    switch (tileFilter) {
-      case 'call':
-        filtered = list.where((g) => g.callCount == 0).toList();
-        break;
-      case 'fu':
-        filtered = list.where((g) => g.callCount > 0).toList();
-        break;
-      case 'mem':
-        filtered = list.where((g) => g.status == 'Member').toList();
-        break;
-      default:
-        filtered = list;
-    }
-
-    // Sort order matching PCU Connect: (calls ascending, then days descending)
-    filtered.sort((a, b) {
-      final callDiff = a.callCount.compareTo(b.callCount);
-      if (callDiff != 0) return callDiff;
-      return b.daysSinceVisit.compareTo(a.daysSinceVisit);
-    });
-    return filtered;
-  }
-
-  // Filtered list for "My Guests" tab
-  List<GuestEntity> get myGuestsFiltered {
-    final list = allGuests.where((g) => g.month == selectedMonth).toList();
-    switch (chipFilter) {
-      case 'call':
-        return list.where((g) => g.callCount == 0).toList();
-      case 'fu':
-        return list.where((g) => g.callCount > 0).toList();
-      case 'mem':
-        return list.where((g) => g.status == 'Member').toList();
-      case 'team':
-        return list.where((g) => g.teamJoined.isNotEmpty).toList();
-      default:
-        return list;
-    }
-  }
-
-  GuestsLoadedState copyWith({
-    List<GuestEntity>? allGuests,
-    String? selectedMonth,
-    String? tileFilter,
-    String? chipFilter,
-    bool? isFromCache,
-    bool? isRefreshing,
-  }) {
-    return GuestsLoadedState(
-      allGuests: allGuests ?? this.allGuests,
-      selectedMonth: selectedMonth ?? this.selectedMonth,
-      tileFilter: tileFilter ?? this.tileFilter,
-      chipFilter: chipFilter ?? this.chipFilter,
-      isFromCache: isFromCache ?? this.isFromCache,
-      isRefreshing: isRefreshing ?? this.isRefreshing,
-    );
-  }
+  bool get hasData => status == MonthStatus.loaded || guests.isNotEmpty;
 
   @override
-  List<Object?> get props => [
-        allGuests,
-        selectedMonth,
-        tileFilter,
-        chipFilter,
-        isFromCache,
-        isRefreshing,
-      ];
+  List<Object?> get props => [status, guests, fromCache, refreshing, message];
 }
 
-class GuestsFailureState extends GuestsState {
-  final String message;
-  const GuestsFailureState(this.message);
+/// Guests the app has loaded, by month ('2026-10'). It holds no selected
+/// month: every screen keeps its own (GuestsFilterCubit, DashboardCubit,
+/// Today's rule), so changing one screen never moves another.
+class GuestsState extends Equatable {
+  final Map<String, MonthGuests> months;
+
+  const GuestsState({this.months = const {}});
+
+  MonthGuests? of(String month) => months[month];
+
+  List<GuestEntity> guestsOf(String month) => months[month]?.guests ?? const [];
+
+  /// Guests of several months, each guest once.
+  List<GuestEntity> guestsIn(Iterable<String> keys) {
+    final seen = <String>{};
+    return [
+      for (final m in keys)
+        for (final g in guestsOf(m))
+          if (seen.add(g.id)) g,
+    ];
+  }
+
+  /// True while any of [keys] has no data yet.
+  bool waitingFor(Iterable<String> keys) =>
+      keys.any((m) => months[m] == null || (months[m]!.status == MonthStatus.loading && !months[m]!.hasData));
+
+  /// The first failure among [keys] with nothing to show, if any.
+  String? failureFor(Iterable<String> keys) {
+    for (final m in keys) {
+      final mg = months[m];
+      if (mg != null && mg.status == MonthStatus.failed && !mg.hasData) return mg.message;
+    }
+    return null;
+  }
+
+  bool fromCacheIn(Iterable<String> keys) => keys.any((m) => months[m]?.fromCache ?? false);
+
+  bool refreshingIn(Iterable<String> keys) => keys.any((m) => months[m]?.refreshing ?? false);
+
+  /// A guest from any loaded month.
+  GuestEntity? find(String id) {
+    for (final mg in months.values) {
+      for (final g in mg.guests) {
+        if (g.id == id) return g;
+      }
+    }
+    return null;
+  }
+
+  GuestsState put(String month, MonthGuests value) => GuestsState(months: {...months, month: value});
+
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [months];
+}
+
+/// Filters shared by the Guests screens ('all' | 'call' | 'fu' | 'mem' | 'team').
+abstract class GuestFilters {
+  static bool matches(GuestEntity g, String filter) => switch (filter) {
+        'call' => g.callCount == 0,
+        'fu' => g.callCount > 0,
+        'mem' => g.status == 'Member',
+        'team' => g.teamJoined.isNotEmpty,
+        _ => true,
+      };
+
+  static List<GuestEntity> apply(List<GuestEntity> guests, String filter) =>
+      guests.where((g) => matches(g, filter)).toList();
+
+  static int count(List<GuestEntity> guests, String filter) => guests.where((g) => matches(g, filter)).length;
 }

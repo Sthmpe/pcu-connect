@@ -9,6 +9,9 @@ class GuestEntity extends Equatable {
   final String phone;
   final String status; // 'New guest' | 'Contacted' | 'Returning' | 'Member' | 'Not interested' | 'Unreachable'
   final int daysSinceVisit;
+
+  /// First visit as a Lagos day ('yyyy-MM-dd'), '' when unknown.
+  final String serviceDate;
   final int callCount;
   final int sundayAttendance;
   final int wednesdayAttendance;
@@ -28,6 +31,7 @@ class GuestEntity extends Equatable {
     required this.phone,
     required this.status,
     required this.daysSinceVisit,
+    this.serviceDate = '',
     required this.callCount,
     required this.sundayAttendance,
     required this.wednesdayAttendance,
@@ -97,6 +101,7 @@ class GuestEntity extends Equatable {
       daysSinceVisit: (json['daysSinceVisit'] as num?)?.toInt() ??
           (json['days'] as num?)?.toInt() ??
           0,
+      serviceDate: json['serviceDate']?.toString() ?? '',
       callCount: (json['followUps'] as num?)?.toInt() ??
           (json['calls'] as num?)?.toInt() ??
           0,
@@ -134,6 +139,7 @@ class GuestEntity extends Equatable {
       'phone': phone,
       'status': status,
       'days': daysSinceVisit,
+      'serviceDate': serviceDate,
       'calls': callCount,
       'sun': sundayAttendance,
       'wed': wednesdayAttendance,
@@ -153,6 +159,7 @@ class GuestEntity extends Equatable {
         phone,
         status,
         daysSinceVisit,
+        serviceDate,
         callCount,
         sundayAttendance,
         wednesdayAttendance,

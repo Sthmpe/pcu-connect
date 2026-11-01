@@ -7,6 +7,8 @@ import '../../../core/widgets/app_bottom_nav.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../auth/bloc/auth_state.dart';
 import '../../common/notifications_cubit.dart';
+import '../../common/session_reset.dart';
+import '../../guests/bloc/guests_filter_cubit.dart';
 import '../../common/push_cubit.dart';
 import 'today_tab.dart';
 import 'my_guests_tab.dart';
@@ -22,6 +24,15 @@ class WorkerShellScreen extends StatefulWidget {
 
 class _WorkerShellScreenState extends State<WorkerShellScreen> {
   int _index = 0;
+
+  /// The Guests tab's own month and chip. Today follows no month at all.
+  final _guestsFilter = GuestsFilterCubit();
+
+  @override
+  void dispose() {
+    _guestsFilter.close();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -42,10 +53,12 @@ class _WorkerShellScreenState extends State<WorkerShellScreen> {
     return BlocListener<AuthBloc, AuthState>(
       listenWhen: (_, s) => s is AuthUnauthenticatedState,
       listener: (context, _) {
-        context.read<NotificationsCubit>().stop();
+        resetSessionState(context);
         Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
       },
-      child: Scaffold(
+      child: BlocProvider.value(
+        value: _guestsFilter,
+        child: Scaffold(
         backgroundColor: AppColors.bg,
         body: FadeIndexedStack(
           index: _index,
@@ -61,6 +74,7 @@ class _WorkerShellScreenState extends State<WorkerShellScreen> {
           currentIndex: _index,
           onTap: (i) => setState(() => _index = i),
         ),
+      ),
       ),
     );
   }

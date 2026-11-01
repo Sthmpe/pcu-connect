@@ -115,6 +115,7 @@ class FirestoreGuestRepository implements IGuestRepository {
         phone: base.phone,
         status: base.status,
         daysSinceVisit: base.daysSinceVisit,
+        serviceDate: base.serviceDate,
         callCount: base.callCount,
         sundayAttendance: base.sundayAttendance,
         wednesdayAttendance: base.wednesdayAttendance,

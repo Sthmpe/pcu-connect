@@ -7,32 +7,29 @@ abstract class GuestsEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-class LoadGuestsEvent extends GuestsEvent {
-  final String? month;
-  const LoadGuestsEvent({this.month});
+/// A screen needs these months. Months already loaded or loading are left
+/// alone; the others are fetched (Apps Script) or watched live (Firestore).
+/// Watching never changes any screen's selected month.
+class WatchMonthsEvent extends GuestsEvent {
+  final List<String> months;
+  const WatchMonthsEvent(this.months);
   @override
-  List<Object?> get props => [month];
+  List<Object?> get props => [months];
 }
 
-class ChangeTileFilterEvent extends GuestsEvent {
-  final String tile; // 'all' | 'call' | 'fu' | 'mem'
-  const ChangeTileFilterEvent(this.tile);
+/// Fetch these months again (all loaded months when empty). Live months
+/// (Firestore) are already current and are skipped.
+class RefreshMonthsEvent extends GuestsEvent {
+  final List<String> months;
+  const RefreshMonthsEvent([this.months = const []]);
   @override
-  List<Object?> get props => [tile];
+  List<Object?> get props => [months];
 }
 
-class ChangeChipFilterEvent extends GuestsEvent {
-  final String chip; // 'all' | 'call' | 'fu' | 'mem' | 'team'
-  const ChangeChipFilterEvent(this.chip);
-  @override
-  List<Object?> get props => [chip];
-}
-
-class SelectMonthEvent extends GuestsEvent {
-  final String month;
-  const SelectMonthEvent(this.month);
-  @override
-  List<Object?> get props => [month];
+/// Sign-in or sign-out: drop every month and stop every live listener, so
+/// one person never sees another person's guests.
+class ResetGuestsEvent extends GuestsEvent {
+  const ResetGuestsEvent();
 }
 
 /// A fresh list arrived from a live source (Firestore). Sent by the bloc itself.
@@ -44,7 +41,7 @@ class GuestsStreamedEvent extends GuestsEvent {
   List<Object?> get props => [month, guests];
 }
 
-/// The live source failed. Sent by the bloc itself.
+/// The live source for a month failed. Sent by the bloc itself.
 class GuestsStreamFailedEvent extends GuestsEvent {
   final String month;
   final String message;

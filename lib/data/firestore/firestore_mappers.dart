@@ -47,6 +47,7 @@ abstract class FirestoreMappers {
       daysSinceVisit: serviceDate.isEmpty
           ? 0
           : LagosTime.daysBetween(serviceDate, today).clamp(0, 100000),
+      serviceDate: serviceDate,
       callCount: calls,
       sundayAttendance: sundays,
       wednesdayAttendance: wednesdays,

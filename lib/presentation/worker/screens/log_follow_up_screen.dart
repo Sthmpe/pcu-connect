@@ -17,7 +17,6 @@ import '../../auth/bloc/auth_state.dart';
 import '../../common/insights_cubits.dart';
 import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
-import '../../guests/bloc/guests_state.dart';
 import 'guest_detail_screen.dart';
 
 class LogFollowUpScreen extends StatefulWidget {
@@ -47,12 +46,7 @@ class _LogFollowUpScreenState extends State<LogFollowUpScreen> {
 
   GuestEntity? get _guest {
     final state = context.read<GuestsBloc>().state;
-    if (state is GuestsLoadedState) {
-      for (final g in state.allGuests) {
-        if (g.id == widget.guestId) return g;
-      }
-    }
-    return null;
+    return state.find(widget.guestId);
   }
 
   String? get _guestName => _guest?.name;
@@ -110,7 +104,8 @@ class _LogFollowUpScreenState extends State<LogFollowUpScreen> {
     if (result.isSuccess) {
       final points = (result.data?['pointsEarned'] as num?)?.toInt() ?? 0;
       final pendingSync = result.data?['pendingSync'] == true;
-      context.read<GuestsBloc>().add(const LoadGuestsEvent());
+      // Firestore lists are live; the Apps Script source is fetched again.
+      context.read<GuestsBloc>().add(const RefreshMonthsEvent());
       if (ranking.state.data != null) ranking.load();
       if (dashboard.state.data != null) dashboard.load();
       if (team.state.data != null) team.load();

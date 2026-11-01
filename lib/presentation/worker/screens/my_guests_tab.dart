@@ -11,8 +11,12 @@ import '../../../core/widgets/guest_row.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
+import '../../guests/bloc/guests_filter_cubit.dart';
 import '../../guests/bloc/guests_state.dart';
+import '../../guests/widgets/watch_months.dart';
 
+/// The worker's Guests screen. Its month and chip live in its own
+/// GuestsFilterCubit, so they never change Today or any other screen.
 class MyGuestsTab extends StatelessWidget {
   const MyGuestsTab({super.key});
 
@@ -26,60 +30,60 @@ class MyGuestsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bloc = context.read<GuestsBloc>();
-
-    return BlocBuilder<GuestsBloc, GuestsState>(
-      builder: (context, state) {
-        final loaded = state is GuestsLoadedState ? state : null;
-        final month = loaded?.selectedMonth ?? MonthUtils.current();
-
-        return AppPage(
-          title: 'Guests',
-          trailing: MonthPill(
-            month: month,
-            onChanged: (m) => bloc.add(SelectMonthEvent(m)),
-          ),
-          below: loaded == null
-              ? null
-              : ChipBar(
-                  chips: [
-                    for (final (key, label) in _filters)
-                      AppChip(
-                        label: label,
-                        count: loaded.countFor(key),
-                        selected: loaded.chipFilter == key,
-                        onTap: () => bloc.add(ChangeChipFilterEvent(key)),
+    return BlocBuilder<GuestsFilterCubit, GuestsFilter>(
+      builder: (context, filter) {
+        final selection = context.read<GuestsFilterCubit>();
+        return WatchMonths(
+          months: [filter.month],
+          child: BlocBuilder<GuestsBloc, GuestsState>(
+            builder: (context, state) {
+              final month = state.of(filter.month);
+              final guests = state.guestsOf(filter.month);
+              return AppPage(
+                title: 'Guests',
+                trailing: MonthPill(month: filter.month, onChanged: selection.selectMonth),
+                below: month == null || !month.hasData
+                    ? null
+                    : ChipBar(
+                        chips: [
+                          for (final (key, label) in _filters)
+                            AppChip(
+                              label: label,
+                              count: GuestFilters.count(guests, key),
+                              selected: filter.chip == key,
+                              onTap: () => selection.selectChip(key),
+                            ),
+                        ],
                       ),
-                  ],
-                ),
-          child: _body(context, state),
+                child: _body(context, filter, state),
+              );
+            },
+          ),
         );
       },
     );
   }
 
-  Widget _body(BuildContext context, GuestsState state) {
-    final bloc = context.read<GuestsBloc>();
-    if (state is GuestsFailureState) {
+  Widget _body(BuildContext context, GuestsFilter filter, GuestsState state) {
+    final failure = state.failureFor([filter.month]);
+    if (failure != null) {
       return ErrorState(
-        message: state.message,
-        onRetry: () => bloc.add(const LoadGuestsEvent()),
+        message: failure,
+        onRetry: () => context.read<GuestsBloc>().add(WatchMonthsEvent([filter.month])),
       );
     }
-    if (state is! GuestsLoadedState) return const SkeletonPage();
+    if (state.waitingFor([filter.month])) return const SkeletonPage();
 
-    final list = state.myGuestsFiltered;
+    final list = GuestFilters.apply(state.guestsOf(filter.month), filter.chip);
     return PageList(
       children: [
-        if (state.isFromCache) OfflineBanner(isRefreshing: state.isRefreshing),
+        if (state.fromCacheIn([filter.month])) OfflineBanner(isRefreshing: state.refreshingIn([filter.month])),
         if (list.isEmpty)
           EmptyState(
             icon: AppIcons.empty,
-            message: state.chipFilter == 'all'
-                ? 'No guests in ${MonthUtils.name(state.selectedMonth)}.'
-                : 'Nobody matches this filter.',
-            actionLabel: state.chipFilter == 'all' ? null : 'Show everyone',
-            onAction: () => bloc.add(const ChangeChipFilterEvent('all')),
+            message: filter.chip == 'all' ? 'No guests in ${MonthUtils.name(filter.month)}.' : 'Nobody matches this filter.',
+            actionLabel: filter.chip == 'all' ? null : 'Show everyone',
+            onAction: () => context.read<GuestsFilterCubit>().selectChip('all'),
           )
         else
           GroupedCard(

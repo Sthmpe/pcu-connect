@@ -17,8 +17,8 @@ import '../../../data/firestore/sheet_sync_repository.dart';
 import '../../common/insights_cubits.dart';
 import '../../common/load_state.dart';
 import '../../guests/bloc/guests_bloc.dart';
-import '../../guests/bloc/guests_event.dart';
 import '../../guests/bloc/guests_state.dart';
+import '../../guests/widgets/watch_months.dart';
 import '../bloc/sheet_sync_cubit.dart';
 import '../../common/notification_bell.dart';
 import '../../common/push_prompt_card.dart';
@@ -45,13 +45,8 @@ class AdminDashboardTab extends StatelessWidget {
             children: [
               const NotificationBell(),
               SizedBox(width: AppSizes.s8),
-              MonthPill(
-                month: state.month,
-                onChanged: (m) {
-                  cubit.load(m);
-                  context.read<GuestsBloc>().add(SelectMonthEvent(m));
-                },
-              ),
+              // The Dashboard's own month: it never moves the Guests tab.
+              MonthPill(month: state.month, onChanged: cubit.load),
             ],
           ),
           child: _body(context, state),
@@ -88,7 +83,7 @@ class AdminDashboardTab extends StatelessWidget {
             StatItem('${data.members}', 'Became members', onTap: () => onOpenGuests('mem')),
             StatItem('${data.inTeam}', 'Joined a team', onTap: () => onOpenGuests('team')),
           ]),
-          const _Journey(),
+          _Journey(month: data.month),
           SectionLabel('Top workers', actionLabel: 'See team', onAction: onOpenTeam),
           if (data.topWorkers.isEmpty)
             AppCard(
@@ -191,18 +186,19 @@ class _CalledHero extends StatelessWidget {
   }
 }
 
-/// How this month's guests moved along, from the loaded guest list.
+/// How the Dashboard month's guests moved along, from the guest cache.
 class _Journey extends StatelessWidget {
-  const _Journey();
+  final String month;
+  const _Journey({required this.month});
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<GuestsBloc, GuestsState>(
+    return WatchMonths(
+      months: [month],
+      child: BlocBuilder<GuestsBloc, GuestsState>(
       builder: (context, state) {
-        if (state is! GuestsLoadedState || state.monthGuests.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        final guests = state.monthGuests;
+        final guests = state.guestsOf(month);
+        if (guests.isEmpty) return const SizedBox.shrink();
         final total = guests.length;
         int count(bool Function(GuestEntity g) test) => guests.where(test).length;
         final steps = [
@@ -236,6 +232,7 @@ class _Journey extends StatelessWidget {
           ],
         );
       },
+    ),
     );
   }
 }

@@ -9,8 +9,8 @@ import '../../auth/bloc/auth_state.dart';
 import '../../common/insights_cubits.dart';
 import '../../common/notifications_cubit.dart';
 import '../../common/push_cubit.dart';
-import '../../guests/bloc/guests_bloc.dart';
-import '../../guests/bloc/guests_event.dart';
+import '../../common/session_reset.dart';
+import '../../guests/bloc/guests_filter_cubit.dart';
 import '../../worker/screens/me_tab.dart';
 import 'admin_dashboard_tab.dart';
 import 'admin_team_tab.dart';
@@ -25,6 +25,15 @@ class AdminShellScreen extends StatefulWidget {
 
 class _AdminShellScreenState extends State<AdminShellScreen> {
   int _index = 0;
+
+  /// The Guests tab's own month and chip (the Dashboard keeps its own month).
+  final _guestsFilter = GuestsFilterCubit();
+
+  @override
+  void dispose() {
+    _guestsFilter.close();
+    super.dispose();
+  }
 
   static const _items = [
     AppNavItem(AppIcons.dashboard, 'Dashboard'),
@@ -46,8 +55,10 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     setState(() => _index = i);
   }
 
+  /// A Dashboard tile opens the list behind its number: that month and chip.
+  /// Changing the Dashboard month alone never moves the Guests tab.
   void _openGuests(String chip) {
-    context.read<GuestsBloc>().add(ChangeChipFilterEvent(chip));
+    _guestsFilter.show(month: context.read<DashboardCubit>().state.month, chip: chip);
     _select(2);
   }
 
@@ -56,10 +67,12 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     return BlocListener<AuthBloc, AuthState>(
       listenWhen: (_, s) => s is AuthUnauthenticatedState,
       listener: (context, _) {
-        context.read<NotificationsCubit>().stop();
+        resetSessionState(context);
         Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
       },
-      child: Scaffold(
+      child: BlocProvider.value(
+        value: _guestsFilter,
+        child: Scaffold(
         backgroundColor: AppColors.bg,
         body: FadeIndexedStack(
           index: _index,
@@ -75,6 +88,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
           currentIndex: _index,
           onTap: _select,
         ),
+      ),
       ),
     );
   }
