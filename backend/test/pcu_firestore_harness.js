@@ -17,13 +17,8 @@ function fmt(d, tz, pattern) {
   if (pattern === 'u') return String(wd);
   throw new Error('pattern ' + pattern);
 }
-function makeSheet(rows) {
-  const sheet = { rows,
-    getDataRange() { return { getValues: () => sheet.rows.map(r => r.slice()) }; },
-    appendRow(r) { sheet.rows.push(r.slice()); },
-    getRange(r, c) { return { setValue(v) { while (sheet.rows.length < r) sheet.rows.push([]); sheet.rows[r - 1][c - 1] = v; } }; } };
-  return sheet;
-}
+const mocks = require('./gas_mocks');
+const makeSheet = rows => mocks.makeSheet(rows);
 
 const now = new Date(); const ymd = d => fmt(d, TZ, 'yyyy-MM-dd');
 const daysAgo = n => new Date(now.getTime() - n * 86400000);
@@ -59,7 +54,7 @@ function setup(opts = {}) {
     props.FIRESTORE_SA_KEY = JSON.stringify({ project_id: 'demo-pcu', client_email: 'sa@demo-pcu.iam.gserviceaccount.com', private_key: 'PRIVATE', token_uri: 'https://oauth2.googleapis.com/token' });
   }
   const store = {}; const commits = []; let tokenRequests = 0;
-  const cache = {};
+  const cache = mocks.makeCache();
   const tokens = { tokAdmin: 'boss@x.com', tokDavid: 'david@x.com' };
   const decode = v => {
     if ('stringValue' in v) return v.stringValue;
@@ -84,7 +79,7 @@ function setup(opts = {}) {
       getUuid: () => crypto.randomUUID(),
       DigestAlgorithm: { SHA_256: 'sha256' },
     },
-    CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; } }) },
+    CacheService: { getScriptCache: () => cache },
     PropertiesService: { getScriptProperties: () => ({
       getProperty: k => (k in props ? props[k] : null),
       setProperty: (k, v) => { props[k] = v; },

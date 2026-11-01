@@ -95,12 +95,24 @@ var PCU = {
   MAX_NOTE_LENGTH: 2000
 };
 
+var PCU_LAGOS = { OFFSET_MS: 3600000, FROM: Date.UTC(1920, 0, 1), UNTIL: Date.UTC(9000, 0, 1) };
+
+// Rows this close together are read in one range instead of two.
+var PCU_READ_GAP = 20;
+
+// Month -> Guests rows, so a month's guests can be read without the whole tab.
+var PCU_INDEX = { KEY: 'pcu_guest_months_v1', SECONDS: 3600, MAX_CHARS: 95000 };
+
+// Ranking, dashboard and team results. Any save bumps GEN_KEY, which retires them.
+var PCU_STATS = { GEN_KEY: 'pcu_stats_gen', SECONDS: 90, MAX_CHARS: 95000 };
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
 function doPost(e) {
   pcuProf_ = null;
+  pcuTableCache_ = {};
   try {
     var body = (e && e.postData && e.postData.contents) || '{}';
     var req = JSON.parse(body);
@@ -115,7 +127,6 @@ function doPost(e) {
     var payload = { ok: true, data: handler(user, req) };
     pcuMark_('handler (total)', started);
     if (pcuProf_) {
-      if (req.experiments === true) pcuProf_.experiments = pcuProfileExperiments_();
       started = Date.now();
       JSON.stringify(payload);
       pcuMark_('json', started);
@@ -238,23 +249,118 @@ function pcuRequireAdmin_(user) {
 
 var pcuTableCache_ = {};
 
-/** Reads a tab once per request and indexes its headers. */
+/** Reads a whole tab once per request and indexes its headers. */
 function pcuTable_(name, fresh) {
-  if (!fresh && pcuTableCache_[name]) return pcuTableCache_[name];
+  var cached = pcuTableCache_[name];
+  if (!fresh && cached && !cached.partial) return cached;
   var started = Date.now();
-  var sheet = SpreadsheetApp.getActive().getSheetByName(name);
-  if (!sheet) throw pcuError_('SERVER', 'Missing tab: ' + name);
+  var sheet = pcuSheet_(name);
   var values = sheet.getDataRange().getValues();
   pcuMark_('read ' + name + ' (' + values.length + ' rows x ' + (values[0] || []).length + ' cols)', started);
   var headers = values.length ? values[0] : [];
+  var rows = values.slice(1);
+  var table = {
+    name: name,
+    sheet: sheet,
+    headers: headers,
+    index: pcuHeaderIndex_(headers),
+    rows: rows,
+    dataRows: rows.length,
+    partial: false
+  };
+  pcuTableCache_[name] = table;
+  return table;
+}
+
+/**
+ * The header row of a tab with no data rows read yet. Rows are then read on
+ * demand with pcuLoadRows_ and keep their sheet positions (table.rows is
+ * sparse), so rowIndex and pcuSetCell_ work exactly as after a full read.
+ */
+function pcuTableHead_(name) {
+  if (pcuTableCache_[name]) return pcuTableCache_[name];
+  var started = Date.now();
+  var sheet = pcuSheet_(name);
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  var headers = lastRow && lastCol ? sheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+  var table = {
+    name: name,
+    sheet: sheet,
+    headers: headers,
+    index: pcuHeaderIndex_(headers),
+    rows: [],
+    dataRows: Math.max(0, lastRow - 1),
+    partial: true
+  };
+  pcuTableCache_[name] = table;
+  pcuMark_('head ' + name + ' (' + table.dataRows + ' rows)', started);
+  return table;
+}
+
+/** Reads data rows [from, to) (0-based) into a partial table. */
+function pcuLoadRows_(table, from, to) {
+  to = Math.min(to, table.dataRows);
+  if (!table.partial || to <= from || !table.headers.length) return;
+  var missing = false;
+  for (var i = from; i < to && !missing; i++) missing = !table.rows[i];
+  if (!missing) return;
+  var started = Date.now();
+  var values = table.sheet.getRange(from + 2, 1, to - from, table.headers.length).getValues();
+  for (var r = 0; r < values.length; r++) table.rows[from + r] = values[r];
+  pcuMark_('read ' + table.name + ' rows ' + (from + 2) + '-' + (to + 1), started);
+}
+
+/** Reads the given data rows, one range per run of nearby rows. */
+function pcuLoadRowSet_(table, rowIndexes) {
+  var sorted = rowIndexes.map(Number).sort(function (a, b) {
+    return a - b;
+  });
+  var start = -1;
+  var end = -1;
+  sorted.forEach(function (i) {
+    if (start >= 0 && i <= end + PCU_READ_GAP) {
+      end = Math.max(end, i);
+      return;
+    }
+    if (start >= 0) pcuLoadRows_(table, start, end + 1);
+    start = i;
+    end = i;
+  });
+  if (start >= 0) pcuLoadRows_(table, start, end + 1);
+}
+
+/** Data rows whose [header] cell is [text], ignoring surrounding spaces. The sheet does the search. */
+function pcuFindRows_(table, header, text) {
+  var col = pcuCol_(table, header);
+  if (col < 0 || !table.dataRows) return [];
+  var started = Date.now();
+  var pattern = '^\\s*' + String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*$';
+  var cells = table.sheet
+    .getRange(2, col + 1, table.dataRows, 1)
+    .createTextFinder(pattern)
+    .useRegularExpression(true)
+    .matchCase(true)
+    .findAll();
+  pcuMark_('find "' + text + '" in ' + header + ' (' + cells.length + ' rows)', started);
+  return cells.map(function (cell) {
+    return cell.getRow() - 2;
+  });
+}
+
+function pcuSheet_(name) {
+  var sheet = SpreadsheetApp.getActive().getSheetByName(name);
+  if (!sheet) throw pcuError_('SERVER', 'Missing tab: ' + name);
+  return sheet;
+}
+
+function pcuHeaderIndex_(headers) {
   var index = {};
   for (var c = 0; c < headers.length; c++) {
     var key = pcuHeaderKey_(headers[c]);
     if (key && index[key] === undefined) index[key] = c;
   }
-  var table = { name: name, sheet: sheet, headers: headers, index: index, rows: values.slice(1) };
-  pcuTableCache_[name] = table;
-  return table;
+  return index;
 }
 
 function pcuHeaderKey_(value) {
@@ -295,8 +401,10 @@ function pcuAppend_(table, valuesByHeader) {
     if (col >= 0) row[col] = valuesByHeader[header];
   });
   table.sheet.appendRow(row);
-  table.rows.push(row);
-  return table.rows.length - 1;
+  var rowIndex = table.dataRows;
+  table.rows[rowIndex] = row;
+  table.dataRows = rowIndex + 1;
+  return rowIndex;
 }
 
 /** Copies the Workers tab to Firestore users when Firestore is set up. Never throws. */
@@ -333,15 +441,41 @@ function pcuDate_(value) {
   return isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * The date as seen in Lagos, or null when it must go through
+ * Utilities.formatDate. Africa/Lagos has been UTC+1 with no daylight saving
+ * since 1919, so plain JS gives the same answer; Utilities.formatDate (about
+ * 0.5 ms a call) made parsing 9,000 guests take several seconds.
+ */
+function pcuLagos_(date) {
+  var t = date.getTime();
+  if (!(t >= PCU_LAGOS.FROM && t < PCU_LAGOS.UNTIL)) return null;
+  return new Date(t + PCU_LAGOS.OFFSET_MS);
+}
+
+function pcuPad2_(n) {
+  return n < 10 ? '0' + n : String(n);
+}
+
 function pcuDay_(date) {
-  if (pcuProf_ && date) pcuProf_.formatCalls++;
-  return date ? Utilities.formatDate(date, PCU.TZ, 'yyyy-MM-dd') : '';
+  if (!date) return '';
+  var x = pcuLagos_(date);
+  if (!x) return pcuFormatDate_(date, 'yyyy-MM-dd');
+  return x.getUTCFullYear() + '-' + pcuPad2_(x.getUTCMonth() + 1) + '-' + pcuPad2_(x.getUTCDate());
 }
 
 function pcuMonth_(date) {
-  if (pcuProf_ && date) pcuProf_.formatCalls++;
-  return date ? Utilities.formatDate(date, PCU.TZ, 'yyyy-MM') : '';
+  if (!date) return '';
+  var x = pcuLagos_(date);
+  if (!x) return pcuFormatDate_(date, 'yyyy-MM');
+  return x.getUTCFullYear() + '-' + pcuPad2_(x.getUTCMonth() + 1);
 }
+
+function pcuFormatDate_(date, pattern) {
+  if (pcuProf_) pcuProf_.formatCalls++;
+  return Utilities.formatDate(date, PCU.TZ, pattern);
+}
+
 
 function pcuToday_() {
   return pcuDay_(new Date());
@@ -358,8 +492,9 @@ function pcuDaysBetween_(a, b) {
 }
 
 function pcuIsWednesday_(date) {
-  if (pcuProf_) pcuProf_.formatCalls++;
-  return Utilities.formatDate(date, PCU.TZ, 'u') === '3';
+  var x = pcuLagos_(date);
+  if (!x) return pcuFormatDate_(date, 'u') === '3';
+  return x.getUTCDay() === 3;
 }
 
 /** Keeps a leading zero on Nigerian numbers stored as plain numbers. */
@@ -462,9 +597,15 @@ function pcuFollowUps_(fresh) {
   return { table: t, byGuest: byGuest };
 }
 
-/** Every guest row with an id, as plain objects. */
+/** Every guest row with an id, as plain objects, from a full read. */
 function pcuGuestRows_(fresh) {
   var t = pcuTable_(PCU.SHEETS.GUESTS, fresh);
+  pcuSaveGuestIndex_(t);
+  return pcuParseGuests_(t);
+}
+
+/** Guests from the rows of [t] that have been read, in sheet order. */
+function pcuParseGuests_(t) {
   var started = Date.now();
   var formatBefore = pcuProf_ ? pcuProf_.formatCalls : 0;
   var list = [];
@@ -504,6 +645,180 @@ function pcuFindGuest_(guests, id) {
     if (guests.list[i].id === id) return guests.list[i];
   }
   return null;
+}
+
+/** First-visit month of a Guests row, worked out exactly as pcuParseGuests_ does. */
+function pcuRowMonth_(t, row) {
+  return pcuMonth_(pcuDate_(pcuCell_(t, row, PCU.G.SERVICE_DATE)) || pcuDate_(pcuCell_(t, row, PCU.G.TIMESTAMP)));
+}
+
+/**
+ * The first guest row with this id. Only that row is read when the sheet can
+ * find it; otherwise (for example an id cell with odd spacing) the whole tab.
+ */
+function pcuGuestById_(id) {
+  var t = pcuTableHead_(PCU.SHEETS.GUESTS);
+  if (t.partial && id) {
+    var rows = pcuFindRows_(t, PCU.G.ID, id);
+    if (rows.length) {
+      var first = Math.min.apply(null, rows);
+      pcuLoadRows_(t, first, first + 1);
+      var found = pcuParseGuests_(t);
+      var guest = pcuFindGuest_(found, id);
+      if (guest && guest.rowIndex === first) return { guests: found, guest: guest };
+    }
+  }
+  var all = pcuGuestRows_();
+  return { guests: all, guest: pcuFindGuest_(all, id) };
+}
+
+/**
+ * Guests a request needs, reading only their rows: every guest whose first
+ * visit is in one of opts.months, every row whose id is in opts.ids, and
+ * with opts.members every Member row. Rows outside those are never needed by
+ * the caller, so the result matches a full read for what the caller uses.
+ */
+function pcuGuestsWhere_(opts) {
+  var t = pcuTableHead_(PCU.SHEETS.GUESTS);
+  var expected = {};
+  var wanted = [];
+  if (t.partial && opts.months && opts.months.length) {
+    var idx = pcuGuestIndex_(t);
+    t = pcuTableCache_[PCU.SHEETS.GUESTS];
+    opts.months.forEach(function (m) {
+      (idx.months[m] || []).forEach(function (range) {
+        for (var i = range[0]; i < range[1]; i++) {
+          expected[i] = m;
+          wanted.push(i);
+        }
+      });
+    });
+  }
+  if (!t.partial) return pcuGuestRows_();
+  if (opts.ids && opts.ids.length) wanted = wanted.concat(pcuRowsWithIds_(t, opts.ids));
+  if (opts.members) wanted = wanted.concat(pcuFindRows_(t, PCU.G.STATUS, PCU.STATUS.MEMBER));
+  pcuLoadRowSet_(t, wanted);
+
+  // A row that no longer has the month the index says means rows moved
+  // (deleted or edited in the sheet): drop the index and read everything.
+  for (var row in expected) {
+    if (pcuRowMonth_(t, t.rows[row]) !== expected[row]) {
+      CacheService.getScriptCache().remove(PCU_INDEX.KEY);
+      pcuMark_('month index out of date: full read', Date.now());
+      return pcuGuestRows_();
+    }
+  }
+  return pcuParseGuests_(t);
+}
+
+/** Data rows whose GUEST ID is one of [ids], from one read of the ID column. */
+function pcuRowsWithIds_(t, ids) {
+  var col = pcuCol_(t, PCU.G.ID);
+  if (col < 0 || !t.dataRows) return [];
+  var want = {};
+  ids.forEach(function (id) {
+    want[id] = true;
+  });
+  var started = Date.now();
+  var values = t.sheet.getRange(2, col + 1, t.dataRows, 1).getValues();
+  pcuMark_('read ' + t.name + ' ID column', started);
+  var rows = [];
+  for (var i = 0; i < values.length; i++) {
+    if (want[pcuStr_(values[i][0])] === true) rows.push(i);
+  }
+  return rows;
+}
+
+/** Guests whose first follow-up is in [month]: pcuPoints_ needs their first visit for the 3-day rule. */
+function pcuFirstCallIds_(month, followUps) {
+  return Object.keys(followUps.byGuest).filter(function (id) {
+    var first = followUps.byGuest[id][0];
+    return !!(first && first.date && pcuMonth_(first.date) === month);
+  });
+}
+
+/** Every guest a month's points can depend on (see pcuPoints_). */
+function pcuGuestsForPoints_(month, followUps, months) {
+  return pcuGuestsWhere_({ months: months || [], ids: pcuFirstCallIds_(month, followUps), members: true });
+}
+
+// ---------------------------------------------------------------------------
+// Caches
+// ---------------------------------------------------------------------------
+
+/**
+ * Month -> data row ranges of the Guests tab, cached for an hour. Rows
+ * appended since it was built are read and added; when it is missing, or the
+ * tab got shorter, it is rebuilt from one full read.
+ */
+function pcuGuestIndex_(t) {
+  var raw = CacheService.getScriptCache().get(PCU_INDEX.KEY);
+  var idx = raw ? JSON.parse(raw) : null;
+  if (!idx || idx.rows > t.dataRows) {
+    pcuMark_('month index missing: full read', Date.now());
+    return pcuSaveGuestIndex_(pcuTable_(PCU.SHEETS.GUESTS));
+  }
+  if (idx.rows < t.dataRows) {
+    pcuLoadRows_(t, idx.rows, t.dataRows);
+    for (var i = idx.rows; i < t.dataRows; i++) pcuIndexAdd_(idx, i, pcuRowMonth_(t, t.rows[i]));
+    idx.rows = t.dataRows;
+    pcuPutGuestIndex_(idx);
+  }
+  return idx;
+}
+
+/** Builds the month index from a full read of the Guests tab and caches it. */
+function pcuSaveGuestIndex_(t) {
+  if (t.partial) return null;
+  if (t.monthIndex) return t.monthIndex;
+  var idx = { rows: t.dataRows, months: {} };
+  t.rows.forEach(function (row, i) {
+    pcuIndexAdd_(idx, i, pcuRowMonth_(t, row));
+  });
+  t.monthIndex = idx;
+  pcuPutGuestIndex_(idx);
+  return idx;
+}
+
+function pcuIndexAdd_(idx, rowIndex, month) {
+  if (!month) return;
+  var ranges = idx.months[month] || (idx.months[month] = []);
+  var last = ranges[ranges.length - 1];
+  if (last && last[1] === rowIndex) last[1] = rowIndex + 1;
+  else ranges.push([rowIndex, rowIndex + 1]);
+}
+
+function pcuPutGuestIndex_(idx) {
+  var json = JSON.stringify(idx);
+  if (json.length <= PCU_INDEX.MAX_CHARS) CacheService.getScriptCache().put(PCU_INDEX.KEY, json, PCU_INDEX.SECONDS);
+}
+
+/**
+ * Ranking, dashboard and team results, cached for PCU_STATS.SECONDS. Each
+ * entry stores the generation it was built in; pcuClearStatsCache_ starts a
+ * new generation, so a save is reflected on the next request.
+ */
+function pcuStatsCached_(key, build) {
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'pcu_stats_' + key;
+  var started = Date.now();
+  var got = cache.getAll([PCU_STATS.GEN_KEY, cacheKey]);
+  var gen = got[PCU_STATS.GEN_KEY] || '0';
+  if (got[cacheKey]) {
+    var hit = JSON.parse(got[cacheKey]);
+    if (hit.gen === gen) {
+      pcuMark_('stats cache hit ' + key, started);
+      return hit.data;
+    }
+  }
+  var data = build();
+  var json = JSON.stringify({ gen: gen, data: data });
+  if (json.length <= PCU_STATS.MAX_CHARS) cache.put(cacheKey, json, PCU_STATS.SECONDS);
+  return data;
+}
+
+function pcuClearStatsCache_() {
+  CacheService.getScriptCache().put(PCU_STATS.GEN_KEY, Utilities.getUuid(), 21600);
 }
 
 // ---------------------------------------------------------------------------
@@ -689,7 +1004,7 @@ function pcuMe_(user) {
 function pcuGuests_(user, req) {
   var month = pcuMonthParam_(req.month);
   var scope = user.isAdmin ? pcuStr_(req.workerEmail).toLowerCase() : user.email;
-  var guests = pcuGuestRows_();
+  var guests = pcuGuestsWhere_({ months: [month] });
   var followUps = pcuFollowUps_();
   var workers = pcuWorkers_();
 
@@ -705,7 +1020,7 @@ function pcuGuests_(user, req) {
 
 function pcuGuest_(user, req) {
   var id = pcuStr_(req.id);
-  var guest = pcuFindGuest_(pcuGuestRows_(), id);
+  var guest = pcuGuestById_(id).guest;
   if (!guest) throw pcuError_('NOT_FOUND', 'Guest not found.');
   if (!user.isAdmin && guest.assignedTo !== user.email) {
     throw pcuError_('FORBIDDEN', 'This guest is assigned to someone else.');
@@ -743,10 +1058,12 @@ function pcuLogFollowUp_(user, req) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) throw pcuError_('BUSY', 'Someone else is saving right now. Please try again.');
   try {
-    var guests = pcuGuestRows_(true);
+    // Only this guest's row and the Follow-ups tab are read.
+    var found = pcuGuestById_(guestId);
+    var guests = found.guests;
+    var guest = found.guest;
     var followUps = pcuFollowUps_(true);
     var workers = pcuWorkers_();
-    var guest = pcuFindGuest_(guests, guestId);
     if (!guest) throw pcuError_('NOT_FOUND', 'Guest not found.');
     if (!user.isAdmin && guest.assignedTo !== user.email) {
       throw pcuError_('FORBIDDEN', 'This guest is assigned to someone else.');
@@ -813,6 +1130,7 @@ function pcuLogFollowUp_(user, req) {
   } finally {
     lock.releaseLock();
   }
+  pcuClearStatsCache_();
   // Phase 1: keep Firestore in step, reusing what this save already loaded.
   // Never fails the save; the 5-minute job catches up if this does not get through.
   if (typeof pcuPushGuestDataQuietly_ === 'function') {
@@ -933,8 +1251,20 @@ function pcuPoints_(month, guests, followUps) {
 
 function pcuRanking_(user, req) {
   var month = pcuMonthParam_(req.month);
+  var entries = pcuStatsCached_('ranking_' + month, function () {
+    return pcuRankingEntries_(month);
+  });
+  var me = null;
+  entries.forEach(function (e) {
+    if (e.email === user.email) me = e;
+  });
+  return { month: month, entries: entries, me: me };
+}
+
+function pcuRankingEntries_(month) {
   var workers = pcuWorkers_();
-  var points = pcuPoints_(month, pcuGuestRows_(), pcuFollowUps_());
+  var followUps = pcuFollowUps_();
+  var points = pcuPoints_(month, pcuGuestsForPoints_(month, followUps), followUps);
 
   var entries = workers.list
     .filter(function (w) {
@@ -966,12 +1296,13 @@ function pcuRanking_(user, req) {
         return other.points > e.points;
       }).length;
   });
+  return entries;
+}
 
-  var me = null;
-  entries.forEach(function (e) {
-    if (e.email === user.email) me = e;
-  });
-  return { month: month, entries: entries, me: me };
+/** pcuWorkerStats_ for [month], reading only the guests it depends on. */
+function pcuMonthStats_(month) {
+  var followUps = pcuFollowUps_();
+  return pcuWorkerStats_(month, pcuGuestsForPoints_(month, followUps, [month]), followUps);
 }
 
 /** Per worker numbers for one month (guests by first visit date). */
@@ -1016,11 +1347,17 @@ function pcuWorkerStats_(month, guests, followUps) {
 function pcuDashboard_(user, req) {
   pcuRequireAdmin_(user);
   var month = pcuMonthParam_(req.month);
-  var guests = pcuGuestRows_();
+  return pcuStatsCached_('dashboard_' + month, function () {
+    return pcuDashboardData_(month);
+  });
+}
+
+function pcuDashboardData_(month) {
+  var months = pcuRecentMonths_(12);
   var followUps = pcuFollowUps_();
+  var guests = pcuGuestsForPoints_(month, followUps, months.concat([month]));
   var workers = pcuWorkers_();
 
-  var months = pcuRecentMonths_(12);
   var trend = {};
   months.forEach(function (m) {
     trend[m] = { month: m, guests: 0, members: 0, called: 0 };
@@ -1070,11 +1407,13 @@ function pcuDashboard_(user, req) {
 function pcuTeam_(user, req) {
   pcuRequireAdmin_(user);
   var month = pcuMonthParam_(req.month);
-  var stats = pcuWorkerStats_(month, pcuGuestRows_(), pcuFollowUps_());
-  var members = pcuWorkers_().list.map(function (w) {
-    return pcuWorkerJson_(w, stats[w.email]);
+  return pcuStatsCached_('team_' + month, function () {
+    var stats = pcuMonthStats_(month);
+    var members = pcuWorkers_().list.map(function (w) {
+      return pcuWorkerJson_(w, stats[w.email]);
+    });
+    return { month: month, members: members };
   });
-  return { month: month, members: members };
 }
 
 function pcuSaveWorker_(user, req) {
@@ -1111,6 +1450,7 @@ function pcuSaveWorker_(user, req) {
     values[PCU.W.ACTIVE] = active ? 'Yes' : 'No';
     pcuAppend_(workers.table, values);
     SpreadsheetApp.flush();
+    pcuClearStatsCache_();
 
     pcuSyncUsersQuietly_();
     return pcuWorkerJson_({
@@ -1140,10 +1480,11 @@ function pcuSetWorkerActive_(user, req) {
   pcuSetCell_(workers.table, worker.rowIndex, PCU.W.ACTIVE, active ? 'Yes' : 'No');
   SpreadsheetApp.flush();
   worker.active = active;
+  pcuClearStatsCache_();
   pcuSyncUsersQuietly_();
 
   var month = pcuMonth_(new Date());
-  var stats = pcuWorkerStats_(month, pcuGuestRows_(), pcuFollowUps_());
+  var stats = pcuMonthStats_(month);
   return pcuWorkerJson_(worker, stats[worker.email]);
 }
 
@@ -1156,119 +1497,6 @@ var pcuProf_ = null;
 /** Records how long a step took when profiling is on. */
 function pcuMark_(label, started) {
   if (pcuProf_) pcuProf_.marks.push([label, Date.now() - started]);
-}
-
-/** Times other ways of reading the Guests tab, to choose the fastest. */
-function pcuProfileExperiments_() {
-  var out = {};
-  function time(label, fn) {
-    var t = Date.now();
-    var result = fn();
-    out[label] = { ms: Date.now() - t, result: result };
-  }
-  var sheet = SpreadsheetApp.getActive().getSheetByName(PCU.SHEETS.GUESTS);
-  var lastRow = 0;
-  var lastCol = 0;
-  time('getLastRow+getLastColumn', function () {
-    lastRow = sheet.getLastRow();
-    lastCol = sheet.getLastColumn();
-    return lastRow + 'x' + lastCol;
-  });
-  var headers = [];
-  time('header row', function () {
-    headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-    return headers.length;
-  });
-  var idCol = -1;
-  for (var c = 0; c < headers.length; c++) if (pcuHeaderKey_(headers[c]) === PCU.G.ID) idCol = c + 1;
-  time('ID column, all rows', function () {
-    return sheet.getRange(2, idCol, lastRow - 1, 1).getValues().length;
-  });
-  time('TextFinder on ID column', function () {
-    var found = sheet.getRange(2, idCol, lastRow - 1, 1).createTextFinder('G09201').matchEntireCell(true).findNext();
-    return found ? found.getRow() : null;
-  });
-  time('one full row', function () {
-    return sheet.getRange(lastRow, 1, 1, lastCol).getValues()[0].length;
-  });
-  time('last 1500 rows, all columns', function () {
-    return sheet.getRange(Math.max(2, lastRow - 1499), 1, Math.min(1500, lastRow - 1), lastCol).getValues().length;
-  });
-  time('all rows, 6 columns (one range each)', function () {
-    var n = 0;
-    ['GUEST ID', 'SERVICE DATE', 'TIMESTAMP', 'ASSIGNED TO', 'MEMBERSHIP STATUS', 'MEMBERSHIP DATE'].forEach(function (h) {
-      for (var i = 0; i < headers.length; i++) {
-        if (pcuHeaderKey_(headers[i]) === h) n += sheet.getRange(2, i + 1, lastRow - 1, 1).getValues().length;
-      }
-    });
-    return n;
-  });
-  var full = [];
-  time('full read for ordering check', function () {
-    full = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
-    return full.length;
-  });
-  function col(h) {
-    for (var i = 0; i < headers.length; i++) if (pcuHeaderKey_(headers[i]) === h) return i;
-    return -1;
-  }
-  var sd = col('SERVICE DATE'), ts = col('TIMESTAMP'), st = col('MEMBERSHIP STATUS'), md = col('MEMBERSHIP DATE');
-  time('ordering: months by row span', function () {
-    var span = {};
-    var lastSeen = '';
-    var backwards = 0;
-    var maxBack = 0;
-    var maxSeenRow = {};
-    full.forEach(function (r, i) {
-      var d = r[sd] instanceof Date ? r[sd] : r[ts] instanceof Date ? r[ts] : null;
-      if (!d) return;
-      var m = Utilities.formatDate(d, PCU.TZ, 'yyyy-MM');
-      span[m] = span[m] || [i + 2, i + 2, 0];
-      span[m][1] = i + 2;
-      span[m][2]++;
-      if (lastSeen && m < lastSeen) backwards++;
-      if (m > lastSeen) lastSeen = m;
-    });
-    // For each month, how many rows below its first row hold an older month.
-    var months = Object.keys(span).sort();
-    var recent = months.slice(-14).map(function (m) {
-      return m + ':' + span[m].join('-');
-    });
-    return 'months ' + months.length + ', first ' + months[0] + ', rows after a newer month ' + backwards + ' | ' + recent.join(' ');
-  });
-  time('members', function () {
-    var n = 0, withDate = 0, byMonth = {};
-    full.forEach(function (r) {
-      if (String(r[st]).trim() === 'Member') {
-        n++;
-        if (r[md] instanceof Date) {
-          withDate++;
-          var m = Utilities.formatDate(r[md], PCU.TZ, 'yyyy-MM');
-          byMonth[m] = (byMonth[m] || 0) + 1;
-        }
-      }
-    });
-    return n + ' members, ' + withDate + ' with date; ' + JSON.stringify(byMonth);
-  });
-  time('STATUS column, all rows', function () {
-    return sheet.getRange(2, st + 1, lastRow - 1, 1).getValues().length;
-  });
-  time('MEMBERSHIP DATE column, all rows', function () {
-    return sheet.getRange(2, md + 1, lastRow - 1, 1).getValues().length;
-  });
-  time('TextFinder findAll Member in STATUS', function () {
-    return sheet.getRange(2, st + 1, lastRow - 1, 1).createTextFinder('Member').matchEntireCell(true).findAll().length;
-  });
-  time('last 1500 rows, all columns (again)', function () {
-    return sheet.getRange(Math.max(2, lastRow - 1499), 1, Math.min(1500, lastRow - 1), lastCol).getValues().length;
-  });
-  time('last 3000 rows, all columns', function () {
-    return sheet.getRange(Math.max(2, lastRow - 2999), 1, Math.min(3000, lastRow - 1), lastCol).getValues().length;
-  });
-  time('CacheService get', function () {
-    return CacheService.getScriptCache().get('pcu_profile_probe');
-  });
-  return out;
 }
 
 // ---------------------------------------------------------------------------

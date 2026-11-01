@@ -11,13 +11,9 @@ function fmt(d, tz, pattern) {
   if (pattern === 'u') return String(wd);
   throw new Error('pattern ' + pattern);
 }
-function makeSheet(name, rows) {
-  const sheet = { name, rows, appended: [], sets: [],
-    getDataRange() { return { getValues: () => sheet.rows.map(r => r.slice()) }; },
-    appendRow(r) { sheet.rows.push(r.slice()); sheet.appended.push(r); },
-    getRange(r, c) { return { setValue(v) { while (sheet.rows.length < r) sheet.rows.push([]); sheet.rows[r - 1][c - 1] = v; sheet.sets.push([r, c, v]); } }; } };
-  return sheet;
-}
+const mocks = require('./gas_mocks');
+const makeSheet = (name, rows) => mocks.makeSheet(rows, name);
+const cache = mocks.makeCache();
 const D = s => new Date(s); // local parse ok for test
 const guestsHeader = ["Timestamp","","","SERVICE DATE","FULL NAME","PHONE NUMBER","GENDER","MARITAL STATUS","HOW DID YOU ARRIVE?","WHAT WAS THE MAJOR WAY","COULD YOU DESCRIBE","FEEDBACK 1","FEEDBACK 2 ","ASSIGNED TO","ASSIGNED DATE","CALL STATUS","MEMBERSHIP STATUS","FEEDBACK 1 DATE","FEEDBACK 2 DATE","MEMBERSHIP DATE","GUEST ID","TEAM JOINED","FOLLOW-UP COUNT","LAST FEEDBACK","LAST FEEDBACK DATE"];
 function guestRow(id, name, service, assigned, status) { const r = new Array(25).fill(''); r[0]=D(service); r[3]=D(service); r[4]=name; r[5]=8000000001; r[13]=assigned; r[16]=status||'New guest'; r[20]=id; return r; }
@@ -55,7 +51,7 @@ const ctx = {
     getUuid: () => crypto.randomUUID(),
     DigestAlgorithm: { SHA_256: 'sha256' },
   },
-  CacheService: { getScriptCache: () => ({ get: () => null, put() {} }) },
+  CacheService: { getScriptCache: () => cache },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : null) }) },
   UrlFetchApp: { fetch: (url, opts) => { const t = JSON.parse(opts.payload).idToken; const email = tokens[t];
     return { getResponseCode: () => email ? 200 : 400, getContentText: () => JSON.stringify(email ? { users: [{ email, emailVerified: true }] } : { error: {} }) }; } },
