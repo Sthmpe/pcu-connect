@@ -7,6 +7,7 @@ import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/utils/contact_launcher.dart';
+import '../../../core/utils/lagos_time.dart';
 import '../../../core/utils/month_utils.dart';
 import '../../../core/widgets/app_controls.dart';
 import '../../../core/widgets/app_display.dart';
@@ -357,7 +358,10 @@ class _DetailsCard extends StatelessWidget {
             ],
           ),
         ),
-        InfoTile(label: 'First visit', value: MonthUtils.label(guest.month)),
+        InfoTile(
+          label: 'First visit',
+          value: guest.serviceDate.isEmpty ? MonthUtils.label(guest.month) : LagosTime.fullDate(guest.serviceDate),
+        ),
         InfoTile(label: 'Team', value: guest.teamJoined.isEmpty ? 'Not yet' : guest.teamJoined),
       ],
     );
