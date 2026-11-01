@@ -56,3 +56,4 @@ supabase/functions/**/.env
 firestore-tests/node_modules/
 firestore-tests/*.log
 *-debug.log
+.clasprc.json

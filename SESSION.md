@@ -388,3 +388,29 @@ Code, rules and tests are done; the switch defaults to the Apps Script API, so n
 `--dart-define=DATA_SOURCE=firestore` is used. Details and the owner's setup steps are under
 "Phase 1" in `docs/BACKEND_PLAN.md`. Tests: `flutter test`, `node backend/test/pcu_firestore_harness.js`,
 `node backend/test/pcu_api_harness.js backend/Api.gs`, and `npm test` in `firestore-tests/` (needs Java).
+
+## 2026-11-01 Update: speed fix deployed with clasp, live backend test
+
+- **Speed fix** (`d1137b2`, already on GitHub): after `logFollowUp` saves, `pcuPushGuestDataQuietly_`
+  sends the guest to Firestore from the rows already in memory. The sheet is not read a second time.
+- **clasp:** `.clasp.json` (script `15zMOA22...`, `rootDir: backend`) and `.claspignore` (skips
+  `backend/test/`). `backend/appsscript.json` is the remote manifest, unchanged. `PCU Leaderboard.gs` and
+  `AuthTest.gs` only existed in the online editor; they are now in `backend/` so `clasp push` does not
+  delete them. `clasp push` replaces the whole project, so any edit made in the online editor must be
+  copied into `backend/` first. Never commit `~/.clasprc.json`.
+- **Deploy:** `clasp push`, then `clasp deploy -i AKfycby0H6Sk-V1mCGJNtst4KzvraWplYqMn6exWDlLCybiINoGlXnSCUNdkNaJ8D4o0tC3u -d "<label>"`.
+  That deployment is now @5 and its exec URL is unchanged. Do not create new deployments.
+- **Test accounts (TEST sheet):** worker `davidolanite0@gmail.com` (W005), admin `olaniteolanight@gmail.com` (W001).
+  `ALLOW_MOCK_TOKENS=true` is set on this script.
+- **Live test, 30 calls with mock tokens, all 33 checks passed:** me, guests, guest, ranking, dashboard, team as
+  worker and admin (worker blocked from other guests, dashboard and team); admin logging for a worker (credited to
+  the worker, LOGGED BY is the admin, ASSIGNED TO unchanged); late first call earns 5 not 10; 4 Sundays and
+  3 Sundays + 2 Wednesdays both make a Member (+30) and 3 + 1 does not; future date rejected; admins never in
+  ranking or dashboard top workers. Test writes: 11 follow-ups on G-C195DCB0, G-E41460DE and G-043CDBA9 (the last
+  two are now Members).
+- **Still slow:** any call that reads the Guests tab takes 8 to 19 s (saves 9 to 15 s, about 11.5 s on average);
+  calls that do not read it take about 1.5 s. A save costs only 1 to 2 s more than a read, so the remaining time is
+  the one full read every call makes. Likely cause, not yet profiled: `pcuGuestRows_` calls
+  `Utilities.formatDate` (through `pcuDay_`/`pcuMonth_`) several times per row on about 9,000 rows. Next step:
+  profile, then compute Lagos (UTC+1, no DST) day/month strings in plain JS or cache the parsed guests.
+- `backend/test/pcu_api_harness.js` now pins its clock to the 15th; it crashed in the first days of a month.
