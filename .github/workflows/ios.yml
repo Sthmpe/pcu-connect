@@ -1,0 +1,42 @@
+# Proves the iOS app compiles. No signing, no simulator, nothing installable:
+# a real iPhone build needs an Apple Developer account (see docs/MOBILE.md).
+name: iOS compile check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [phase-1-firestore]
+    paths:
+      - 'lib/**'
+      - 'ios/**'
+      - 'assets/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/ios.yml'
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      APPS_SCRIPT_URL: https://script.google.com/macros/s/AKfycby0H6Sk-V1mCGJNtst4KzvraWplYqMn6exWDlLCybiINoGlXnSCUNdkNaJ8D4o0tC3u/exec
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.9'
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Build iOS without code signing (Firestore mode)
+        run: >
+          flutter build ios --no-codesign
+          --dart-define=DATA_SOURCE=firestore
+          --dart-define=APPS_SCRIPT_URL=$APPS_SCRIPT_URL
