@@ -414,3 +414,30 @@ Code, rules and tests are done; the switch defaults to the Apps Script API, so n
   `Utilities.formatDate` (through `pcuDay_`/`pcuMonth_`) several times per row on about 9,000 rows. Next step:
   profile, then compute Lagos (UTC+1, no DST) day/month strings in plain JS or cache the parsed guests.
 - `backend/test/pcu_api_harness.js` now pins its clock to the 15th; it crashed in the first days of a month.
+
+## 2026-11-01 Profile: where API time goes (TEST sheet, 9,211 guest rows x 27 columns)
+
+Measured live with the opt-in profiler (`"profile": true`, mock tokens only). Wall = what the client sees.
+
+| Call | Wall | Server | Guests read | Guests parse | Other |
+|---|---|---|---|---|---|
+| me | 1.8 s | 0.46 s | none | none | Workers read 0.44 s |
+| guests (worker) | 7.6 s | 6.4 s | 1.9 s | 3.8 s | Workers 0.46, Follow-ups 0.20 |
+| guests (admin) | 16.6 s | 15.0 s | 2.1 s | 11.8 s | |
+| guest | 13.7 s | 12.1 s | 2.1 s | 9.2 s | |
+| ranking | 10.9 s | 9.4 s | 1.6 s | 7.1 s | |
+| dashboard | 11.2 s | 10.1 s | 1.5 s | 8.0 s | |
+| team | 7.7 s | 6.6 s | 2.0 s | 3.9 s | |
+
+- **Biggest cost: date formatting while parsing guests.** Every call that touches guests parses all 9,210 rows and makes
+  about 16,600 `Utilities.formatDate` calls (`pcuDay_`/`pcuMonth_`). 2,000 calls take 0.99 s (about 0.5 ms each), so
+  that is 4 to 12 s per call. Formatting the same dates in plain JS (Lagos is fixed UTC+1) took 6 ms for 8,287 dates.
+- **Second: the full Guests read**, 1.5 to 2.2 s for every call, even `guest` (one row). Alternatives measured:
+  TextFinder on the ID column 0.11 s, one row 0.1 to 0.2 s, ID column only 0.25 to 0.3 s, last 1,500 rows 0.35 to
+  0.63 s, last 3,000 rows 0.76 s. Dense date columns are slow to read on their own (SERVICE DATE alone about 2 s).
+- **Fixed costs:** web app overhead (wall minus server) 1.1 to 1.6 s; Workers read for auth 0.35 to 0.46 s;
+  Follow-ups read (16 rows) 0.2 to 0.3 s; CacheService get about 0.04 s; JSON negligible.
+- **Row order is not by date.** 55 months appear; old rows hold stray dates (one `0023-09`, a `2027-03` at row 8156,
+  `2026-04` at row 5842, `2025-11` from row 4211). From 2026-05 on, months are contiguous at the bottom. So "read the
+  last N rows" alone would drop stray rows; an exact row-to-month index is needed to keep behaviour.
+- Only 2 rows have MEMBERSHIP STATUS = Member (TextFinder `findAll` 0.12 s).

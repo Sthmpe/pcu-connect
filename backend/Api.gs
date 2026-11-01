@@ -1203,28 +1203,67 @@ function pcuProfileExperiments_() {
     });
     return n;
   });
-  var dates = [];
-  time('all rows, SERVICE DATE column', function () {
-    for (var i = 0; i < headers.length; i++) {
-      if (pcuHeaderKey_(headers[i]) === 'SERVICE DATE') dates = sheet.getRange(2, i + 1, lastRow - 1, 1).getValues();
-    }
-    return dates.length;
+  var full = [];
+  time('full read for ordering check', function () {
+    full = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+    return full.length;
   });
-  time('2000 x Utilities.formatDate', function () {
-    var d = new Date();
-    for (var i = 0; i < 2000; i++) Utilities.formatDate(d, PCU.TZ, 'yyyy-MM-dd');
-    return 2000;
+  function col(h) {
+    for (var i = 0; i < headers.length; i++) if (pcuHeaderKey_(headers[i]) === h) return i;
+    return -1;
+  }
+  var sd = col('SERVICE DATE'), ts = col('TIMESTAMP'), st = col('MEMBERSHIP STATUS'), md = col('MEMBERSHIP DATE');
+  time('ordering: months by row span', function () {
+    var span = {};
+    var lastSeen = '';
+    var backwards = 0;
+    var maxBack = 0;
+    var maxSeenRow = {};
+    full.forEach(function (r, i) {
+      var d = r[sd] instanceof Date ? r[sd] : r[ts] instanceof Date ? r[ts] : null;
+      if (!d) return;
+      var m = Utilities.formatDate(d, PCU.TZ, 'yyyy-MM');
+      span[m] = span[m] || [i + 2, i + 2, 0];
+      span[m][1] = i + 2;
+      span[m][2]++;
+      if (lastSeen && m < lastSeen) backwards++;
+      if (m > lastSeen) lastSeen = m;
+    });
+    // For each month, how many rows below its first row hold an older month.
+    var months = Object.keys(span).sort();
+    var recent = months.slice(-14).map(function (m) {
+      return m + ':' + span[m].join('-');
+    });
+    return 'months ' + months.length + ', first ' + months[0] + ', rows after a newer month ' + backwards + ' | ' + recent.join(' ');
   });
-  time('format every SERVICE DATE in plain JS (UTC+1)', function () {
-    var n = 0;
-    dates.forEach(function (r) {
-      var v = r[0];
-      if (v instanceof Date) {
-        var x = new Date(v.getTime() + 3600000);
-        n += (x.getUTCFullYear() + '-' + (x.getUTCMonth() + 1) + '-' + x.getUTCDate()).length > 0 ? 1 : 0;
+  time('members', function () {
+    var n = 0, withDate = 0, byMonth = {};
+    full.forEach(function (r) {
+      if (String(r[st]).trim() === 'Member') {
+        n++;
+        if (r[md] instanceof Date) {
+          withDate++;
+          var m = Utilities.formatDate(r[md], PCU.TZ, 'yyyy-MM');
+          byMonth[m] = (byMonth[m] || 0) + 1;
+        }
       }
     });
-    return n;
+    return n + ' members, ' + withDate + ' with date; ' + JSON.stringify(byMonth);
+  });
+  time('STATUS column, all rows', function () {
+    return sheet.getRange(2, st + 1, lastRow - 1, 1).getValues().length;
+  });
+  time('MEMBERSHIP DATE column, all rows', function () {
+    return sheet.getRange(2, md + 1, lastRow - 1, 1).getValues().length;
+  });
+  time('TextFinder findAll Member in STATUS', function () {
+    return sheet.getRange(2, st + 1, lastRow - 1, 1).createTextFinder('Member').matchEntireCell(true).findAll().length;
+  });
+  time('last 1500 rows, all columns (again)', function () {
+    return sheet.getRange(Math.max(2, lastRow - 1499), 1, Math.min(1500, lastRow - 1), lastCol).getValues().length;
+  });
+  time('last 3000 rows, all columns', function () {
+    return sheet.getRange(Math.max(2, lastRow - 2999), 1, Math.min(3000, lastRow - 1), lastCol).getValues().length;
   });
   time('CacheService get', function () {
     return CacheService.getScriptCache().get('pcu_profile_probe');
