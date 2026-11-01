@@ -183,7 +183,9 @@ abstract class InsightRules {
     return [
       for (final u in users)
         TeamMember(
-          id: u.id,
+          // users written before the Workers tab ID was copied have none:
+          // the email still identifies them (setWorkerActive accepts it).
+          id: u.id.isEmpty ? u.email : u.id,
           name: u.name,
           email: u.email,
           phone: u.phone,

@@ -117,6 +117,8 @@ r = call({ action: 'saveWorker', idToken: 'tokAdmin', name: 'Ruth A', email: 'Ru
 r = call({ action: 'saveWorker', idToken: 'tokAdmin', name: 'Ruth A', email: 'ruth@x.com', role: 'Worker' }); check('duplicate worker rejected', !r.ok && r.code === 'VALIDATION', r);
 r = call({ action: 'setWorkerActive', idToken: 'tokAdmin', id: 'W002', active: false }); check('deactivate', r.ok && r.data.active === false, r);
 r = call({ action: 'setWorkerActive', idToken: 'tokAdmin', id: 'W001', active: false }); check('cannot deactivate self', !r.ok && r.code === 'VALIDATION', r);
+r = call({ action: 'setWorkerActive', idToken: 'tokAdmin', id: 'Worker.A@x.com', active: true }); check('setWorkerActive also finds a worker by email', r.ok && r.data.active === true && r.data.email === 'worker.a@x.com', r);
+r = call({ action: 'setWorkerActive', idToken: 'tokAdmin', id: 'W999', active: true }); check('unknown worker refused', !r.ok && r.code === 'NOT_FOUND', r);
 r = call({ action: 'nope', idToken: 'tokAdmin' }); check('unknown action', !r.ok && r.code === 'VALIDATION', r);
 
 // Admin logs a follow-up on behalf of the assigned worker.

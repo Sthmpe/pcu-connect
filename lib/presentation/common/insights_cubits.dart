@@ -31,8 +31,10 @@ abstract class _MonthCubit<T> extends Cubit<LoadState<T>> {
   }
 
   /// Loads once; later calls are ignored until [load] is called directly.
+  /// The first load uses this month (Lagos) at that moment, not the month
+  /// when the app started, so an app left open overnight stays right.
   void ensureLoaded() {
-    if (state.status == LoadStatus.initial) load();
+    if (state.status == LoadStatus.initial) load(MonthUtils.current());
   }
 
   void reset() => emit(LoadState<T>(month: MonthUtils.current()));

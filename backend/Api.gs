@@ -1501,7 +1501,8 @@ function pcuSetWorkerActive_(user, req) {
   var id = pcuStr_(req.id);
   var active = req.active === true;
   var workers = pcuWorkers_();
-  var worker = workers.byId[id];
+  // The Workers tab ID (W001), or the email when the app has no ID for them.
+  var worker = workers.byId[id] || workers.byEmail[id.toLowerCase()];
   if (!worker) throw pcuError_('NOT_FOUND', 'Worker not found.');
   if (!active && worker.email === user.email) {
     throw pcuError_('VALIDATION', 'You cannot make yourself inactive.');

@@ -68,6 +68,14 @@ void main() {
       expect(team.firstWhere((m) => m.email == 'boss@x.com').role, 'Admin');
     });
 
+    test('a person without a Workers tab ID is keyed by email on the Team list', () {
+      final team = InsightRules.team('2026-10', const [], const [], const [
+        InsightUser(email: 'new@x.com', name: 'New', isAdmin: false, active: true),
+        InsightUser(email: 'other@x.com', name: 'Other', isAdmin: false, active: true),
+      ]);
+      expect(team.map((m) => m.id), ['new@x.com', 'other@x.com']);
+    });
+
     test('dashboard totals and top workers never include admins', () {
       final d = InsightRules.dashboard('2026-10', guests, followUps, users);
       expect([d.guests, d.called, d.members, d.inTeam, d.followUps], [4, 3, 0, 1, 4]);
