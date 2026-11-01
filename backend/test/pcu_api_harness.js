@@ -21,7 +21,10 @@ function makeSheet(name, rows) {
 const D = s => new Date(s); // local parse ok for test
 const guestsHeader = ["Timestamp","","","SERVICE DATE","FULL NAME","PHONE NUMBER","GENDER","MARITAL STATUS","HOW DID YOU ARRIVE?","WHAT WAS THE MAJOR WAY","COULD YOU DESCRIBE","FEEDBACK 1","FEEDBACK 2 ","ASSIGNED TO","ASSIGNED DATE","CALL STATUS","MEMBERSHIP STATUS","FEEDBACK 1 DATE","FEEDBACK 2 DATE","MEMBERSHIP DATE","GUEST ID","TEAM JOINED","FOLLOW-UP COUNT","LAST FEEDBACK","LAST FEEDBACK DATE"];
 function guestRow(id, name, service, assigned, status) { const r = new Array(25).fill(''); r[0]=D(service); r[3]=D(service); r[4]=name; r[5]=8000000001; r[13]=assigned; r[16]=status||'New guest'; r[20]=id; return r; }
-const now = new Date(); const ymd = d => fmt(d, TZ, 'yyyy-MM-dd');
+// Pinned to the 15th at noon (Lagos), so "this month" fixtures never cross a month boundary.
+const real = new Date(); const now = new Date(Date.UTC(real.getUTCFullYear(), real.getUTCMonth(), 15, 11)); const ymd = d => fmt(d, TZ, 'yyyy-MM-dd');
+function FixedDate(...a) { if (!new.target) return now.toString(); return a.length ? new Date(...a) : new Date(now.getTime()); }
+FixedDate.prototype = Date.prototype; FixedDate.now = () => now.getTime(); FixedDate.UTC = Date.UTC; FixedDate.parse = Date.parse;
 const daysAgo = n => new Date(now.getTime() - n*86400000);
 const sheets = {
   'Form Responses 1': makeSheet('g', [guestsHeader,
@@ -42,6 +45,7 @@ const props = { FIREBASE_WEB_API_KEY: 'KEY' };
 const tokens = { tokAdmin: 'boss@x.com', tokDavid: 'david@x.com', tokC: 'worker.c@x.com', tokStranger: 'nobody@x.com' };
 const ctx = {
   console,
+  Date: FixedDate,
   SpreadsheetApp: { getActive: () => ({ getSheetByName: n => sheets[n] || null }), flush() {} },
   Utilities: {
     formatDate: fmt,
