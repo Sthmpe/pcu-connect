@@ -10,6 +10,7 @@ import '../../../core/constants/work_rules.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/utils/contact_launcher.dart';
 import '../../../core/widgets/app_controls.dart';
+import '../../../core/widgets/app_display.dart';
 import '../../../core/widgets/app_page.dart';
 import '../../../core/widgets/app_surfaces.dart';
 import '../../../core/widgets/guest_row.dart';
@@ -161,7 +162,12 @@ String? todayPill(TodaySection s) => switch (s) {
       TodaySection.followUpDue => 'Follow-up due',
     };
 
-/// Navy summary card: how many need action today, and the next call.
+/// The ring's headline: "3 of 5 calls today".
+String ringHeadline(TodayView v) => v.ringTotal == 0
+    ? 'No calls due today'
+    : '${v.ringDone} of ${v.ringTotal} ${v.ringTotal == 1 ? 'call' : 'calls'} today';
+
+/// Navy summary card: the daily goal ring, what is left, and the next call.
 class TodayHero extends StatelessWidget {
   final TodayView view;
 
@@ -172,12 +178,13 @@ class TodayHero extends StatelessWidget {
     final total = view.total;
     final outstanding = view.outstanding.length;
     final next = view.next;
-    final headline = total == 0 ? 'All caught up' : '$total ${total == 1 ? 'guest needs' : 'guests need'} a call';
+    final progress = view.ringTotal == 0 ? 0.0 : view.ringDone / view.ringTotal;
+    final headline = ringHeadline(view);
     final detail = total == 0
-        ? 'New guests will show up here.'
+        ? (view.ringDone == 0 ? 'New guests will show up here.' : 'All done for today. Lovely work.')
         : outstanding == 0
-            ? 'None is outstanding.'
-            : '$outstanding ${outstanding == 1 ? 'is' : 'are'} outstanding.';
+            ? '$total still to call.'
+            : '$total still to call, $outstanding outstanding.';
 
     return AppCard(
       gradient: const LinearGradient(
@@ -190,12 +197,14 @@ class TodayHero extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(color: AppColors.onNavy.withValues(alpha: 0.10), shape: BoxShape.circle),
-                alignment: Alignment.center,
-                child: Text('$total', style: AppTextStyles.display.copyWith(color: AppColors.onNavy)),
+              ProgressRing(
+                value: progress,
+                size: 72,
+                stroke: 6,
+                color: AppColors.onNavy,
+                trackColor: AppColors.onNavy.withValues(alpha: 0.14),
+                child: Text('${view.ringDone}/${view.ringTotal}',
+                    style: AppTextStyles.bodyStrong.copyWith(color: AppColors.onNavy)),
               ),
               SizedBox(width: AppSizes.s16),
               Expanded(
