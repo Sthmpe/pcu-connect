@@ -145,7 +145,7 @@ const after = makeRuntime(newSource);
 // Follow-up ids come from getUuid, which the new code also uses for its cache;
 // compare everything except those ids.
 // Guest fields added on purpose after the old version: compared by their own tests, not here.
-const ADDED_GUEST_FIELDS = ['gender', 'lastCallDate'];
+const ADDED_GUEST_FIELDS = ['gender', 'lastCallDate', 'sundayDates', 'wednesdayDates'];
 function normalise(value) {
   return JSON.parse(JSON.stringify(value), function (k, v) {
     if (k === 'id' && typeof v === 'string' && v.startsWith('uuid')) return 'ID';

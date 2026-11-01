@@ -17,6 +17,7 @@ import '../../../core/widgets/state_views.dart';
 import '../../../core/widgets/status_tone.dart';
 import '../../../domain/entities/follow_up_entry.dart';
 import '../../../domain/entities/guest_entity.dart';
+import '../../../domain/membership_progress.dart';
 import '../../../domain/repositories/i_guest_repository.dart';
 import '../../guests/bloc/guests_bloc.dart';
 import '../../common/whatsapp_sheet.dart';
@@ -314,6 +315,8 @@ class QuickOutcomeChip extends StatelessWidget {
   }
 }
 
+/// Road to membership: this month's Sundays and Wednesdays as dots, filled
+/// when attended, and what is still needed (MembershipProgress).
 class _MembershipCard extends StatelessWidget {
   final GuestEntity guest;
 
@@ -321,35 +324,73 @@ class _MembershipCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget line(String label, int done, int target) => Column(
-          children: [
-            Row(
-              children: [
-                Expanded(child: Text(label, style: AppTextStyles.body)),
-                Text('${done.clamp(0, target)} of $target', style: AppTextStyles.caption),
-              ],
-            ),
-            SizedBox(height: AppSizes.s8),
-            SegmentBar(total: target, filled: done),
-          ],
-        );
+    final progress = MembershipProgress.of(
+      today: LagosTime.today(),
+      sundayDates: guest.sundayDates,
+      wednesdayDates: guest.wednesdayDates,
+      status: guest.status,
+    );
 
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          line('Sundays', guest.sundayAttendance, 4),
+          Text(MonthUtils.label(progress.month), style: AppTextStyles.caption),
+          SizedBox(height: AppSizes.s8),
+          MembershipDots(label: 'Sun', days: progress.sundays),
+          SizedBox(height: AppSizes.s8),
+          MembershipDots(label: 'Wed', days: progress.wednesdaysInMonth),
           SizedBox(height: AppSizes.s16),
-          line('Wednesdays', guest.wednesdayAttendance, 2),
-          SizedBox(height: AppSizes.s16),
-          Text(
-            guest.status == 'Member'
-                ? 'Became a member. Thank you for walking with them.'
-                : '4 Sundays, or 3 Sundays and 2 Wednesdays, in one month.',
-            style: AppTextStyles.caption,
-          ),
+          Text(progress.line, style: AppTextStyles.bodyStrong),
+          if (guest.status != 'Member') ...[
+            SizedBox(height: AppSizes.s4),
+            Text('4 Sundays, or 3 Sundays and 2 Wednesdays, in one month.', style: AppTextStyles.caption),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// One row of the mini calendar: a dot per service day, filled when attended.
+class MembershipDots extends StatelessWidget {
+  final String label;
+  final List<ServiceDay> days;
+
+  const MembershipDots({super.key, required this.label, required this.days});
+
+  @override
+  Widget build(BuildContext context) {
+    const size = 30.0;
+    return Row(
+      children: [
+        SizedBox(width: AppSizes.s48, child: Text(label, style: AppTextStyles.caption)),
+        for (final d in days)
+          Padding(
+            padding: EdgeInsets.only(right: AppSizes.s8),
+            child: Semantics(
+              label: '${LagosTime.fullDate(d.day)}, ${d.attended ? 'attended' : 'not attended'}',
+              child: ExcludeSemantics(
+                child: Container(
+                  width: size,
+                  height: size,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: d.attended ? AppColors.navy : Colors.transparent,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: d.attended ? AppColors.navy : AppColors.lineStrong, width: 1.5),
+                  ),
+                  child: Text(
+                    '${d.dayOfMonth}',
+                    style: AppTextStyles.centered(AppTextStyles.caption).copyWith(
+                      color: d.attended ? AppColors.onNavy : (d.past ? AppColors.subtle : AppColors.ink),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

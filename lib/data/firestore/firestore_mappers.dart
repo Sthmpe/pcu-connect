@@ -35,8 +35,8 @@ abstract class FirestoreMappers {
     final today = LagosTime.today(clock);
     final thisMonth = today.substring(0, 7);
     final serviceDate = _str(d['serviceDate']);
-    final sundays = _days(d['sundayDates']).where((s) => s.startsWith(thisMonth)).length;
-    final wednesdays = _days(d['wednesdayDates']).where((s) => s.startsWith(thisMonth)).length;
+    final sundayDates = _days(d['sundayDates']).where((s) => s.startsWith(thisMonth)).toList();
+    final wednesdayDates = _days(d['wednesdayDates']).where((s) => s.startsWith(thisMonth)).toList();
     final calls = _int(d['followUpCount']);
 
     return GuestEntity(
@@ -49,8 +49,10 @@ abstract class FirestoreMappers {
           : LagosTime.daysBetween(serviceDate, today).clamp(0, 100000),
       serviceDate: serviceDate,
       callCount: calls,
-      sundayAttendance: sundays,
-      wednesdayAttendance: wednesdays,
+      sundayAttendance: sundayDates.length,
+      wednesdayAttendance: wednesdayDates.length,
+      sundayDates: sundayDates,
+      wednesdayDates: wednesdayDates,
       teamJoined: _str(d['teamJoined']),
       lastFeedback: _str(d['lastFeedback']),
       lastFeedbackDate: _shortDay(_date(d['lastFeedbackDate'])),

@@ -84,6 +84,8 @@ delete props.ALLOW_MOCK_TOKENS;
 r = call({ action: 'guests', idToken: 'tokDavid', month }); check('worker sees own guests only', r.ok && r.data.guests.every(g => g.assignedTo === 'david@x.com'), r);
 const g1 = r.data.guests.find(g => g.id === 'G1'); check('phone leading zero', g1 && g1.phone === '08000000001', g1);
 check('G1 first visit counted', g1.sundays + g1.wednesdays >= 1, g1);
+check('attended days this month match the counts', Array.isArray(g1.sundayDates) && g1.sundayDates.length === g1.sundays
+  && g1.wednesdayDates.length === g1.wednesdays && [...g1.sundayDates, ...g1.wednesdayDates].every(d => d.startsWith(month)), g1);
 const g2 = r.data.guests.find(g => g.id === 'G2'); check('G2 has 1 follow-up', !g2 || g2.followUps === 1, g2);
 r = call({ action: 'guests', idToken: 'tokDavid', month, workerEmail: 'worker.a@x.com' }); check('worker cannot widen scope', r.ok && r.data.guests.every(g => g.assignedTo === 'david@x.com'), r);
 r = call({ action: 'guests', idToken: 'tokAdmin', month }); check('admin sees all this month', r.ok && r.data.guests.length >= 2, r.data && r.data.guests.length);
@@ -101,6 +103,8 @@ if (dayOfMonth >= 5) {
   for (const n of [2,3,4]) call({ action: 'logFollowUp', idToken: 'tokDavid', guestId: 'G1', outcome: 'Reached', note: 'again '+n, attendedSunday: true, sundayDate: ymd(daysAgo(n)), team: n===4?'Workforce':'' });
   r = call({ action: 'guest', idToken: 'tokDavid', id: 'G1' });
   check('member after 4 sundays', r.ok && r.data.status === 'Member', r.data && [r.data.status, r.data.sundays]);
+  check('the calendar gets each attended day once, in order', r.data.sundayDates.length === r.data.sundays
+    && r.data.sundayDates.join() === r.data.sundayDates.slice().sort().join(), r.data.sundayDates);
   check('team joined', r.data.team === 'Workforce', r.data.team);
   check('membership date set', !!r.data.membershipDate, r.data.membershipDate);
 }

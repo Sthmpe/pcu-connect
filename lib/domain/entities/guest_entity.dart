@@ -27,6 +27,10 @@ class GuestEntity extends Equatable {
 
   /// 'Male', 'Female', or '' when the sheet's GENDER cell is blank or unclear.
   final String gender;
+
+  /// Lagos days ('yyyy-MM-dd') attended this month, for Road to membership.
+  final List<String> sundayDates;
+  final List<String> wednesdayDates;
   final int followUpCount;
   final String month; // e.g. 'Oct 2026'
   final String? assignedWorkerName;
@@ -50,6 +54,8 @@ class GuestEntity extends Equatable {
     this.lastOutcome = '',
     this.lastCallDate = '',
     this.gender = '',
+    this.sundayDates = const [],
+    this.wednesdayDates = const [],
     required this.followUpCount,
     required this.month,
     this.assignedWorkerName,
@@ -104,6 +110,8 @@ class GuestEntity extends Equatable {
     return 'tel:$cleaned';
   }
 
+  static List<String> _dayList(Object? v) => v is List ? v.map((e) => e.toString()).toList() : const [];
+
   factory GuestEntity.fromJson(Map<String, dynamic> json) {
     return GuestEntity(
       id: json['id']?.toString() ?? '',
@@ -130,6 +138,8 @@ class GuestEntity extends Equatable {
       lastOutcome: json['lastOutcome']?.toString() ?? '',
       lastCallDate: json['lastCallDate']?.toString() ?? '',
       gender: json['gender']?.toString() ?? '',
+      sundayDates: _dayList(json['sundayDates']),
+      wednesdayDates: _dayList(json['wednesdayDates']),
       lastFeedbackDate: json['lastFeedbackDate']?.toString() ??
           json['fbDate']?.toString() ??
           '',
@@ -164,6 +174,8 @@ class GuestEntity extends Equatable {
       'lastOutcome': lastOutcome,
       'lastCallDate': lastCallDate,
       'gender': gender,
+      'sundayDates': sundayDates,
+      'wednesdayDates': wednesdayDates,
       'fu': followUpCount,
       'month': month,
       'assignedWorker': assignedWorkerName,
@@ -187,6 +199,8 @@ class GuestEntity extends Equatable {
         lastOutcome,
         lastCallDate,
         gender,
+        sundayDates,
+        wednesdayDates,
         followUpCount,
         month,
         assignedWorkerName,

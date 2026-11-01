@@ -877,7 +877,9 @@ function pcuAttendanceByMonth_(guest, followUps) {
   Object.keys(months).forEach(function (m) {
     result[m] = {
       sundays: Object.keys(months[m].sundays).length,
-      wednesdays: Object.keys(months[m].wednesdays).length
+      wednesdays: Object.keys(months[m].wednesdays).length,
+      sundayDates: Object.keys(months[m].sundays).sort(),
+      wednesdayDates: Object.keys(months[m].wednesdays).sort()
     };
   });
   return result;
@@ -948,7 +950,8 @@ function pcuGuestJson_(guest, followUps, workers, withHistory) {
   followUps.forEach(function (f) {
     if (f.team) latestTeam = f.team;
   });
-  var thisMonth = pcuAttendanceByMonth_(guest, followUps)[pcuMonth_(new Date())] || { sundays: 0, wednesdays: 0 };
+  var thisMonth = pcuAttendanceByMonth_(guest, followUps)[pcuMonth_(new Date())] ||
+    { sundays: 0, wednesdays: 0, sundayDates: [], wednesdayDates: [] };
   var assigned = workers.byEmail[guest.assignedTo];
 
   var json = {
@@ -973,6 +976,9 @@ function pcuGuestJson_(guest, followUps, workers, withHistory) {
     assignedName: assigned ? assigned.name : '',
     sundays: thisMonth.sundays,
     wednesdays: thisMonth.wednesdays,
+    // Lagos days attended this month, for the Road to membership calendar.
+    sundayDates: thisMonth.sundayDates,
+    wednesdayDates: thisMonth.wednesdayDates,
     membershipDate: pcuDay_(guest.membershipDate)
   };
 
