@@ -616,7 +616,7 @@ How it works now:
 - resetSessionState on sign-in and sign-out; AuthBloc.beforeSignOut removes this device's push token first.
 
 Tests: 91 Flutter tests (screen independence a/b/c, Today rule, month boundaries, API client messages, sign-out hook,
-push reset, team id fallback), API harness (setWorkerActive by email), Firestore harness 79 checks (offline month
+push reset, team id fallback), API harness (setWorkerActive by email), Firestore harness 78 checks (offline month
 boundary), emulator rules unchanged (55).
 
 Still open: Guest detail and the log screen find the guest in the loaded months only (opened from a list, so it is
