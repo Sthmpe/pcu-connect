@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_icons.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/routing/app_routes.dart';
@@ -15,7 +16,9 @@ import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
 import '../../guests/bloc/guests_filter_cubit.dart';
 import '../../guests/bloc/guests_state.dart';
+import '../../../data/repositories/assign_repository.dart';
 import '../../guests/widgets/guest_search_field.dart';
+import '../widgets/assign_guests_sheet.dart';
 import '../../guests/widgets/watch_months.dart';
 
 /// All church guests for admins. With [workerFilter] it is pushed as its own
@@ -100,7 +103,25 @@ class _AdminGuestsTabState extends State<AdminGuestsTab> {
               final body = _body(context, filter, state, loaded ? _visible(state, filter) : const []);
 
               if (!standalone) {
-                return AppPage(title: 'Guests', trailing: monthPill, below: controls, child: body);
+                return AppPage(
+                  title: 'Guests',
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AppIconButton(
+                        icon: AppIcons.addPerson,
+                        tooltip: 'Assign guests',
+                        background: AppColors.gold,
+                        foreground: AppColors.navy,
+                        onTap: () => showAssignGuestsSheet(context, context.read<IAssignRepository>()),
+                      ),
+                      SizedBox(width: AppSizes.s8),
+                      monthPill,
+                    ],
+                  ),
+                  below: controls,
+                  child: body,
+                );
               }
               return Scaffold(
                 body: Column(

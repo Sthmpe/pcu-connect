@@ -22,6 +22,8 @@ import '../../guests/bloc/guests_state.dart';
 import '../../guests/widgets/watch_months.dart';
 import '../bloc/sheet_sync_cubit.dart';
 import '../../common/notification_bell.dart';
+import '../../../data/repositories/assign_repository.dart';
+import '../widgets/assign_guests_sheet.dart';
 import '../widgets/needs_attention_card.dart';
 import '../widgets/trend_card.dart';
 import '../../common/push_prompt_card.dart';
@@ -78,6 +80,7 @@ class AdminDashboardTab extends StatelessWidget {
           // Only when the sheet is a day or more behind; otherwise nothing.
           if (AppConfig.useFirestore) const SheetBehindBanner(),
           const PushPromptCard(reason: 'when guests come in and when the sheet sync needs you'),
+          UnassignedCard(repo: context.read<IAssignRepository>()),
           if (data.guests == 0 && MonthUtils.isCurrent(data.month))
             EmptyMonthCard(
               month: data.month,

@@ -168,6 +168,22 @@ function pcuHandlers_() {
       if (typeof pcuSyncNow_ !== 'function') throw pcuError_('NOT_READY', 'Sync to sheet is not set up yet.');
       return pcuSyncNow_(user);
     },
+    // pcu_auto_assign.gs: admin only. How many guests in a service-date range
+    // have no worker, and assigning them in rotation (shared lock, safe twice).
+    assignPreview: function (user, req) {
+      pcuRequireAdmin_(user);
+      var range = pcuAssignRange_(req);
+      return { from: range.from, to: range.to, unassigned: assignPreview_(range.from, range.to), workers: activeWorkers_().length };
+    },
+    assignRange: function (user, req) {
+      pcuRequireAdmin_(user);
+      var range = pcuAssignRange_(req);
+      if (!activeWorkers_().length) throw pcuError_('VALIDATION', 'There is no active worker to give guests to.');
+      var result = assignUnassigned_({ from: range.from, to: range.to });
+      result.from = range.from;
+      result.to = range.to;
+      return result;
+    },
     // Firestore.gs: admin only, read-only report of sheet versus Firestore.
     health: function (user) {
       if (typeof pcuHealth_ !== 'function') throw pcuError_('NOT_READY', 'Not set up yet.');
@@ -184,6 +200,16 @@ function pcuHandlers_() {
       return pcuPushCheck_(user);
     }
   };
+}
+
+/** { from, to } service days from the request: yyyy-MM-dd, from not after to. */
+function pcuAssignRange_(req) {
+  var from = pcuStr_(req.from);
+  var to = pcuStr_(req.to);
+  var day = /^\d{4}-\d{2}-\d{2}$/;
+  if (!day.test(from) || !day.test(to)) throw pcuError_('VALIDATION', 'Choose a from date and a to date.');
+  if (from > to) throw pcuError_('VALIDATION', 'The from date must be on or before the to date.');
+  return { from: from, to: to };
 }
 
 function pcuJson_(payload) {

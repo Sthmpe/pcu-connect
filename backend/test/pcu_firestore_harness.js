@@ -631,5 +631,29 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
   check('a form entry that was already assigned sends nothing', notices().length === 2, notices());
 }
 
+// --- HOD "Assign guests" (admin only, safe to tap twice)
+{
+  const { ctx, sheets, call, store } = setup();
+  ctx.pcuSetupSyncColumns();
+  const rows = sheets['Form Responses 1'].rows;
+  rows.push(guestRow('', 'Range One', daysAgo(1), '', 8000000031));
+  rows.push(guestRow('', 'Range Two', daysAgo(1), '', 8000000032));
+  rows.push(guestRow('', 'Range Old', daysAgo(40), '', 8000000033));
+  const today = ymd(now);
+  const from = ymd(daysAgo(3));
+  const denied = call({ action: 'assignRange', idToken: 'tokDavid', from, to: today });
+  check('Assign guests is admin only', !denied.ok && denied.code === 'FORBIDDEN' && call({ action: 'assignPreview', idToken: 'tokDavid', from, to: today }).code === 'FORBIDDEN');
+  check('dates are checked', call({ action: 'assignPreview', idToken: 'tokAdmin', from: today, to: from }).code === 'VALIDATION'
+    && call({ action: 'assignPreview', idToken: 'tokAdmin', from: 'soon', to: today }).code === 'VALIDATION');
+  const preview = call({ action: 'assignPreview', idToken: 'tokAdmin', from, to: today });
+  check('the preview counts guests with no worker in the range', preview.ok && preview.data.unassigned === 2 && preview.data.workers === 2, preview);
+  const r = call({ action: 'assignRange', idToken: 'tokAdmin', from, to: today });
+  check('preview count equals the result count', r.ok && r.data.assigned === preview.data.unassigned && /^2 guests assigned: /.test(r.data.summary), r);
+  check('never to an admin', !['Range One', 'Range Two'].some(n => rows.find(x => x[4] === n)[13] === 'boss@x.com'));
+  check('the old guest outside the range stays unassigned', rows.find(x => x[4] === 'Range Old')[13] === '');
+  const twice = call({ action: 'assignRange', idToken: 'tokAdmin', from, to: today });
+  check('a second tap assigns nothing', twice.ok && twice.data.assigned === 0, twice);
+}
+
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
 process.exitCode = fails ? 1 : 0;

@@ -118,6 +118,22 @@ function assignUnassigned_(opts) {
   return { assigned: emails.length, byWorker: countByWorker_(emails), summary: assignSummaryText_(emails) };
 }
 
+/** How many guests with a name and no worker have a service day in [from, to]. Read only. */
+function assignPreview_(from, to) {
+  const sheet = responses_();
+  const h = headers_(sheet);
+  const nameCol = h.indexOf('FULL NAME');
+  const assignedCol = h.indexOf('ASSIGNED TO');
+  const data = sheet.getDataRange().getValues();
+  let n = 0;
+  for (let i = HEADER_ROW; i < data.length; i++) {
+    if (!String(data[i][nameCol]).trim() || String(data[i][assignedCol]).trim()) continue;
+    const day = rowServiceDay_(data[i], h);
+    if (day && day >= from && day <= to) n++;
+  }
+  return n;
+}
+
 /** Gives one row to the next active worker. Returns the email, or '' if nothing was done.
  *  opts.push false: the caller sends the guest to Firestore (bulk runs). */
 function assignRow_(sheet, row, opts) {
