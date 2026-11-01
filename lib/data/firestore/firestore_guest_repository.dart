@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../core/errors/failures.dart';
 import '../../core/network/api_result.dart';
 import '../../core/sync/sync_signals.dart';
+import '../../core/utils/read_errors.dart';
 import '../../core/utils/lagos_time.dart';
 import '../../domain/entities/guest_entity.dart';
 import '../../domain/follow_up_rules.dart';
@@ -50,6 +51,7 @@ class FirestoreGuestRepository implements IGuestRepository {
 
   /// Plain words for Firestore errors.
   static Failure _failure(Object e) {
+    logReadError('guests', e);
     if (e is FirebaseException) {
       switch (e.code) {
         case 'permission-denied':
@@ -143,24 +145,7 @@ class FirestoreGuestRepository implements IGuestRepository {
               workerNames: names, pendingSync: d.metadata.hasPendingWrites))
           .toList();
 
-      return ApiResult.success(GuestEntity(
-        id: base.id,
-        name: base.name,
-        phone: base.phone,
-        status: base.status,
-        daysSinceVisit: base.daysSinceVisit,
-        serviceDate: base.serviceDate,
-        callCount: base.callCount,
-        sundayAttendance: base.sundayAttendance,
-        wednesdayAttendance: base.wednesdayAttendance,
-        teamJoined: base.teamJoined,
-        lastFeedback: base.lastFeedback,
-        lastFeedbackDate: base.lastFeedbackDate,
-        followUpCount: base.followUpCount,
-        month: base.month,
-        assignedWorkerName: base.assignedWorkerName,
-        history: history,
-      ));
+      return ApiResult.success(base.withHistory(history));
     } catch (e) {
       return ApiResult.failure(_failure(e));
     }

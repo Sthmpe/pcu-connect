@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/errors/failures.dart';
 import '../../core/network/api_result.dart';
+import '../../core/utils/read_errors.dart';
 import '../../domain/message_templates.dart';
 import '../../domain/repositories/i_auth_repository.dart';
 
@@ -33,7 +34,7 @@ class FirestoreMessageTemplatesRepository implements IMessageTemplatesRepository
   Stream<List<MessageTemplate>> watch() async* {
     yield MessageTemplates.defaultList;
     // Unreadable (offline first run, or rules): the defaults stay.
-    yield* _doc.snapshots().map((s) => MessageTemplates.from(s.data())).handleError((Object _) {});
+    yield* _doc.snapshots().map((s) => MessageTemplates.from(s.data())).handleError((Object e) => logReadError('message templates', e));
   }
 
   @override

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/errors/failures.dart';
 import '../../core/network/api_result.dart';
+import '../../core/utils/read_errors.dart';
 
 /// One month on the twelve-month trend: guests who first came that month,
 /// and how many of them are members now (as the Dashboard counts them).
@@ -35,8 +36,9 @@ class FirestoreTrendRepository implements ITrendRepository {
         return MonthCount(m, results[0].count ?? 0, results[1].count ?? 0);
       }));
       return ApiResult.success(counts);
-    } on FirebaseException {
-      return const ApiResult.failure(NetworkFailure('The trend needs a connection.'));
+    } on FirebaseException catch (e) {
+      logReadError('trend', e);
+      return const ApiResult.failure(NetworkFailure('We could not load the last 12 months. Try again.'));
     }
   }
 }

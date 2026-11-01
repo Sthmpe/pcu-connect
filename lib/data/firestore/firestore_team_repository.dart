@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../core/utils/read_errors.dart';
 import '../../core/errors/failures.dart';
 import '../../core/network/api_result.dart';
 import '../../core/utils/lagos_time.dart';
@@ -35,6 +36,7 @@ class FirestoreTeamRepository implements ITeamRepository {
   bool get _isAdmin => _auth.currentUser?.isAdmin ?? false;
 
   static Failure _failure(Object e) {
+    logReadError('team, ranking or dashboard', e);
     if (e is FirebaseException && e.code == 'permission-denied') {
       return const AuthFailure('You do not have access to this.', 'FORBIDDEN');
     }

@@ -55,7 +55,7 @@ class TodayTab extends StatelessWidget {
         builder: (context, state) {
           final guests = context.read<GuestsBloc>();
           if (state.failure != null) {
-            return ErrorState(message: state.failure!, onRetry: () => guests.add(WatchMonthsEvent(state.months)));
+            return ErrorState(message: state.failure!, onRetry: context.read<TodayCubit>().retry);
           }
           if (state.loading) return const SkeletonPage(hero: true);
 

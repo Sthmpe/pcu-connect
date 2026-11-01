@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/errors/failures.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_result.dart';
+import '../../core/utils/read_errors.dart';
 import '../../domain/nudge.dart';
 import '../../domain/repositories/i_auth_repository.dart';
 
@@ -60,7 +61,7 @@ class NudgeRepository implements INudgeRepository {
         .where('sentAt', isGreaterThan: Timestamp.fromDate(_clock().subtract(Nudge.every)))
         .snapshots()
         .map((s) => fromDocs(s.docs.map((d) => d.data())))
-        .handleError((Object _) {});
+        .handleError((Object e) => logReadError('nudges', e));
   }
 
   /// The latest nudge per worker.

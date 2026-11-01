@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/utils/read_errors.dart';
 import '../../../domain/entities/guest_entity.dart';
 import '../../../domain/repositories/i_guest_repository.dart';
 import 'guests_event.dart';
@@ -48,7 +49,10 @@ class GuestsBloc extends Bloc<GuestsEvent, GuestsState> {
         emit(state.put(month, MonthGuests(status: MonthStatus.loading, guests: current?.guests ?? const [])));
         _live[month] = stream.listen(
           (guests) => add(GuestsStreamedEvent(month, guests)),
-          onError: (Object e) => add(GuestsStreamFailedEvent(month, 'We could not load your guests. Try again.')),
+          onError: (Object e, StackTrace st) {
+            logReadError('guests $month', e, st);
+            add(GuestsStreamFailedEvent(month, 'We could not load your guests. Try again.'));
+          },
         );
       } else {
         todo.add(month);

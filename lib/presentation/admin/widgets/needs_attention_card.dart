@@ -12,7 +12,9 @@ import '../../../core/widgets/app_surfaces.dart';
 import '../../../data/firestore/nudge_repository.dart';
 import '../../../domain/attention_rules.dart';
 import '../../../domain/today_rules.dart';
+import '../../../core/widgets/state_views.dart';
 import '../../guests/bloc/guests_bloc.dart';
+import '../../guests/bloc/guests_event.dart';
 import '../../guests/bloc/guests_state.dart';
 import '../../guests/widgets/watch_months.dart';
 import 'nudge_sheet.dart';
@@ -39,6 +41,16 @@ class _NeedsAttentionCardState extends State<NeedsAttentionCard> {
       months: months,
       child: BlocBuilder<GuestsBloc, GuestsState>(
         builder: (context, state) {
+          final failure = state.failureFor(months);
+          if (failure != null) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SectionLabel('Needs attention'),
+                ErrorState(message: failure, onRetry: () => context.read<GuestsBloc>().add(WatchMonthsEvent(months))),
+              ],
+            );
+          }
           final list = AttentionRules.build(guests: state.guestsIn(months), since: AppConfig.chaseFrom, today: today);
           if (list.isEmpty) return const SizedBox.shrink();
           return StreamBuilder<Map<String, DateTime>>(

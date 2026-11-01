@@ -7,6 +7,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/network/api_result.dart';
 import '../../../core/utils/month_utils.dart';
 import '../../../core/widgets/app_surfaces.dart';
+import '../../../core/widgets/state_views.dart';
 import '../../../data/firestore/trend_repository.dart';
 
 /// Dashboard: the last twelve months, a navy line for guests and a gold line
@@ -21,18 +22,20 @@ class TrendCard extends StatefulWidget {
 
 class _TrendCardState extends State<TrendCard> {
   Future<ApiResult<List<MonthCount>>>? _load;
+  ITrendRepository? _repo;
 
   @override
   void initState() {
     super.initState();
-    ITrendRepository? repo;
     try {
-      repo = context.read<ITrendRepository>();
+      _repo = context.read<ITrendRepository>();
     } on ProviderNotFoundException {
-      repo = null;
+      _repo = null;
     }
-    _load = repo?.load(MonthUtils.recent(12).reversed.toList());
+    _load = _repo?.load(MonthUtils.recent(12).reversed.toList());
   }
+
+  void _retry() => setState(() => _load = _repo?.load(MonthUtils.recent(12).reversed.toList()));
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +44,17 @@ class _TrendCardState extends State<TrendCard> {
     return FutureBuilder<ApiResult<List<MonthCount>>>(
       future: load,
       builder: (context, snap) {
-        final data = snap.data?.data;
+        final result = snap.data;
+        if (result != null && result.isFailure) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SectionLabel('Last 12 months'),
+              ErrorState(message: result.failure!.message, onRetry: _retry),
+            ],
+          );
+        }
+        final data = result?.data;
         if (data == null || data.every((m) => m.guests == 0)) return const SizedBox.shrink();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../data/firestore/notifications_repository.dart';
+import '../../core/utils/read_errors.dart';
 import '../../domain/entities/app_notification.dart';
 
 class NotificationsState extends Equatable {
@@ -10,12 +11,15 @@ class NotificationsState extends Equatable {
   final bool loaded;
   final List<AppNotification> items;
 
-  const NotificationsState({this.available = false, this.loaded = false, this.items = const []});
+  /// The list could not be read; the screen offers "Try again".
+  final bool failed;
+
+  const NotificationsState({this.available = false, this.loaded = false, this.items = const [], this.failed = false});
 
   int get unread => items.where((n) => !n.read).length;
 
   @override
-  List<Object?> get props => [available, loaded, items];
+  List<Object?> get props => [available, loaded, items, failed];
 }
 
 /// The bell: a live list of the signed-in person's notifications.
@@ -32,9 +36,22 @@ class NotificationsCubit extends Cubit<NotificationsState> {
     emit(const NotificationsState(available: true));
     _sub = repo.watch().listen(
           (items) => emit(NotificationsState(available: true, loaded: true, items: items)),
-          // Keep what is shown; the bell just stops updating.
-          onError: (_) {},
+          // Keep what is shown; the list offers "Try again".
+          onError: (Object e) {
+            logReadError('notifications', e);
+            _sub?.cancel();
+            _sub = null;
+            if (!isClosed) {
+              emit(NotificationsState(available: true, loaded: state.loaded, items: state.items, failed: true));
+            }
+          },
         );
+  }
+
+  /// "Try again" after a failed read.
+  void retry() {
+    if (_sub != null) return;
+    start();
   }
 
   /// Opening the list marks everything in it as read.

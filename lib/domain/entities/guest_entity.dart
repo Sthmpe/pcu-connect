@@ -70,6 +70,33 @@ class GuestEntity extends Equatable {
     this.history = const [],
   });
 
+  /// The same guest with [entries] as its history (every other field kept).
+  GuestEntity withHistory(List<FollowUpEntry> entries) => GuestEntity(
+        id: id,
+        name: name,
+        phone: phone,
+        status: status,
+        daysSinceVisit: daysSinceVisit,
+        serviceDate: serviceDate,
+        callCount: callCount,
+        sundayAttendance: sundayAttendance,
+        wednesdayAttendance: wednesdayAttendance,
+        teamJoined: teamJoined,
+        lastFeedback: lastFeedback,
+        lastFeedbackDate: lastFeedbackDate,
+        lastOutcome: lastOutcome,
+        lastCallDate: lastCallDate,
+        gender: gender,
+        sundayDates: sundayDates,
+        wednesdayDates: wednesdayDates,
+        memberSince: memberSince,
+        followUpCount: followUpCount,
+        month: month,
+        assignedWorkerName: assignedWorkerName,
+        assignedEmail: assignedEmail,
+        history: entries,
+      );
+
   /// Computed performance urgency color matching PCU Connect rules:
   /// - Red: Not called after 3 days
   /// - Blue: New guest, within 3 days, not yet called

@@ -41,6 +41,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           Expanded(
             child: BlocBuilder<NotificationsCubit, NotificationsState>(
               builder: (context, state) {
+                if (state.failed && state.items.isEmpty) {
+                  return ErrorState(
+                    message: 'We could not load your notifications. Try again.',
+                    onRetry: context.read<NotificationsCubit>().retry,
+                  );
+                }
                 if (!state.loaded) return const SkeletonPage(rows: 4);
                 if (state.items.isEmpty) {
                   return const Center(

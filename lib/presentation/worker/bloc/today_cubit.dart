@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/utils/lagos_time.dart';
+import '../../../core/utils/read_errors.dart';
 import '../../../data/firestore/worker_calls_repository.dart';
 import '../../../domain/today_rules.dart';
 import '../../guests/bloc/guests_bloc.dart';
@@ -43,6 +44,7 @@ class TodayCubit extends Cubit<TodayState> {
 
   StreamSubscription<GuestsState>? _guestsSub;
   StreamSubscription<List<CallRecord>>? _callsSub;
+  bool _callsFailed = false;
   Timer? _midnight;
   List<CallRecord>? _callRecords;
 
@@ -63,14 +65,32 @@ class TodayCubit extends Cubit<TodayState> {
   void start() {
     _watchMonths();
     _guestsSub ??= _guests.stream.listen((_) => _recompute());
-    final stream = _calls?.watch();
-    if (stream != null && _callsSub == null) {
-      _callsSub = stream.listen((calls) {
-        _callRecords = calls;
-        _recompute();
-      }, onError: (_) {});
-    }
+    _watchCalls();
     _scheduleMidnight();
+    _recompute();
+  }
+
+  /// The worker's calls; a failed read shows "Try again" instead of a wrong list.
+  void _watchCalls() {
+    final stream = _calls?.watch();
+    if (stream == null || _callsSub != null) return;
+    _callsFailed = false;
+    _callsSub = stream.listen((calls) {
+      _callRecords = calls;
+      _recompute();
+    }, onError: (Object e) {
+      logReadError('today calls', e);
+      _callsSub?.cancel();
+      _callsSub = null;
+      _callsFailed = true;
+      _recompute();
+    });
+  }
+
+  /// "Try again" on Today: the guests and the calls.
+  void retry() {
+    _watchMonths();
+    _watchCalls();
     _recompute();
   }
 
@@ -112,7 +132,7 @@ class TodayCubit extends Cubit<TodayState> {
     if (isClosed) return;
     final months = state.months.isEmpty ? TodayRules.months(since: since, today: _today) : state.months;
     final g = _guests.state;
-    final failure = g.failureFor(months);
+    final failure = g.failureFor(months) ?? (_callsFailed ? 'We could not load your calls. Try again.' : null);
     if (failure != null) {
       emit(TodayState(loading: false, failure: failure, months: months));
       return;
