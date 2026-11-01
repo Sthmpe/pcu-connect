@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../../core/errors/failures.dart';
 import '../../core/network/api_result.dart';
+import '../../core/sync/sync_signals.dart';
 import '../../core/utils/lagos_time.dart';
 import '../../domain/entities/guest_entity.dart';
 import '../../domain/follow_up_rules.dart';
@@ -23,10 +24,14 @@ class FirestoreGuestRepository implements IGuestRepository {
   /// phone" (it is still sent once the device is back online).
   final Duration confirmWait;
 
+  /// For the sync chip: saves still on their way, lists still from the device copy.
+  final SyncSignals? signals;
+
   FirestoreGuestRepository({
     required FirebaseFirestore db,
     required IAuthRepository authRepository,
     this.confirmWait = const Duration(seconds: 4),
+    this.signals,
   })  : _db = db,
         _auth = authRepository;
 
@@ -69,7 +74,36 @@ class FirestoreGuestRepository implements IGuestRepository {
 
   @override
   Stream<List<GuestEntity>>? watchGuests({required String month}) =>
-      _guestsQuery(month).snapshots().map(_toGuests);
+      signals == null ? _guestsQuery(month).snapshots().map(_toGuests) : _watchWithSignals(month);
+
+  /// The live list, also telling [signals] while it still shows the device
+  /// copy (new assignments on their way). Metadata-only changes are not
+  /// passed on as new lists.
+  Stream<List<GuestEntity>> _watchWithSignals(String month) {
+    final key = Object();
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? sub;
+    List<GuestEntity>? last;
+    late final StreamController<List<GuestEntity>> out;
+    out = StreamController<List<GuestEntity>>(
+      onListen: () {
+        sub = _guestsQuery(month).snapshots(includeMetadataChanges: true).listen(
+          (snap) {
+            signals!.listFromCache(key, snap.metadata.isFromCache);
+            final guests = _toGuests(snap);
+            if (last != null && listEquals(last, guests)) return;
+            last = guests;
+            out.add(guests);
+          },
+          onError: out.addError,
+        );
+      },
+      onCancel: () async {
+        signals!.listClosed(key);
+        await sub?.cancel();
+      },
+    );
+    return out.stream;
+  }
 
   /// Firestore keeps its own offline cache and the live stream serves it first.
   @override
@@ -234,6 +268,7 @@ class FirestoreGuestRepository implements IGuestRepository {
       // The batch is applied on the device straight away. Offline, the server
       // answer never comes in time, so the save waits on the device to sync.
       final commit = batch.commit();
+      signals?.trackWrite(commit);
       var pendingSync = false;
       try {
         await commit.timeout(confirmWait);

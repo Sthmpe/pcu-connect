@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../constants/app_icons.dart';
 import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
+import '../sync/sync_chip.dart';
 import 'app_controls.dart';
 
 /// Top-level tab page: a large title on the page background, then content.
@@ -29,39 +30,38 @@ class AppPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          // 2px more inset than the content so the header sits slightly
-          // inside the cards below it.
-          padding: EdgeInsets.fromLTRB(AppSizes.gutter + 2, top + AppSizes.s32,
-              AppSizes.gutter + 2, AppSizes.s16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (eyebrow != null) ...[
-                      Text(eyebrow!, style: AppTextStyles.caption),
-                      SizedBox(height: AppSizes.s4),
-                    ],
-                    Text(title,
-                        style: AppTextStyles.display,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
-                    if (subtitle != null) ...[
-                      SizedBox(height: AppSizes.s4),
-                      Text(subtitle!, style: AppTextStyles.bodyMuted),
-                    ],
-                  ],
-                ),
+        // The sync chip sits in the space above the title, so it never moves the page.
+        Stack(
+          children: [
+            Padding(
+              // 2px more inset than the content so the header sits slightly
+              // inside the cards below it.
+              padding: EdgeInsets.fromLTRB(AppSizes.gutter + 2, top + AppSizes.s32, AppSizes.gutter + 2, AppSizes.s16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (eyebrow != null) ...[
+                          Text(eyebrow!, style: AppTextStyles.caption),
+                          SizedBox(height: AppSizes.s4),
+                        ],
+                        Text(title, style: AppTextStyles.display, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        if (subtitle != null) ...[
+                          SizedBox(height: AppSizes.s4),
+                          Text(subtitle!, style: AppTextStyles.bodyMuted),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (trailing != null) ...[SizedBox(width: AppSizes.s16), trailing!],
+                ],
               ),
-              if (trailing != null) ...[
-                SizedBox(width: AppSizes.s16),
-                trailing!,
-              ],
-            ],
-          ),
+            ),
+            Positioned(top: top + AppSizes.s4, right: AppSizes.gutter + 2, child: const SyncChip()),
+          ],
         ),
         ?below,
         Expanded(child: child),
@@ -96,11 +96,9 @@ class AppTopBar extends StatelessWidget {
             Expanded(
               child: title == null
                   ? const SizedBox.shrink()
-                  : Text(title!,
-                      style: AppTextStyles.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
+                  : Text(title!, style: AppTextStyles.title, maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
+            const SyncChip(),
             ?trailing,
           ],
         ),
@@ -119,9 +117,7 @@ class PageList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: padding ??
-          EdgeInsets.fromLTRB(
-              AppSizes.gutter, AppSizes.s8, AppSizes.gutter, AppSizes.s32),
+      padding: padding ?? EdgeInsets.fromLTRB(AppSizes.gutter, AppSizes.s8, AppSizes.gutter, AppSizes.s32),
       children: children,
     );
   }

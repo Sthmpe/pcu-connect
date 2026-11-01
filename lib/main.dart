@@ -25,6 +25,9 @@ import 'data/firestore/firestore_team_repository.dart';
 import 'data/firestore/notifications_repository.dart';
 import 'data/firestore/push_service.dart';
 import 'data/firestore/sheet_sync_repository.dart';
+import 'core/sync/connectivity.dart';
+import 'core/sync/sync_signals.dart';
+import 'core/sync/sync_status_cubit.dart';
 import 'data/firestore/message_templates_repository.dart';
 import 'data/firestore/worker_calls_repository.dart';
 import 'data/repositories/auth_repository_impl.dart';
@@ -65,6 +68,10 @@ void main() async {
   if (AppConfig.useFirestore) {
     FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
   }
+  // The top bar's sync chip (Firestore mode). Saves left from an earlier
+  // visit count as on their way until the server has them.
+  final SyncSignals? syncSignals = AppConfig.useFirestore ? SyncSignals() : null;
+  syncSignals?.trackWrite(FirebaseFirestore.instance.waitForPendingWrites());
   final profileSource = AppConfig.useFirestore
       ? FirestoreProfileSource(db: FirebaseFirestore.instance, auth: FirebaseAuth.instance)
       : null;
@@ -85,6 +92,7 @@ void main() async {
           ? FirestoreGuestRepository(
               db: FirebaseFirestore.instance,
               authRepository: authRepository,
+              signals: syncSignals,
             )
           : apiGuests;
   final apiTeam = TeamRepositoryImpl(apiClient: apiClient, authRepository: authRepository);
@@ -123,6 +131,7 @@ void main() async {
         ? NotificationsRepository(db: FirebaseFirestore.instance, authRepository: authRepository)
         : null,
     localCache: localCache,
+    syncSignals: syncSignals,
   ));
 }
 
@@ -141,6 +150,9 @@ class PCUConnectApp extends StatelessWidget {
   final INotificationsRepository? notificationsRepository;
   final LocalCache localCache;
 
+  /// Firestore mode only: the sync chip.
+  final SyncSignals? syncSignals;
+
   const PCUConnectApp({
     super.key,
     required this.authRepository,
@@ -150,6 +162,7 @@ class PCUConnectApp extends StatelessWidget {
     this.pushService,
     this.notificationsRepository,
     required this.localCache,
+    this.syncSignals,
   });
 
   @override
@@ -189,6 +202,18 @@ class PCUConnectApp extends StatelessWidget {
           BlocProvider<RankingCubit>(create: (ctx) => RankingCubit(teamRepository)),
           BlocProvider<DashboardCubit>(create: (ctx) => DashboardCubit(teamRepository)),
           BlocProvider<TeamCubit>(create: (ctx) => TeamCubit(teamRepository)),
+          if (syncSignals != null)
+            BlocProvider<SyncStatusCubit>(
+              create: (ctx) {
+                final connectivity = Connectivity();
+                return SyncStatusCubit(
+                  signals: syncSignals!,
+                  online: connectivity.online,
+                  onlineChanges: connectivity.changes,
+                );
+              },
+              lazy: false,
+            ),
           BlocProvider<NotificationsCubit>(create: (ctx) => NotificationsCubit(notificationsRepository)),
           BlocProvider<PushCubit>(
             create: (ctx) => PushCubit(
