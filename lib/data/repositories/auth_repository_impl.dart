@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../core/errors/failures.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_result.dart';
@@ -40,7 +41,11 @@ class AuthRepositoryImpl implements IAuthRepository {
       final provider = GoogleAuthProvider()
         ..addScope('email')
         ..addScope('profile');
-      final credential = await _firebaseAuth.signInWithPopup(provider);
+      // A pop-up on the web; the system Google sign-in on Android and iOS
+      // (needs the app's SHA-1 in Firebase on Android, see docs/MOBILE.md).
+      final credential = kIsWeb
+          ? await _firebaseAuth.signInWithPopup(provider)
+          : await _firebaseAuth.signInWithProvider(provider);
       final token = await credential.user?.getIdToken();
       if (token == null || token.isEmpty) {
         return const ApiResult.failure(
