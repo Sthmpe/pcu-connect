@@ -519,9 +519,10 @@ Deployed and tested:
 - Firestore-mode build on the Hosting preview channel `firestore-test` (expires 2026-12-01):
   https://pcu-workflow--firestore-test-3a07ufkq.web.app . The live site was not touched.
 
-**Blocked, needs the owner:** the new `firestore.rules` are not deployed (the deploy was refused by this session's
-permission check). Until `firebase deploy --only firestore:rules --project pcu-workflow` is run, saves from the
-Firestore-mode app are refused by the old rules (they do not allow `lastFollowUpId`).
+**Rules deployed** (2026-11-01, with the owner's approval): `firebase deploy --only firestore:rules --project pcu-workflow`
+released the phase 2 rules (from 3411988). A second deploy reported "already up to date", so the live rules match the repo.
+Saves from the Firestore-mode app are now allowed by the rules. Next check: sign in to the preview, save a follow-up,
+then "Sync to sheet" (or wait for the nightly run) and look at the Follow-ups tab and the guest row.
 
 Known gaps (not built):
 - Ranking, Team and Dashboard still come from the Apps Script API (the sheet), so app saves show there after a sync.

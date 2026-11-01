@@ -145,7 +145,7 @@ UI checklist:
 ### 2. Follow-ups written by the app
 Backend: app writes follow-ups with batch writes (offline safe) and rules; log on behalf moves to Firestore; dates use Africa/Lagos.
 
-Status (branch phase-1-firestore, 2026-11-01): built and tested (emulator, unit tests); waiting on the rules deploy (see SESSION.md).
+Status (branch phase-1-firestore, 2026-11-01): built and tested (emulator, unit tests); rules deployed to pcu-workflow; not yet checked end to end from the app.
 
 UI checklist:
 - [x] Log follow-up saves instantly, online or offline (one batch; after 4 s without a server answer it counts as saved on the phone)
