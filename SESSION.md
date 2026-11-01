@@ -531,3 +531,53 @@ Known gaps (not built):
   fields computed from the sheet, which can be behind unsynced app work.
 - For old guests whose sheet FOLLOW-UP COUNT came from legacy feedback columns, the app adds 1 to that count while the
   sheet rule takes the larger of the two.
+
+## 2026-11-01 Update: fast load, icons, notifications, Firestore insights, nightly rebuild, security review
+
+Branch `phase-1-firestore`. Commits in order: 829dbc7 (load), e359d32 (icons), 1a17e24 (chime), 2ef7ce4 (web push),
+fe07426 (Apps Script push), 1a7e1fc (bell), 32705c4 (ranking/team/dashboard from Firestore), c675ea3 (nightly
+rebuild), 7bd9ace (deprecated actions), 3f2937b (security review), 19c6607 (APP_LINK). Rules deployed to pcu-workflow
+after every change. Apps Script pushed with clasp to the existing deployment `AKfycby0H6Sk...` (@11), exec URL unchanged.
+Preview (Firestore mode, expires 2026-12-01): https://pcu-workflow--firestore-test-3a07ufkq.web.app . Live site untouched.
+
+**Load (Part 0).** Cause of the white screen: no splash, CanvasKit and the Firebase JS SDK from Google CDNs, Rubik from
+Google Fonts, and about 1.3 MB of unused Lucide icon fonts that Flutter downloads at startup. Fixes: navy HTML splash in
+web/index.html removed on the first Flutter frame; `tool/build_web.sh` builds with `--no-web-resources-cdn` and prunes
+the unused fonts; Firebase JS SDK 13.1.0 self-hosted in web/firebasejs (main() waits for it); Rubik 400/600 bundled;
+Hosting Cache-Control headers (Brotli is automatic). Playwright test: `cd tool/web && node load_test.mjs <url> <label> 3`
+(phone 390x844, slow 4G 150 ms 1.6 Mbit/s, CPU x4, empty cache).
+
+| | Before | After (final preview) |
+|---|---|---|
+| Something on screen | 22.3 s (white until then) | 0.25 to 0.9 s (splash) |
+| Login screen drawn | 22.3 s | 16.3 to 17.1 s |
+| Downloaded | 4.1 MB, 27 requests | 2.8 MB, 20 requests |
+| Other hosts | Google Fonts, gstatic (CanvasKit, fonts), Firebase Auth | Firebase Auth only (not needed for the first frame) |
+
+The rest of the 16 s is CanvasKit (1.5 MB) and main.dart.js (0.7 MB) on a 1.6 Mbit/s line. Headless Chromium reports
+the locale "en-US@posix", which stops Flutter; the test sets a normal phone locale.
+
+**Brand.** design/logo/pcu-logo.svg is the login logo (navy tile, gold Lucide heart-handshake glyph). `node
+tool/web/render_icons.mjs` renders favicons, web and maskable icons, apple-touch-icon, notification icon and white badge,
+Android mipmaps and iOS AppIcon sizes. Chime: `python3 tool/sound/make_chime.py` -> assets/sounds/notify.wav.
+
+**Notifications.** FCM web push (firebase-messaging-sw.js, VAPID key in AppConfig.fcmVapidKey); a polite card after
+sign-in ("Turn on" / "Not now", 14 days); tokens at users/{email}/tokens. Apps Script (pcuNotify_) saves a bell item at
+users/{email}/notifications and pushes through FCM HTTP v1 for a new guest, the 6pm reminder and a failed scheduled
+sync (HODs); the email is the fallback when no device got the push. The bell shows the unread count and marks all read
+when opened. **Blocked:** the service account lacks `cloudmessaging.messages.create` (pushCheck returns 403); give it
+the role "Firebase Cloud Messaging API Admin". Until then the bell and emails work, pushes do not. Web push cannot play
+the custom chime when the app is closed; on iPhone it needs the app added to the Home Screen (iOS 16.4+).
+
+**Firestore insights.** Team and Dashboard (HOD) are worked out from guests, followUps and users (InsightRules, a port
+of the API rules). Ranking reads rankings/{month}/entries, which every save moves in the same batch and
+pcuNightlyRecalc (00:35 Lagos) rebuilds from followUps with the API's pcuPoints_. Admins are never ranked.
+
+**Security review** (details in docs/BACKEND_PLAN.md): follow-ups must come with their guest update; status changes
+follow the rules (Member needs 3+ Sundays, Member and Not interested stay); date fields server time and only growing;
+Apps Script requires a verified email. Old API actions are marked deprecated, not removed (the live site uses them).
+
+Tests: 55 emulator rules tests (needs Java 21), 71 Flutter tests, Firestore harness 76 checks, API harness and
+equivalence harness pass. ALLOW_MOCK_TOKENS is still on (TEST sheet only).
+
+**Test data:** syncNow and pushCheck were called on the TEST project (no app saves existed, so nothing was synced).
