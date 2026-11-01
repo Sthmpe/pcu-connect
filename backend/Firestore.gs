@@ -6,9 +6,11 @@
  * that property every function here is a no-op, so the existing API keeps
  * working exactly as before.
  *
- * Phase 1 field ownership: the sheet is still where work is saved (through
- * the Apps Script API), so guests are sent with all their fields. From phase
- * 2 the app writes work fields itself and only sheet-owned fields are sent.
+ * Field ownership (phase 2): the app writes follow-ups and the guest work
+ * fields straight to Firestore. The 5-minute job and the assignment push send
+ * only sheet-owned fields (name, phone, service date, ASSIGNED TO), plus the
+ * work fields the first time a guest is sent. The sheet sync below copies the
+ * work back to the sheet.
  *
  * Long jobs use batch writes (up to 500 per commit), stop before the Apps
  * Script time limit, and keep a progress marker in Script Properties so the
@@ -297,12 +299,44 @@ function pcuGuestWrites_(guest, followUps, workers) {
 }
 
 /** Fingerprint of what was last sent for a guest, stored in SYNC KEY. */
+/**
+ * Fingerprint of the sheet-owned fields last sent for a guest, stored in SYNC
+ * KEY. Work fields belong to Firestore, so the sheet sync writing them to the
+ * sheet never makes a guest look changed.
+ */
 function pcuGuestSyncKey_(guest, followUps, workers) {
   var digest = Utilities.computeDigest(
     Utilities.DigestAlgorithm.SHA_256,
-    JSON.stringify(pcuGuestDoc_(guest, followUps, workers)) + '|' + followUps.length
+    JSON.stringify(pcuGuestSheetFields_(guest, workers))
   );
   return pcuHex_(digest).substring(0, 16);
+}
+
+/**
+ * Writes for a guest from the sheet: everything the first time it is sent,
+ * afterwards only the sheet-owned fields, so work saved in the app is never
+ * overwritten.
+ */
+function pcuGuestSheetWrites_(guest, followUps, workers, alreadySent) {
+  if (!alreadySent) return pcuGuestWrites_(guest, followUps, workers);
+  return [pcuFsSet_('guests/' + guest.id, pcuGuestSheetFields_(guest, workers))];
+}
+
+/**
+ * Ids of [guests] that already have a Firestore document. Their work fields
+ * belong to Firestore, so the sheet only ever sends sheet-owned fields for them.
+ */
+function pcuExistingGuests_(guests) {
+  var found = pcuFsGetDocs_(
+    guests.map(function (g) {
+      return 'guests/' + g.id;
+    })
+  );
+  var ids = {};
+  Object.keys(found).forEach(function (path) {
+    ids[path.substring('guests/'.length)] = true;
+  });
+  return ids;
 }
 
 // ---------------------------------------------------------------------------
@@ -439,13 +473,19 @@ function pcuNormaliseWorkerEmails_() {
 // Sending guests
 // ---------------------------------------------------------------------------
 
-/** Sends one guest (and its follow-ups) now. Used after assignment. */
+/** Sends one guest now (sheet-owned fields once it exists). Used after assignment. */
 function pcuPushGuest_(guestId) {
   if (!pcuFsEnabled_()) return 0;
   var guests = pcuGuestRows_(true);
   var guest = pcuFindGuest_(guests, guestId);
-  if (!guest) return 0;
-  return pcuPushGuestData_(guests.table, guest, pcuFollowUps_(true).byGuest[guest.id] || [], pcuWorkers_());
+  if (!guest || !guest.assignedTo) return 0;
+  var followUps = pcuFollowUps_(true).byGuest[guest.id] || [];
+  var workers = pcuWorkers_();
+  var exists = pcuExistingGuests_([guest]);
+  var written = pcuFsCommit_(pcuGuestSheetWrites_(guest, followUps, workers, !!exists[guest.id]));
+  pcuSetCell_(guests.table, guest.rowIndex, PCU_FS.SYNC_KEY, pcuGuestSyncKey_(guest, followUps, workers));
+  pcuSetCell_(guests.table, guest.rowIndex, PCU_FS.SYNCED_AT, new Date());
+  return written;
 }
 
 /**
@@ -454,7 +494,15 @@ function pcuPushGuest_(guestId) {
  */
 function pcuPushGuestData_(guestsTable, guest, followUps, workers) {
   if (!pcuFsEnabled_() || !guest.assignedTo) return 0;
-  var written = pcuFsCommit_(pcuGuestWrites_(guest, followUps, workers));
+  // The guest and the follow-up just saved. Earlier follow-ups are already in
+  // Firestore (some were written by the app) and are left alone.
+  var writes = [pcuFsSet_('guests/' + guest.id, pcuGuestDoc_(guest, followUps, workers))];
+  var last = followUps[followUps.length - 1];
+  if (last && last.id) {
+    var points = pcuFollowUpPoints_(guest, followUps);
+    writes.push(pcuFsSet_('followUps/' + last.id, pcuFollowUpDoc_(last, points[points.length - 1])));
+  }
+  var written = pcuFsCommit_(writes);
   pcuSetCell_(guestsTable, guest.rowIndex, PCU_FS.SYNC_KEY, pcuGuestSyncKey_(guest, followUps, workers));
   pcuSetCell_(guestsTable, guest.rowIndex, PCU_FS.SYNCED_AT, new Date());
   return written;
@@ -501,8 +549,9 @@ function pcuPushPendingGuests() {
       return sent !== pcuGuestSyncKey_(g, followUps.byGuest[g.id] || [], workers);
     });
 
+    var exists = pcuExistingGuests_(pending);
     var result = pcuRunJob_('push', pending, function (g) {
-      return pcuGuestWrites_(g, followUps.byGuest[g.id] || [], workers);
+      return pcuGuestSheetWrites_(g, followUps.byGuest[g.id] || [], workers, !!exists[g.id]);
     }, false);
     // Mark what has been sent so the next run skips it.
     var now = new Date();
@@ -537,8 +586,9 @@ function pcuMigrate() {
     var list = guests.list.filter(function (g) {
       return g.month >= oldest;
     });
+    var exists = pcuExistingGuests_(list);
     var result = pcuRunJob_('migrate', list, function (g) {
-      return pcuGuestWrites_(g, followUps.byGuest[g.id] || [], workers);
+      return pcuGuestSheetWrites_(g, followUps.byGuest[g.id] || [], workers, !!exists[g.id]);
     }, true);
     result.users = users;
     result.guests = list.length;
@@ -581,4 +631,432 @@ function pcuInstallFirestoreTriggers() {
     if (t.getHandlerFunction() === 'pcuPushPendingGuests') ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger('pcuPushPendingGuests').timeBased().everyMinutes(5).create();
+}
+
+// ---------------------------------------------------------------------------
+// Sheet sync (phase 3): Firestore -> sheet
+// ---------------------------------------------------------------------------
+
+var PCU_SYNC = {
+  META: 'meta/sync',
+  PAGE: 500,
+  REPORT_TAB: 'Weekly Report',
+  REPORT_HEADERS: ['WEEK', 'FROM', 'TO', 'FOLLOW-UPS', 'GUESTS CALLED', 'ATTENDANCES', 'TEAM JOINS', 'NEW MEMBERS', 'WRITTEN AT']
+};
+
+/** Decodes a Firestore REST value. Timestamps become Dates. */
+function pcuFsDecode_(v) {
+  if (!v || 'nullValue' in v) return null;
+  if ('stringValue' in v) return v.stringValue;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return v.doubleValue;
+  if ('timestampValue' in v) return new Date(v.timestampValue);
+  if ('arrayValue' in v) return (v.arrayValue.values || []).map(pcuFsDecode_);
+  if ('mapValue' in v) {
+    var out = {};
+    var fields = v.mapValue.fields || {};
+    Object.keys(fields).forEach(function (k) {
+      out[k] = pcuFsDecode_(fields[k]);
+    });
+    return out;
+  }
+  if ('referenceValue' in v) return v.referenceValue;
+  return null;
+}
+
+function pcuFsDocument_(doc) {
+  var data = {};
+  var fields = doc.fields || {};
+  Object.keys(fields).forEach(function (k) {
+    data[k] = pcuFsDecode_(fields[k]);
+  });
+  return { id: doc.name.split('/').pop(), name: doc.name, data: data };
+}
+
+function pcuFsPost_(suffix, body) {
+  var res = UrlFetchApp.fetch(PCU_FS.API + '/' + pcuFsDocsBase_() + suffix, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + pcuFsToken_() },
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true
+  });
+  if (res.getResponseCode() !== 200) {
+    throw pcuError_('SERVER', 'Firestore read failed (' + res.getResponseCode() + '): ' + res.getContentText().substring(0, 300));
+  }
+  return JSON.parse(res.getContentText());
+}
+
+/** Every document of [collection] where [field] == [value], read in pages. */
+function pcuFsQueryEqual_(collection, field, value) {
+  var docs = [];
+  var last = null;
+  for (;;) {
+    var query = {
+      from: [{ collectionId: collection }],
+      where: { fieldFilter: { field: { fieldPath: field }, op: 'EQUAL', value: pcuFsValue_(value) } },
+      orderBy: [{ field: { fieldPath: '__name__' }, direction: 'ASCENDING' }],
+      limit: PCU_SYNC.PAGE
+    };
+    if (last) query.startAt = { values: [{ referenceValue: last }], before: false };
+    var page = pcuFsPost_(':runQuery', { structuredQuery: query }).filter(function (r) {
+      return !!r.document;
+    });
+    page.forEach(function (r) {
+      docs.push(pcuFsDocument_(r.document));
+    });
+    if (page.length < PCU_SYNC.PAGE) return docs;
+    last = page[page.length - 1].document.name;
+  }
+}
+
+/** Documents by path ('guests/G1'), as { path: data }. Missing ones are left out. */
+function pcuFsGetDocs_(paths) {
+  var out = {};
+  var base = pcuFsDocsBase_();
+  for (var i = 0; i < paths.length; i += 100) {
+    var names = paths.slice(i, i + 100).map(function (p) {
+      return base + '/' + p;
+    });
+    pcuFsPost_(':batchGet', { documents: names }).forEach(function (r) {
+      if (!r.found) return;
+      var doc = pcuFsDocument_(r.found);
+      out[doc.name.substring(base.length + 1)] = doc.data;
+    });
+  }
+  return out;
+}
+
+/** A Lagos day ('yyyy-MM-dd') or Date as a Date, or ''. */
+function pcuSyncDate_(value) {
+  if (value instanceof Date) return value;
+  return pcuDate_(value) || '';
+}
+
+/** One Follow-ups tab row for a follow-up saved in the app. */
+function pcuSyncFollowUpRow_(table, f) {
+  var d = f.data;
+  var values = {};
+  values[PCU.F.ID] = f.id;
+  values[PCU.F.GUEST] = d.guestId || '';
+  values[PCU.F.WORKER] = pcuEmail_(d.worker);
+  values[PCU.F.LOGGED_BY] = pcuEmail_(d.loggedBy || d.worker);
+  values[PCU.F.DATE] = d.createdAt instanceof Date ? d.createdAt : pcuSyncDate_(d.callDate);
+  values[PCU.F.OUTCOME] = d.outcome || '';
+  values[PCU.F.NOTE] = d.note || '';
+  values[PCU.F.SUNDAY] = d.attendedSunday === true;
+  values[PCU.F.SUNDAY_DATE] = d.attendedSunday ? pcuSyncDate_(d.sundayDate) : '';
+  values[PCU.F.WEDNESDAY] = d.attendedWednesday === true;
+  values[PCU.F.WEDNESDAY_DATE] = d.attendedWednesday ? pcuSyncDate_(d.wednesdayDate) : '';
+  values[PCU.F.TEAM] = d.team || '';
+  var row = [];
+  for (var c = 0; c < table.headers.length; c++) row.push('');
+  Object.keys(values).forEach(function (header) {
+    var col = pcuCol_(table, header);
+    if (col >= 0) row[col] = values[header];
+  });
+  return row;
+}
+
+function pcuSameCell_(a, b) {
+  if (a instanceof Date || b instanceof Date) {
+    return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
+  }
+  return pcuStr_(a) === pcuStr_(b);
+}
+
+/**
+ * Writes the Firebase-owned columns of one guest row from its Firestore
+ * document. Never touches ASSIGNED TO, name, phone or service date. FEEDBACK 1
+ * and 2 keep the first two notes and are never replaced. Returns cells changed.
+ */
+function pcuSyncGuestRow_(t, rowIndex, d, followUps) {
+  var G = PCU.G;
+  var row = t.rows[rowIndex];
+  var changed = 0;
+  function set(header, value) {
+    if (value === null || value === undefined) return;
+    var col = pcuCol_(t, header);
+    if (col < 0 || pcuSameCell_(row[col], value)) return;
+    pcuSetCell_(t, rowIndex, header, value);
+    changed++;
+  }
+  set(G.CALL_STATUS, d.callStatus);
+  set(G.STATUS, d.membershipStatus);
+  set(G.FOLLOW_UP_COUNT, typeof d.followUpCount === 'number' ? d.followUpCount : null);
+  set(G.TEAM, d.teamJoined);
+  if (d.lastFeedback) {
+    set(G.LAST_FEEDBACK, d.lastFeedback);
+    set(G.LAST_FEEDBACK_DATE, d.lastFeedbackDate);
+  }
+  if (d.memberSince) set(G.MEMBERSHIP_DATE, d.memberSince);
+
+  var notes = followUps.filter(function (f) {
+    return !!f.note;
+  });
+  if (notes[0] && !pcuStr_(pcuCell_(t, row, G.FEEDBACK_1))) {
+    set(G.FEEDBACK_1, notes[0].note);
+    set(G.FEEDBACK_1_DATE, notes[0].date);
+  }
+  if (notes[1] && !pcuStr_(pcuCell_(t, row, G.FEEDBACK_2))) {
+    set(G.FEEDBACK_2, notes[1].note);
+    set(G.FEEDBACK_2_DATE, notes[1].date);
+  }
+  return changed;
+}
+
+/**
+ * Copies work saved in the app to the sheet: appends new follow-ups to the
+ * Follow-ups tab (keyed by Follow-up ID, so a repeat adds nothing), writes the
+ * Firebase-owned columns of each touched guest, then marks the follow-ups as
+ * synced and records the run in meta/sync. Runs under the shared script lock.
+ */
+function pcuSheetSync_(by) {
+  if (!pcuFsEnabled_()) throw pcuError_('NOT_READY', 'Sync to sheet is not set up yet.');
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw pcuError_('BUSY', 'A sync is already running. Try again in a minute.');
+  var startedAt = new Date();
+  try {
+    pcuFsCommit_([pcuFsSet_(PCU_SYNC.META, { running: true, startedAt: startedAt, startedBy: by })]);
+    var result = pcuSheetSyncLocked_();
+    result.by = by;
+    result.ok = true;
+    var finishedAt = new Date();
+    pcuFsCommit_([
+      pcuFsSet_(PCU_SYNC.META, {
+        running: false,
+        lastSheetSyncAt: finishedAt,
+        lastResult: {
+          ok: true,
+          by: by,
+          followUps: result.followUps,
+          guests: result.guests,
+          alreadyInSheet: result.alreadyInSheet,
+          missingGuests: result.missingGuests,
+          seconds: Math.round((finishedAt - startedAt) / 1000)
+        }
+      })
+    ]);
+    result.lastSheetSyncAt = finishedAt.toISOString();
+    return result;
+  } catch (err) {
+    try {
+      pcuFsCommit_([
+        pcuFsSet_(PCU_SYNC.META, {
+          running: false,
+          lastResult: { ok: false, by: by, error: String((err && err.message) || err).substring(0, 300), at: new Date() }
+        })
+      ]);
+    } catch (ignored) {
+      // The error below is the one that matters.
+    }
+    throw err;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function pcuSheetSyncLocked_() {
+  var pending = pcuFsQueryEqual_('followUps', 'syncedToSheet', false);
+  pending.sort(function (a, b) {
+    var ta = a.data.createdAt instanceof Date ? a.data.createdAt.getTime() : 0;
+    var tb = b.data.createdAt instanceof Date ? b.data.createdAt.getTime() : 0;
+    return ta - tb || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  });
+
+  // 1. Follow-ups tab: append the ones it does not have yet, in one write.
+  var fu = pcuTable_(PCU.SHEETS.FOLLOW_UPS, true);
+  pcuRequireCol_(fu, PCU.F.ID);
+  pcuRequireCol_(fu, PCU.F.GUEST);
+  var inSheet = {};
+  var idCol = pcuCol_(fu, PCU.F.ID);
+  fu.rows.forEach(function (row) {
+    var id = pcuStr_(row[idCol]);
+    if (id) inSheet[id] = true;
+  });
+  var newRows = [];
+  pending.forEach(function (f) {
+    if (inSheet[f.id]) return;
+    inSheet[f.id] = true;
+    newRows.push(pcuSyncFollowUpRow_(fu, f));
+  });
+  if (newRows.length) {
+    fu.sheet.getRange(fu.dataRows + 2, 1, newRows.length, fu.headers.length).setValues(newRows);
+    SpreadsheetApp.flush();
+  }
+
+  // 2. Guest rows: the Firebase-owned columns of every touched guest.
+  var ids = [];
+  var seen = {};
+  pending.forEach(function (f) {
+    var id = pcuStr_(f.data.guestId);
+    if (id && !seen[id]) {
+      seen[id] = true;
+      ids.push(id);
+    }
+  });
+  var docs = pcuFsGetDocs_(
+    ids.map(function (id) {
+      return 'guests/' + id;
+    })
+  );
+  var t = pcuTableHead_(PCU.SHEETS.GUESTS);
+  var rowOf = {};
+  pcuRowsWithIds_(t, ids).forEach(function (rowIndex) {
+    rowOf[rowIndex] = true;
+  });
+  var rows = Object.keys(rowOf).map(Number);
+  pcuLoadRowSet_(t, rows);
+  var firstRowById = {};
+  rows
+    .sort(function (a, b) {
+      return a - b;
+    })
+    .forEach(function (rowIndex) {
+      var id = pcuStr_(pcuCell_(t, t.rows[rowIndex], PCU.G.ID));
+      if (id && firstRowById[id] === undefined) firstRowById[id] = rowIndex;
+    });
+  var followUps = pcuFollowUps_(true).byGuest;
+  var updated = 0;
+  var missing = 0;
+  ids.forEach(function (id) {
+    var doc = docs['guests/' + id];
+    var rowIndex = firstRowById[id];
+    if (!doc || rowIndex === undefined) {
+      missing++;
+      return;
+    }
+    if (pcuSyncGuestRow_(t, rowIndex, doc, followUps[id] || []) > 0) updated++;
+  });
+  SpreadsheetApp.flush();
+
+  // 3. Firestore: mark what reached the sheet (batches of 500).
+  var now = new Date();
+  var writes = pending.map(function (f) {
+    return pcuFsSet_('followUps/' + f.id, { syncedToSheet: true });
+  });
+  ids.forEach(function (id) {
+    if (docs['guests/' + id]) writes.push(pcuFsSet_('guests/' + id, { syncedToSheetAt: now }));
+  });
+  pcuFsCommit_(writes);
+
+  pcuClearStatsCache_();
+  return {
+    followUps: newRows.length,
+    alreadyInSheet: pending.length - newRows.length,
+    guests: updated,
+    guestsChecked: ids.length - missing,
+    missingGuests: missing
+  };
+}
+
+/** Nightly at 00:05 Africa/Lagos (see pcuEnsureSyncTriggers_). */
+function pcuNightlySync() {
+  return pcuSheetSync_('nightly');
+}
+
+/**
+ * Mondays at 01:00 Africa/Lagos: a catch-up sync, then last week's results
+ * (Monday to Sunday) as one row of the Weekly Report tab, written once per week.
+ */
+function pcuWeeklySync() {
+  var result = pcuSheetSync_('weekly');
+  result.report = pcuWriteWeeklyReport_(new Date());
+  return result;
+}
+
+/** Writes the Weekly Report row for the week before [now]. Returns the week key, or '' if it was already there. */
+function pcuWriteWeeklyReport_(now) {
+  var today = pcuDay_(now);
+  var dow = Number(Utilities.formatDate(now, PCU.TZ, 'u')); // 1 = Monday
+  var monday = pcuAddDays_(today, -(dow - 1) - 7);
+  var sunday = pcuAddDays_(monday, 6);
+  var week = monday;
+
+  var ss = SpreadsheetApp.getActive();
+  var sheet = ss.getSheetByName(PCU_SYNC.REPORT_TAB);
+  if (!sheet) {
+    sheet = ss.insertSheet(PCU_SYNC.REPORT_TAB);
+    sheet.getRange(1, 1, 1, PCU_SYNC.REPORT_HEADERS.length).setValues([PCU_SYNC.REPORT_HEADERS]);
+  }
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    var weeks = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < weeks.length; i++) {
+      var w = weeks[i][0] instanceof Date ? pcuDay_(weeks[i][0]) : pcuStr_(weeks[i][0]);
+      if (w === week) return '';
+    }
+  }
+
+  var inWeek = function (date) {
+    var d = date ? pcuDay_(date) : '';
+    return d >= monday && d <= sunday;
+  };
+  var followUps = pcuFollowUps_(true).byGuest;
+  var count = 0;
+  var called = 0;
+  var attendances = 0;
+  var teamJoins = 0;
+  Object.keys(followUps).forEach(function (guestId) {
+    var any = false;
+    var teamSeen = false;
+    followUps[guestId].forEach(function (f) {
+      var joined = !!f.team && !teamSeen;
+      if (f.team) teamSeen = true;
+      if (!inWeek(f.date)) return;
+      any = true;
+      count++;
+      attendances += (f.sunday ? 1 : 0) + (f.wednesday ? 1 : 0);
+      if (joined) teamJoins++;
+    });
+    if (any) called++;
+  });
+  var members = pcuGuestsWhere_({ members: true }).list.filter(function (g) {
+    return g.status === PCU.STATUS.MEMBER && inWeek(g.membershipDate);
+  }).length;
+
+  sheet.appendRow([week, monday, sunday, count, called, attendances, teamJoins, members, now]);
+  return week;
+}
+
+function pcuAddDays_(day, n) {
+  var p = day.split('-');
+  var d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2] + n));
+  return d.getUTCFullYear() + '-' + pcuPad2_(d.getUTCMonth() + 1) + '-' + pcuPad2_(d.getUTCDate());
+}
+
+/**
+ * Makes sure the nightly (00:05) and weekly (Monday 01:00) Africa/Lagos
+ * triggers exist, adding only the missing ones. Called by syncNow, so the
+ * first "Sync to sheet" sets them up. Returns the handlers it added.
+ */
+function pcuEnsureSyncTriggers_() {
+  var have = {};
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    have[t.getHandlerFunction()] = true;
+  });
+  var added = [];
+  if (!have.pcuNightlySync) {
+    ScriptApp.newTrigger('pcuNightlySync').timeBased().everyDays(1).atHour(0).nearMinute(5).inTimezone(PCU.TZ).create();
+    added.push('pcuNightlySync');
+  }
+  if (!have.pcuWeeklySync) {
+    ScriptApp.newTrigger('pcuWeeklySync').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(1).inTimezone(PCU.TZ).create();
+    added.push('pcuWeeklySync');
+  }
+  return added;
+}
+
+/** The sheet sync for the HOD's "Sync to sheet" button (admin only). */
+function pcuSyncNow_(user) {
+  pcuRequireAdmin_(user);
+  var result = pcuSheetSync_('syncNow ' + user.email);
+  try {
+    result.triggersAdded = pcuEnsureSyncTriggers_();
+  } catch (err) {
+    console.warn('Could not set up the sync triggers: ' + (err && err.message));
+    result.triggersAdded = [];
+  }
+  return result;
 }

@@ -35,6 +35,14 @@ function makeSheet(rows, name) {
           while (sheet.rows.length < r) sheet.rows.push([]);
           sheet.rows[r - 1][c - 1] = v; sheet.sets.push([r, c, v]);
         },
+        setValues(values) {
+          if (values.length !== nr || values.some(v => v.length !== nc)) throw new Error('setValues size mismatch');
+          values.forEach((line, i) => {
+            while (sheet.rows.length < r + i) sheet.rows.push([]);
+            line.forEach((v, j) => { sheet.rows[r - 1 + i][c - 1 + j] = v; });
+          });
+          sheet.sets.push([r, c, 'values', nr, nc]);
+        },
         createTextFinder(text) {
           const opts = { regex: false, matchCase: false, entire: false };
           const finder = {

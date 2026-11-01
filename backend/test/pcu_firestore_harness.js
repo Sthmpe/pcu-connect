@@ -67,9 +67,35 @@ function setup(opts = {}) {
     if ('mapValue' in v) return Object.fromEntries(Object.entries(v.mapValue.fields).map(([k, x]) => [k, decode(x)]));
     throw new Error('bad value ' + JSON.stringify(v));
   };
+  const encode = v => {
+    if (v === null || v === undefined) return { nullValue: null };
+    if (v instanceof Date) return { timestampValue: v.toISOString() };
+    if (typeof v === 'boolean') return { booleanValue: v };
+    if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+    if (Array.isArray(v)) return { arrayValue: { values: v.map(encode) } };
+    if (typeof v === 'object') return { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, encode(x)])) } };
+    return { stringValue: String(v) };
+  };
+  const BASE = 'projects/demo-pcu/databases/(default)/documents/';
+  const asDoc = key => ({ name: BASE + key, fields: Object.fromEntries(Object.entries(store[key]).map(([k, v]) => [k, encode(v)])) });
+  const reads = { queries: 0, batchGets: 0 };
+  const triggers = [];
   const ctx = {
     console: { log() {}, warn() {}, error: console.error },
-    SpreadsheetApp: { getActive: () => ({ getSheetByName: n => sheets[n] || null }), flush() {} },
+    SpreadsheetApp: { getActive: () => ({
+      getSheetByName: n => sheets[n] || null,
+      insertSheet: n => (sheets[n] = makeSheet([])),
+    }), flush() {} },
+    ScriptApp: {
+      WeekDay: { MONDAY: 'MONDAY' },
+      getProjectTriggers: () => triggers.map(t => ({ getHandlerFunction: () => t.fn })),
+      newTrigger: fn => {
+        const t = { fn };
+        const b = { timeBased: () => b, everyDays: d => ((t.days = d), b), atHour: h => ((t.hour = h), b), nearMinute: m => ((t.minute = m), b),
+          onWeekDay: d => ((t.weekDay = d), b), inTimezone: z => ((t.tz = z), b), create: () => (triggers.push(t), t) };
+        return b;
+      },
+    },
     Utilities: {
       formatDate: fmt,
       parseDate: (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d, -1)); },
@@ -103,6 +129,25 @@ function setup(opts = {}) {
         });
         return { getResponseCode: () => 200, getContentText: () => '{}' };
       }
+      if (url.endsWith(':runQuery')) {
+        reads.queries++;
+        const q = JSON.parse(o.payload).structuredQuery;
+        const col = q.from[0].collectionId;
+        const f = q.where.fieldFilter;
+        const want = decode(f.value);
+        let keys = Object.keys(store).filter(k => k.startsWith(col + '/') && k.split('/').length === 2 && store[k][f.field.fieldPath] === want).sort();
+        if (q.startAt) keys = keys.filter(k => BASE + k > q.startAt.values[0].referenceValue);
+        keys = keys.slice(0, q.limit);
+        const out = keys.map(k => ({ document: asDoc(k), readTime: 'now' }));
+        return { getResponseCode: () => 200, getContentText: () => JSON.stringify(out.length ? out : [{ readTime: 'now' }]) };
+      }
+      if (url.endsWith(':batchGet')) {
+        reads.batchGets++;
+        const names = JSON.parse(o.payload).documents;
+        if (names.length > 100) return { getResponseCode: () => 400, getContentText: () => 'too many' };
+        const out = names.map(n => { const k = n.substring(BASE.length); return store[k] ? { found: asDoc(k) } : { missing: n }; });
+        return { getResponseCode: () => 200, getContentText: () => JSON.stringify(out) };
+      }
       const t = JSON.parse(o.payload).idToken; const email = tokens[t];
       return { getResponseCode: () => (email ? 200 : 400), getContentText: () => JSON.stringify(email ? { users: [{ email, emailVerified: true }] } : { error: {} }) };
     } },
@@ -113,7 +158,7 @@ function setup(opts = {}) {
   const dir = path.join(__dirname, '..');
   vm.runInContext(fs.readFileSync(path.join(dir, 'Api.gs'), 'utf8') + '\n' + fs.readFileSync(path.join(dir, 'Firestore.gs'), 'utf8'), ctx);
   const call = body => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(body) } }).text);
-  return { ctx, sheets, props, store, commits, call, tokenRequests: () => tokenRequests };
+  return { ctx, sheets, props, store, commits, call, reads, triggers, tokenRequests: () => tokenRequests };
 }
 
 let fails = 0;
@@ -226,6 +271,110 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
   const h = setup();
   h.ctx.pcuSyncUsers_(); h.ctx.pcuSyncUsers_();
   check('token requested once and reused', h.tokenRequests() === 1, h.tokenRequests());
+}
+
+// --- Phase 2 and 3: the app saves to Firestore, the sheet sync copies the work back
+{
+  const { ctx, sheets, store, call, commits, triggers } = setup();
+  ctx.pcuSetupSyncColumns();
+  ctx.pcuMigrate();
+  const today = ymd(now);
+  const g = sheets['Form Responses 1'].rows;
+  const fuRows = sheets['Follow-ups'].rows;
+  const before = { g1: g[1].slice(), fuCount: fuRows.length };
+  // Saved in the app (as FirestoreGuestRepository writes them).
+  store['followUps/app1'] = { guestId: 'G1', worker: 'david@x.com', loggedBy: 'david@x.com', callDate: today, month: today.slice(0, 7),
+    outcome: 'Reached', note: 'From the app', attendedSunday: true, sundayDate: ymd(daysAgo(1)), attendedWednesday: false, wednesdayDate: '',
+    team: 'Workforce', points: 40, syncedToSheet: false, createdAt: new Date(now.getTime() - 60000) };
+  store['followUps/app2'] = { guestId: 'G1', worker: 'david@x.com', loggedBy: 'david@x.com', callDate: today, month: today.slice(0, 7),
+    outcome: 'No answer', note: '', attendedSunday: false, sundayDate: '', attendedWednesday: false, wednesdayDate: '',
+    team: '', points: 5, syncedToSheet: false, createdAt: new Date(now.getTime()) };
+  store['followUps/app3'] = { guestId: 'G3', worker: 'worker.a@x.com', loggedBy: 'boss@x.com', callDate: today, month: today.slice(0, 7),
+    outcome: 'Reached', note: 'Admin for Worker A', attendedSunday: false, sundayDate: '', attendedWednesday: false, wednesdayDate: '',
+    team: '', points: 10, syncedToSheet: false, createdAt: new Date(now.getTime() - 30000) };
+  const fbDate = new Date(now.getTime() - 60000);
+  Object.assign(store['guests/G1'], { callStatus: 'No answer', membershipStatus: 'Returning', followUpCount: 2, lastFeedback: 'From the app',
+    lastFeedbackDate: fbDate, teamJoined: 'Workforce', lastFollowUpId: 'app2' });
+  Object.assign(store['guests/G3'], { callStatus: 'Reached', membershipStatus: 'Contacted', followUpCount: 1, lastFeedback: 'Admin for Worker A',
+    lastFeedbackDate: fbDate, lastFollowUpId: 'app3' });
+
+  const denied = call({ action: 'syncNow', idToken: 'tokDavid' });
+  check('syncNow is admin only', !denied.ok && denied.code === 'FORBIDDEN', denied);
+
+  const r = call({ action: 'syncNow', idToken: 'tokAdmin' });
+  check('syncNow ok', r.ok && r.data.followUps === 3 && r.data.guests === 2 && r.data.missingGuests === 0, r);
+  const added = fuRows.slice(before.fuCount);
+  check('3 follow-ups appended to the Follow-ups tab', added.length === 3 && added.map(x => x[0]).join() === 'app1,app3,app2', added.map(x => x[0]));
+  const a3 = added.find(x => x[0] === 'app3');
+  check('appended row: guest, worker, logged by, outcome, note', a3[1] === 'G3' && a3[2] === 'worker.a@x.com' && a3[11] === 'boss@x.com' && a3[4] === 'Reached' && a3[5] === 'Admin for Worker A', a3);
+  const a1 = added.find(x => x[0] === 'app1');
+  const isDate = v => Object.prototype.toString.call(v) === '[object Date]';
+  check('appended row: attendance flag, date as a date, team', a1[6] === true && isDate(a1[7]) && ymd(a1[7]) === ymd(daysAgo(1)) && a1[10] === 'Workforce' && isDate(a1[3]), a1);
+  check('guest row: Firebase-owned columns written', g[1][15] === 'No answer' && g[1][16] === 'Returning' && g[1][22] === 2 && g[1][23] === 'From the app' && g[1][21] === 'Workforce', g[1]);
+  check('guest row: FEEDBACK 1 filled from the first note', g[1][11] === 'From the app', g[1][11]);
+  check('guest row: name, phone, service date and ASSIGNED TO untouched',
+    [3, 4, 5, 13, 14].every(c => String(g[1][c]) === String(before.g1[c])), [3, 4, 5, 13, 14].map(c => [before.g1[c], g[1][c]]));
+  check('follow-ups marked as synced in Firestore', ['app1', 'app2', 'app3'].every(id => store['followUps/' + id].syncedToSheet === true));
+  check('meta/sync records the run', store['meta/sync'].running === false && store['meta/sync'].lastSheetSyncAt instanceof Date
+    && store['meta/sync'].lastResult.ok === true && store['meta/sync'].lastResult.followUps === 3, store['meta/sync']);
+  check('first syncNow sets up the nightly and weekly triggers', JSON.stringify(r.data.triggersAdded) === '["pcuNightlySync","pcuWeeklySync"]'
+    && triggers.find(t => t.fn === 'pcuNightlySync').hour === 0 && triggers.find(t => t.fn === 'pcuNightlySync').minute === 5
+    && triggers.find(t => t.fn === 'pcuNightlySync').tz === 'Africa/Lagos' && triggers.find(t => t.fn === 'pcuWeeklySync').weekDay === 'MONDAY', triggers);
+
+  const sheetBefore = JSON.stringify(sheets['Form Responses 1'].rows) + JSON.stringify(fuRows);
+  const r2 = call({ action: 'syncNow', idToken: 'tokAdmin' });
+  check('second sync changes nothing', r2.ok && r2.data.followUps === 0 && r2.data.guests === 0 && r2.data.triggersAdded.length === 0
+    && sheetBefore === JSON.stringify(sheets['Form Responses 1'].rows) + JSON.stringify(fuRows), r2);
+
+  // A run that stopped after writing the sheet but before marking Firestore.
+  store['followUps/app1'].syncedToSheet = false;
+  const r3 = ctx.pcuNightlySync();
+  check('a repeat after an interrupted run adds no duplicate rows', r3.followUps === 0 && r3.alreadyInSheet === 1 && fuRows.filter(x => x[0] === 'app1').length === 1, r3);
+
+  // Work saved in the app is never overwritten by the 5-minute job.
+  store['guests/G1'].callStatus = 'Busy';
+  g[1][13] = 'worker.a@x.com'; // HOD reassigns in the sheet
+  ctx.pcuPushPendingGuests();
+  check('5-minute job sends the reassignment only, app work stays', store['guests/G1'].assignedTo === 'worker.a@x.com' && store['guests/G1'].callStatus === 'Busy'
+    && store['guests/G1'].followUpCount === 2, store['guests/G1']);
+  ctx.pcuPushGuest_('G1');
+  check('assignment push keeps app work too', store['guests/G1'].callStatus === 'Busy', store['guests/G1']);
+  ctx.pcuMigrateRestart();
+  ctx.pcuMigrate();
+  check('running the migration again keeps app work and app follow-ups', store['guests/G1'].callStatus === 'Busy'
+    && store['followUps/app1'].points === 40 && store['followUps/app1'].createdAt.getTime() === now.getTime() - 60000, [store['guests/G1'].callStatus, store['followUps/app1']]);
+
+  // Many follow-ups: query pages of 500, commits of at most 500.
+  commits.length = 0;
+  for (let i = 0; i < 1200; i++) {
+    store[`followUps/bulk${String(i).padStart(4, '0')}`] = { guestId: 'G2', worker: 'david@x.com', loggedBy: 'david@x.com', callDate: today, month: today.slice(0, 7),
+      outcome: 'Busy', note: '', attendedSunday: false, sundayDate: '', attendedWednesday: false, wednesdayDate: '', team: '', points: 5,
+      syncedToSheet: false, createdAt: new Date(now.getTime() + i) };
+  }
+  const big = ctx.pcuNightlySync();
+  check('1200 follow-ups synced in pages and batches of 500', big.followUps === 1200 && commits.every(n => n <= 500)
+    && Object.keys(store).filter(k => k.startsWith('followUps/bulk') && store[k].syncedToSheet === true).length === 1200, [big, commits]);
+}
+
+// --- Weekly report and the busy lock
+{
+  const { ctx, sheets, store, call } = setup();
+  ctx.pcuMigrate();
+  const w1 = ctx.pcuWeeklySync();
+  check('weekly sync writes one report row for last week', !!w1.report && sheets['Weekly Report'].rows.length === 2, sheets['Weekly Report'] && sheets['Weekly Report'].rows);
+  const w2 = ctx.pcuWeeklySync();
+  check('the same week is never written twice', w2.report === '' && sheets['Weekly Report'].rows.length === 2, w2);
+  ctx.LockService.getScriptLock = () => ({ tryLock: () => false, releaseLock() {} });
+  const busy = call({ action: 'syncNow', idToken: 'tokAdmin' });
+  check('a sync already running gives a plain message', !busy.ok && busy.code === 'BUSY' && /already running/.test(busy.error), busy);
+  check('meta/sync left as it was by the busy call', store['meta/sync'].running === false, store['meta/sync']);
+}
+
+// --- Without the key, syncNow says so
+{
+  const { call } = setup({ firestore: false });
+  const r = call({ action: 'syncNow', idToken: 'tokAdmin' });
+  check('no key: syncNow explains it is not set up', !r.ok && /not set up/.test(r.error), r);
 }
 
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');

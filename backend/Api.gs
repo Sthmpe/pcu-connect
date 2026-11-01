@@ -152,7 +152,12 @@ function pcuHandlers_() {
     dashboard: pcuDashboard_,
     team: pcuTeam_,
     saveWorker: pcuSaveWorker_,
-    setWorkerActive: pcuSetWorkerActive_
+    setWorkerActive: pcuSetWorkerActive_,
+    // Firestore.gs (phase 3): HOD "Sync to sheet".
+    syncNow: function (user) {
+      if (typeof pcuSyncNow_ !== 'function') throw pcuError_('NOT_READY', 'Sync to sheet is not set up yet.');
+      return pcuSyncNow_(user);
+    }
   };
 }
 
