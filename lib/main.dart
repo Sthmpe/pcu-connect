@@ -25,6 +25,7 @@ import 'data/firestore/firestore_team_repository.dart';
 import 'data/firestore/notifications_repository.dart';
 import 'data/firestore/push_service.dart';
 import 'data/firestore/sheet_sync_repository.dart';
+import 'data/firestore/worker_calls_repository.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/repositories/guest_repository_impl.dart';
 import 'data/repositories/team_repository_impl.dart';
@@ -157,6 +158,12 @@ class PCUConnectApp extends StatelessWidget {
         RepositoryProvider<IAuthRepository>.value(value: authRepository),
         RepositoryProvider<IGuestRepository>.value(value: guestRepository),
         RepositoryProvider<ITeamRepository>.value(value: teamRepository),
+        // The worker's own calls for Today (live in Firestore mode).
+        RepositoryProvider<IWorkerCallsRepository>(
+          create: (_) => AppConfig.useFirestore
+              ? FirestoreWorkerCallsRepository(db: FirebaseFirestore.instance, authRepository: authRepository)
+              : const NoWorkerCallsRepository(),
+        ),
         if (sheetSyncRepository != null)
           RepositoryProvider<ISheetSyncRepository>.value(value: sheetSyncRepository!),
       ],

@@ -951,6 +951,8 @@ function pcuGuestJson_(guest, followUps, workers, withHistory) {
     followUps: pcuCallCount_(guest, followUps),
     status: guest.status || PCU.STATUS.NEW,
     lastOutcome: latest ? latest.outcome : guest.callStatus,
+    // Lagos day of the latest call, for the worker's Today list.
+    lastCallDate: latest && latest.date ? pcuDay_(latest.date) : '',
     lastFeedback: guest.lastFeedback || (latestNote ? latestNote.note : '') || guest.feedback2 || guest.feedback1,
     lastFeedbackDate: pcuDay_(
       guest.lastFeedbackDate || (latestNote ? latestNote.date : null) || guest.feedback2Date || guest.feedback1Date

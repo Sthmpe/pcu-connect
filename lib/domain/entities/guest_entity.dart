@@ -18,6 +18,12 @@ class GuestEntity extends Equatable {
   final String teamJoined; // '' | 'Workforce' | 'Evangelism'
   final String lastFeedback;
   final String lastFeedbackDate;
+
+  /// Outcome of the latest call ('' when never called).
+  final String lastOutcome;
+
+  /// Lagos day of the latest call ('yyyy-MM-dd'), '' when unknown.
+  final String lastCallDate;
   final int followUpCount;
   final String month; // e.g. 'Oct 2026'
   final String? assignedWorkerName;
@@ -38,6 +44,8 @@ class GuestEntity extends Equatable {
     required this.teamJoined,
     required this.lastFeedback,
     required this.lastFeedbackDate,
+    this.lastOutcome = '',
+    this.lastCallDate = '',
     required this.followUpCount,
     required this.month,
     this.assignedWorkerName,
@@ -115,6 +123,8 @@ class GuestEntity extends Equatable {
       lastFeedback: json['lastFeedback']?.toString() ??
           json['fb']?.toString() ??
           '',
+      lastOutcome: json['lastOutcome']?.toString() ?? '',
+      lastCallDate: json['lastCallDate']?.toString() ?? '',
       lastFeedbackDate: json['lastFeedbackDate']?.toString() ??
           json['fbDate']?.toString() ??
           '',
@@ -146,6 +156,8 @@ class GuestEntity extends Equatable {
       'team': teamJoined,
       'fb': lastFeedback,
       'fbDate': lastFeedbackDate,
+      'lastOutcome': lastOutcome,
+      'lastCallDate': lastCallDate,
       'fu': followUpCount,
       'month': month,
       'assignedWorker': assignedWorkerName,
@@ -166,6 +178,8 @@ class GuestEntity extends Equatable {
         teamJoined,
         lastFeedback,
         lastFeedbackDate,
+        lastOutcome,
+        lastCallDate,
         followUpCount,
         month,
         assignedWorkerName,

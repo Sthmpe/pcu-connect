@@ -54,6 +54,8 @@ abstract class FirestoreMappers {
       teamJoined: _str(d['teamJoined']),
       lastFeedback: _str(d['lastFeedback']),
       lastFeedbackDate: _shortDay(_date(d['lastFeedbackDate'])),
+      lastOutcome: _str(d['callStatus']),
+      lastCallDate: _str(d['lastCallDate']),
       followUpCount: calls,
       month: _str(d['month']),
       assignedWorkerName: _str(d['assignedName']),

@@ -8,7 +8,12 @@ import '../../auth/bloc/auth_bloc.dart';
 import '../../auth/bloc/auth_state.dart';
 import '../../common/notifications_cubit.dart';
 import '../../common/session_reset.dart';
+import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_filter_cubit.dart';
+import '../../../core/config/app_config.dart';
+import '../../../data/firestore/worker_calls_repository.dart';
+import '../../../domain/repositories/i_auth_repository.dart';
+import '../bloc/today_cubit.dart';
 import '../../common/push_cubit.dart';
 import 'today_tab.dart';
 import 'my_guests_tab.dart';
@@ -28,9 +33,13 @@ class _WorkerShellScreenState extends State<WorkerShellScreen> {
   /// The Guests tab's own month and chip. Today follows no month at all.
   final _guestsFilter = GuestsFilterCubit();
 
+  /// Today's to-do list, shared by the Today tab and its badge.
+  late final TodayCubit _today;
+
   @override
   void dispose() {
     _guestsFilter.close();
+    _today.close();
     super.dispose();
   }
 
@@ -39,6 +48,13 @@ class _WorkerShellScreenState extends State<WorkerShellScreen> {
     super.initState();
     context.read<PushCubit>().start();
     context.read<NotificationsCubit>().start();
+    final auth = context.read<IAuthRepository>();
+    _today = TodayCubit(
+      guests: context.read<GuestsBloc>(),
+      calls: context.read<IWorkerCallsRepository>(),
+      worker: () => (auth.currentUser?.email ?? '').trim().toLowerCase(),
+      since: AppConfig.chaseFrom,
+    )..start();
   }
 
   static const _items = [
@@ -56,8 +72,11 @@ class _WorkerShellScreenState extends State<WorkerShellScreen> {
         resetSessionState(context);
         Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
       },
-      child: BlocProvider.value(
-        value: _guestsFilter,
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider.value(value: _guestsFilter),
+          BlocProvider.value(value: _today),
+        ],
         child: Scaffold(
         backgroundColor: AppColors.bg,
         body: FadeIndexedStack(

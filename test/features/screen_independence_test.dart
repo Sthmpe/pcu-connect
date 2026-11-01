@@ -103,9 +103,9 @@ void main() {
       repo.of('2026-10').add([guest('O1', '2026-10-28', days: 4), guest('C1', '2026-10-29', calls: 1, days: 3)]);
       repo.of('2026-11').add([guest('N1', '2026-11-01', days: 0)]);
       await tick();
-      final before = TodayRules.of(bloc.state.guestsIn(todayMonths), since: since);
-      expect(before.outstanding.map((g) => g.id), ['O1']);
-      expect(before.fresh.map((g) => g.id), ['N1']);
+      final before = TodayRules.build(guests: bloc.state.guestsIn(todayMonths), since: since, today: '2026-11-01');
+      expect(before.outstanding.map((i) => i.guest.id), ['O1']);
+      expect(before.fresh.map((i) => i.guest.id), ['N1']);
 
       // The worker picks September on the Guests screen.
       guestsFilter.selectMonth('2026-09');
@@ -114,9 +114,9 @@ void main() {
       repo.of('2026-09').add([guest('S1', '2026-09-06', days: 56), guest('S2', '2026-09-13', days: 49)]);
       await tick();
 
-      final after = TodayRules.of(bloc.state.guestsIn(todayMonths), since: since);
-      expect(after.outstanding.map((g) => g.id), ['O1']);
-      expect(after.fresh.map((g) => g.id), ['N1']);
+      final after = TodayRules.build(guests: bloc.state.guestsIn(todayMonths), since: since, today: '2026-11-01');
+      expect(after.outstanding.map((i) => i.guest.id), ['O1']);
+      expect(after.fresh.map((i) => i.guest.id), ['N1']);
       expect(bloc.state.guestsOf('2026-09').length, 2, reason: 'the Guests screen still gets September');
       expect(todayMonths, isNot(contains('2026-09')));
       await bloc.close();
@@ -245,22 +245,18 @@ void main() {
   });
 
   group('Today rule', () {
-    test('new (within 3 days) and outstanding (over 3 days), not called yet', () {
-      final view = TodayRules.of([
-        guest('N0', '2026-11-01', days: 0),
-        guest('N3', '2026-10-29', days: 3),
-        guest('O4', '2026-10-28', days: 4),
-        guest('O9', '2026-10-28', days: 9),
-        guest('called', '2026-10-30', calls: 1, days: 2),
-        guest('member', '2026-10-28', days: 4, status: 'Member'),
-        guest('notInterested', '2026-10-28', days: 4, status: 'Not interested'),
-        guest('beforeGoLive', '2026-10-20', days: 12),
-        guest('noDate', '2026-11-01', days: 0).copyWithoutDate(),
-      ], since: since);
-      expect(view.outstanding.map((g) => g.id), ['O9', 'O4']);
-      expect(view.fresh.map((g) => g.id), ['N3', 'N0']);
-      expect(view.next!.id, 'O9');
-      expect(view.total, 4);
+    test('never called: new up to 3 days, outstanding after; before go-live and undated left out', () {
+      final view = TodayRules.build(guests: [
+        guest('N0', '2026-11-01'),
+        guest('N3', '2026-10-29'),
+        guest('O4', '2026-10-28'),
+        guest('beforeGoLive', '2026-10-20'),
+        guest('noDate', '2026-11-01').copyWithoutDate(),
+      ], since: since, today: '2026-11-01');
+      expect(view.outstanding.map((i) => i.guest.id), ['O4']);
+      expect(view.fresh.map((i) => i.guest.id), ['N3', 'N0']);
+      expect(view.next!.guest.id, 'O4');
+      expect(view.total, 3);
     });
 
     test('months cover go-live to now, across a year end, at most 6', () {

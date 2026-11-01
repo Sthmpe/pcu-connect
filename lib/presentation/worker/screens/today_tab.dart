@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_icons.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/constants/work_rules.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/utils/contact_launcher.dart';
 import '../../../core/widgets/app_controls.dart';
@@ -14,7 +15,6 @@ import '../../../core/widgets/app_surfaces.dart';
 import '../../../core/widgets/guest_row.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../core/widgets/status_tone.dart';
-import '../../../domain/entities/guest_entity.dart';
 import '../../../domain/today_rules.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../auth/bloc/auth_state.dart';
@@ -22,11 +22,10 @@ import '../../common/notification_bell.dart';
 import '../../common/push_prompt_card.dart';
 import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
-import '../../guests/bloc/guests_state.dart';
-import '../../guests/widgets/watch_months.dart';
+import '../bloc/today_cubit.dart';
 
-/// Today: the worker's guests who need a call now (TodayRules). It does not
-/// follow any month filter; the Guests screen's month never changes it.
+/// Today: the worker's to-do list (TodayRules): New, Outstanding, Retry and
+/// Follow-up due. It follows no month filter.
 class TodayTab extends StatelessWidget {
   final VoidCallback? onSeeAll;
 
@@ -45,115 +44,112 @@ class TodayTab extends StatelessWidget {
       return s is AuthAuthenticatedState ? firstNameOf(s.user.name) : '';
     });
     final now = DateTime.now();
-    final months = TodayRules.months(since: AppConfig.chaseFrom);
 
-    return WatchMonths(
-      months: months,
-      child: AppPage(
-        eyebrow: DateFormat('EEEE, d MMMM').format(now),
-        title: firstName.isEmpty ? _greeting(now) : '${_greeting(now)}, $firstName',
-        trailing: const NotificationBell(),
-        child: BlocBuilder<GuestsBloc, GuestsState>(
-          builder: (context, state) {
-            final bloc = context.read<GuestsBloc>();
-            final failure = state.failureFor(months);
-            if (failure != null) {
-              return ErrorState(message: failure, onRetry: () => bloc.add(WatchMonthsEvent(months)));
-            }
-            if (state.waitingFor(months)) return const SkeletonPage(hero: true);
+    return AppPage(
+      eyebrow: DateFormat('EEEE, d MMMM').format(now),
+      title: firstName.isEmpty ? _greeting(now) : '${_greeting(now)}, $firstName',
+      trailing: const NotificationBell(),
+      child: BlocBuilder<TodayCubit, TodayState>(
+        builder: (context, state) {
+          final guests = context.read<GuestsBloc>();
+          if (state.failure != null) {
+            return ErrorState(message: state.failure!, onRetry: () => guests.add(WatchMonthsEvent(state.months)));
+          }
+          if (state.loading) return const SkeletonPage(hero: true);
 
-            final view = TodayRules.of(state.guestsIn(months), since: AppConfig.chaseFrom);
-            return RefreshIndicator(
-              color: AppColors.navy,
-              onRefresh: () async {
-                // Live lists (Firestore) are already current: just acknowledge.
-                if (AppConfig.useFirestore) {
-                  await Future<void>.delayed(const Duration(milliseconds: 400));
-                  return;
-                }
-                bloc.add(RefreshMonthsEvent(months));
-                await bloc.stream
-                    .firstWhere((s) => !s.refreshingIn(months))
-                    .timeout(const Duration(seconds: 25), onTimeout: () => state);
-              },
-              child: ListView(
-                padding: EdgeInsets.only(top: AppSizes.s8, bottom: AppSizes.s32),
-                children: [
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: AppSizes.gutter),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (state.fromCacheIn(months))
-                          OfflineBanner(isRefreshing: state.refreshingIn(months)),
-                        const PushPromptCard(reason: 'when a new guest is assigned to you'),
-                        _TodayHero(view: view),
-                        if (view.total == 0) ...[
-                          SizedBox(height: AppSizes.s24),
-                          EmptyState(
-                            icon: AppIcons.done,
-                            message: 'No one is waiting for a first call. Lovely work.',
-                            actionLabel: onSeeAll == null ? null : 'See all your guests',
-                            onAction: onSeeAll,
-                          ),
-                        ],
-                        if (view.outstanding.isNotEmpty) ...[
-                          SectionLabel('Outstanding · ${view.outstanding.length}'),
-                          Padding(
-                            padding: EdgeInsets.only(bottom: AppSizes.s8),
-                            child: Text('More than 3 days since their visit, still no first call.',
-                                style: AppTextStyles.caption.copyWith(color: AppColors.redInk)),
-                          ),
-                          _list(context, view.outstanding),
-                        ],
-                        if (view.fresh.isNotEmpty) ...[
-                          SectionLabel('New · ${view.fresh.length}'),
-                          Padding(
-                            padding: EdgeInsets.only(bottom: AppSizes.s8),
-                            child: Text('Call within 3 days of their visit.', style: AppTextStyles.caption),
-                          ),
-                          _list(context, view.fresh),
-                        ],
+          final view = state.view;
+          return RefreshIndicator(
+            color: AppColors.navy,
+            onRefresh: () async {
+              // Live lists (Firestore) are already current: just acknowledge.
+              if (AppConfig.useFirestore) {
+                await Future<void>.delayed(const Duration(milliseconds: 400));
+                return;
+              }
+              guests.add(RefreshMonthsEvent(state.months));
+              await guests.stream
+                  .firstWhere((s) => !s.refreshingIn(state.months))
+                  .timeout(const Duration(seconds: 25), onTimeout: () => guests.state);
+            },
+            child: ListView(
+              padding: EdgeInsets.only(top: AppSizes.s8, bottom: AppSizes.s32),
+              children: [
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: AppSizes.gutter),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (state.fromCache) OfflineBanner(isRefreshing: state.refreshing),
+                      const PushPromptCard(reason: 'when a new guest is assigned to you'),
+                      TodayHero(view: view),
+                      if (view.total == 0) ...[
+                        SizedBox(height: AppSizes.s24),
+                        EmptyState(
+                          icon: AppIcons.done,
+                          message: 'Nothing waiting for you today. Lovely work.',
+                          actionLabel: onSeeAll == null ? null : 'See all your guests',
+                          onAction: onSeeAll,
+                        ),
                       ],
-                    ),
+                      _section(context, 'New', 'Call within 3 days of their visit.', view.fresh),
+                      _section(context, 'Outstanding', 'More than 3 days since their visit, still no first call.',
+                          view.outstanding,
+                          captionColor: AppColors.redInk),
+                      _section(context, 'Retry', 'No answer last time. Try again today.', view.retry),
+                      _section(context, 'Follow-up due', 'No call for ${WorkRules.FOLLOWUP_DUE_AFTER_DAYS} days or more.',
+                          view.followUpDue),
+                    ],
                   ),
-                ],
-              ),
-            );
-          },
-        ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
 
-  static Widget _list(BuildContext context, List<GuestEntity> guests) => GroupedCard(
-        dividerIndent: AppSizes.s16 * 2 + AppSizes.avatarMd,
-        children: [for (final g in guests) GuestRow(guest: g, onTap: () => _open(context, g))],
-      );
+  static Widget _section(BuildContext context, String title, String caption, List<TodayItem> items,
+      {Color? captionColor}) {
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionLabel('$title · ${items.length}'),
+        Padding(
+          padding: EdgeInsets.only(bottom: AppSizes.s8),
+          child: Text(caption,
+              style: captionColor == null ? AppTextStyles.caption : AppTextStyles.caption.copyWith(color: captionColor)),
+        ),
+        GroupedCard(
+          dividerIndent: AppSizes.s16 * 2 + AppSizes.avatarMd,
+          children: [for (final i in items) GuestRow(guest: i.guest, onTap: () => _open(context, i))],
+        ),
+      ],
+    );
+  }
 
-  static void _open(BuildContext context, GuestEntity g) {
-    Navigator.of(context).pushNamed(AppRoutes.guestDetail, arguments: GuestDetailArgs(g.id));
+  static void _open(BuildContext context, TodayItem i) {
+    Navigator.of(context).pushNamed(AppRoutes.guestDetail, arguments: GuestDetailArgs(i.guest.id));
   }
 }
 
-/// Navy summary card: how many need a call, how many are outstanding, the next call.
-class _TodayHero extends StatelessWidget {
+/// Navy summary card: how many need action today, and the next call.
+class TodayHero extends StatelessWidget {
   final TodayView view;
 
-  const _TodayHero({required this.view});
+  const TodayHero({super.key, required this.view});
 
   @override
   Widget build(BuildContext context) {
     final total = view.total;
     final outstanding = view.outstanding.length;
     final next = view.next;
-    final headline = total == 0
-        ? 'All caught up'
-        : '$total ${total == 1 ? 'guest needs' : 'guests need'} a first call';
+    final headline = total == 0 ? 'All caught up' : '$total ${total == 1 ? 'guest needs' : 'guests need'} a call';
     final detail = total == 0
         ? 'New guests will show up here.'
         : outstanding == 0
-            ? 'All within their 3 days.'
+            ? 'None is outstanding.'
             : '$outstanding ${outstanding == 1 ? 'is' : 'are'} outstanding.';
 
     return AppCard(
@@ -170,10 +166,7 @@ class _TodayHero extends StatelessWidget {
               Container(
                 width: 56,
                 height: 56,
-                decoration: BoxDecoration(
-                  color: AppColors.onNavy.withValues(alpha: 0.10),
-                  shape: BoxShape.circle,
-                ),
+                decoration: BoxDecoration(color: AppColors.onNavy.withValues(alpha: 0.10), shape: BoxShape.circle),
                 alignment: Alignment.center,
                 child: Text('$total', style: AppTextStyles.display.copyWith(color: AppColors.onNavy)),
               ),
@@ -193,11 +186,11 @@ class _TodayHero extends StatelessWidget {
           if (next != null) ...[
             SizedBox(height: AppSizes.s24),
             AppButton(
-              label: 'Call ${firstNameOf(next.name)} next',
+              label: 'Call ${firstNameOf(next.guest.name)} next',
               icon: AppIcons.call,
               onPressed: () {
-                Navigator.of(context).pushNamed(AppRoutes.guestDetail, arguments: GuestDetailArgs(next.id));
-                ContactLauncher.call(next);
+                Navigator.of(context).pushNamed(AppRoutes.guestDetail, arguments: GuestDetailArgs(next.guest.id));
+                ContactLauncher.call(next.guest);
               },
             ),
           ],
