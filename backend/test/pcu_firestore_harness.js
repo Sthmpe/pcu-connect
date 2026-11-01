@@ -15,6 +15,8 @@ function fmt(d, tz, pattern) {
   if (pattern === 'yyyy-MM') return `${get('year')}-${get('month')}`;
   if (pattern === "yyyy-MM-dd'T'HH:mm:ss") return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`;
   if (pattern === 'u') return String(wd);
+  if (pattern === 'HH:mm') return `${get('hour')}:${get('minute')}`;
+  if (pattern === 'EEEE') return new Intl.DateTimeFormat('en-GB', { timeZone: tz, weekday: 'long' }).format(d);
   throw new Error('pattern ' + pattern);
 }
 const mocks = require('./gas_mocks');
@@ -80,6 +82,7 @@ function setup(opts = {}) {
   const asDoc = key => ({ name: BASE + key, fields: Object.fromEntries(Object.entries(store[key]).map(([k, v]) => [k, encode(v)])) });
   const reads = { queries: 0, batchGets: 0 };
   const pushes = [];
+  const mails = [];
   const triggers = [];
   const ctx = {
     console: { log() {}, warn() {}, error: console.error },
@@ -107,6 +110,7 @@ function setup(opts = {}) {
       DigestAlgorithm: { SHA_256: 'sha256' },
     },
     CacheService: { getScriptCache: () => cache },
+    MailApp: { sendEmail: m => { if (ctx.MailApp.fail) throw new Error('quota'); mails.push(m); } },
     PropertiesService: { getScriptProperties: () => ({
       getProperty: k => (k in props ? props[k] : null),
       setProperty: (k, v) => { props[k] = v; },
@@ -120,6 +124,7 @@ function setup(opts = {}) {
         return { getResponseCode: () => 200, getContentText: () => JSON.stringify(keys.length ? { documents: keys.map(asDoc) } : {}) };
       }
       if (url.startsWith('https://fcm.googleapis.com/v1/projects/demo-pcu/messages:send')) {
+        if (ctx.UrlFetchApp.failPush) return { getResponseCode: () => 403, getContentText: () => '{"error":{"status":"PERMISSION_DENIED"}}' };
         const body = JSON.parse(o.payload);
         pushes.push(body);
         if (body.message.token === 'dead-token') return { getResponseCode: () => 404, getContentText: () => '{"error":{"status":"NOT_FOUND","details":[{"errorCode":"UNREGISTERED"}]}}' };
@@ -173,7 +178,7 @@ function setup(opts = {}) {
   const dir = path.join(__dirname, '..');
   vm.runInContext(fs.readFileSync(path.join(dir, 'Api.gs'), 'utf8') + '\n' + fs.readFileSync(path.join(dir, 'Firestore.gs'), 'utf8'), ctx);
   const call = body => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(body) } }).text);
-  return { ctx, sheets, props, store, commits, call, reads, triggers, pushes, tokenRequests: () => tokenRequests };
+  return { ctx, sheets, props, store, commits, call, reads, triggers, pushes, mails, tokenRequests: () => tokenRequests };
 }
 
 let fails = 0;
@@ -486,6 +491,59 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
   const sameDay = vm.runInContext("new Date('2026-10-31T09:15:00Z')", ctx);
   check('the sheet gets the call day for a late sync, and the exact time for a same-day one', ymd(moment) === '2026-10-31'
     && ctx.pcuCallMoment_({ callDate: '2026-10-31', createdAt: sameDay }) === sameDay, [ymd(moment)]);
+}
+
+// --- Nudge (admin only, at most one per worker per 24 hours)
+{
+  const { ctx, store, call, pushes, mails } = setup();
+  ctx.pcuSyncUsers_();
+  const nudges = () => Object.keys(store).filter(k => k.startsWith('nudges/')).map(k => store[k]);
+  const bell = email => Object.keys(store).filter(k => k.startsWith('users/' + email + '/notifications/')).map(k => store[k]);
+
+  const denied = call({ action: 'nudge', idToken: 'tokDavid', workerEmail: 'worker.a@x.com', outstanding: 4 });
+  check('nudge is admin only', !denied.ok && denied.code === 'FORBIDDEN' && nudges().length === 0, denied);
+  check('only an active worker can be nudged', call({ action: 'nudge', idToken: 'tokAdmin', workerEmail: 'worker.c@x.com', outstanding: 2 }).code === 'VALIDATION'
+    && call({ action: 'nudge', idToken: 'tokAdmin', workerEmail: 'boss@x.com', outstanding: 2 }).code === 'VALIDATION'
+    && call({ action: 'nudge', idToken: 'tokAdmin', workerEmail: 'nobody@x.com', outstanding: 2 }).code === 'VALIDATION');
+  check('the number of guests waiting is required', call({ action: 'nudge', idToken: 'tokAdmin', workerEmail: 'worker.a@x.com', outstanding: 0 }).code === 'VALIDATION'
+    && call({ action: 'nudge', idToken: 'tokAdmin', workerEmail: 'worker.a@x.com', outstanding: 2.5 }).code === 'VALIDATION');
+  check('the personal line is one short line', call({ action: 'nudge', idToken: 'tokAdmin', workerEmail: 'worker.a@x.com', outstanding: 2, personalLine: 'x'.repeat(201) }).code === 'VALIDATION');
+
+  // Push blocked (no FCM role yet): the in-app notice and the email still go out.
+  store['users/worker.a@x.com/tokens/phone'] = { token: 'phone', platform: 'web' };
+  ctx.UrlFetchApp.failPush = true;
+  const r = call({ action: 'nudge', idToken: 'tokAdmin', workerEmail: ' Worker.A@x.com ', outstanding: 4, personalLine: '  Proud of\n you!  ' });
+  ctx.UrlFetchApp.failPush = false;
+  const n = nudges();
+  check('a nudge is sent and logged', r.ok && n.length === 1 && n[0].worker === 'worker.a@x.com' && n[0].sentBy === 'boss@x.com' && n[0].outstanding === 4
+    && n[0].personalLine === 'Proud of you!' && Object.prototype.toString.call(n[0].sentAt) === '[object Date]', [r, n]);
+  check('the default wording', n[0].title === 'A gentle nudge from your HOD'
+    && n[0].body === 'You have 4 guests waiting for a call. A quick call today makes a big difference. We are cheering you on.\nProud of you!', n[0]);
+  const items = bell('worker.a@x.com');
+  check('in-app notice without the push role', items.length === 1 && items[0].title === 'A gentle nudge from your HOD' && items[0].tag === 'nudge' && /cheering you on/.test(items[0].body), items);
+  check('email without the push role', mails.length === 1 && mails[0].to === 'worker.a@x.com' && mails[0].subject === 'A gentle nudge from your HOD'
+    && /4 guests waiting/.test(mails[0].body) && /Proud of you!/.test(mails[0].body), mails);
+  check('the result and the log say what went out', r.data.inApp === true && r.data.emailSent === true && r.data.pushSent === 0
+    && n[0].emailSent === true && n[0].pushSent === 0 && /403|PERMISSION/.test(n[0].pushError), [r.data, n[0]]);
+
+  const again = call({ action: 'nudge', idToken: 'tokAdmin', workerEmail: 'worker.a@x.com', outstanding: 4 });
+  check('at most one nudge per worker per 24 hours', !again.ok && again.code === 'TOO_SOON' && /nudge again at/.test(again.error) && nudges().length === 1 && mails.length === 1, again);
+
+  // A day later it is allowed again, and a registered device gets the push.
+  store[Object.keys(store).find(k => k.startsWith('nudges/'))].sentAt = new Date(Date.now() - 24 * 60 * 60 * 1000 - 1000);
+  const before = pushes.length;
+  const later = call({ action: 'nudge', idToken: 'tokAdmin', workerEmail: 'worker.a@x.com', outstanding: 1 });
+  check('after 24 hours a new nudge goes out, with the push when allowed', later.ok && later.data.pushSent === 1 && pushes.length === before + 1
+    && nudges().length === 2, later);
+  check('one guest reads "1 guest"', nudges().some(x => x.body === 'You have 1 guest waiting for a call. A quick call today makes a big difference. We are cheering you on.'));
+  check('another worker has their own 24 hours', call({ action: 'nudge', idToken: 'tokAdmin', workerEmail: 'david@x.com', outstanding: 2 }).ok);
+
+  // Email trouble never stops the in-app notice.
+  ctx.MailApp.fail = true;
+  store[Object.keys(store).find(k => k.startsWith('nudges/') && store[k].worker === 'david@x.com')].sentAt = new Date(0);
+  const noMail = call({ action: 'nudge', idToken: 'tokAdmin', workerEmail: 'david@x.com', outstanding: 2 });
+  ctx.MailApp.fail = false;
+  check('a failed email is reported, the notice still saved', noMail.ok && noMail.data.emailSent === false && bell('david@x.com').length === 2, noMail);
 }
 
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');

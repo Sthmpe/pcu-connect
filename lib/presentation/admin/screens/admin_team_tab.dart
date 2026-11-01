@@ -96,7 +96,11 @@ class AdminTeamTab extends StatelessWidget {
         GroupedCard(
           dividerIndent: AppSizes.s16 * 2 + AppSizes.avatarMd,
           children: [
-            for (final m in list) WorkerRow(member: m, outstanding: outstanding[m.name.trim().toLowerCase()] ?? 0),
+            for (final m in list)
+              WorkerRow(
+                member: m,
+                outstanding: outstanding[m.email.trim().toLowerCase()] ?? outstanding[m.name.trim().toLowerCase()] ?? 0,
+              ),
           ],
         ),
       ],

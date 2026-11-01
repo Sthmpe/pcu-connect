@@ -258,6 +258,14 @@ service cloud.firestore {
         && d.updatedBy == myEmail();
     }
 
+    // Nudges from the HOD: logged by Apps Script (admin-only action, one per
+    // worker per 24 hours). Admins read them to see who was nudged; nobody
+    // writes them from the app.
+    match /nudges/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /config/messageTemplates {
       allow read: if isMember();
       allow create, update: if isAdmin() && validTemplates(request.resource.data);

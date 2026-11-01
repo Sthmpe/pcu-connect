@@ -5,6 +5,9 @@ import 'today_rules.dart';
 /// One worker with outstanding guests (Today's Outstanding rule).
 class WorkerAttention {
   final String workerName;
+
+  /// '' when the guests did not say (older cached data).
+  final String workerEmail;
   final int outstanding;
 
   /// Days the longest-waiting outstanding guest has waited.
@@ -15,6 +18,7 @@ class WorkerAttention {
 
   const WorkerAttention({
     required this.workerName,
+    this.workerEmail = '',
     required this.outstanding,
     required this.oldestDays,
     required this.oldestMonth,
@@ -39,18 +43,22 @@ abstract class AttentionRules {
     required String since,
     required String today,
   }) {
+    // By email when the guests have it, otherwise by name.
     final byWorker = <String, List<GuestEntity>>{};
     for (final g in guests) {
       final name = (g.assignedWorkerName ?? '').trim();
-      if (name.isEmpty) continue;
-      (byWorker[name] ??= []).add(g);
+      final key = g.assignedEmail.isNotEmpty ? g.assignedEmail : name.toLowerCase();
+      if (key.isEmpty) continue;
+      (byWorker[key] ??= []).add(g);
     }
     final out = <WorkerAttention>[];
-    byWorker.forEach((name, list) {
+    byWorker.forEach((key, list) {
       final outstanding = TodayRules.build(guests: list, since: since, today: today).outstanding;
       if (outstanding.isEmpty) return;
+      final named = list.map((g) => (g.assignedWorkerName ?? '').trim()).firstWhere((n) => n.isNotEmpty, orElse: () => key);
       out.add(WorkerAttention(
-        workerName: name,
+        workerName: named,
+        workerEmail: key.contains('@') ? key : '',
         outstanding: outstanding.length,
         oldestDays: outstanding.first.days,
         oldestMonth: outstanding.first.guest.serviceDate.substring(0, 7),
@@ -62,7 +70,10 @@ abstract class AttentionRules {
     return out;
   }
 
-  /// Outstanding count per worker name (for the Team screen).
-  static Map<String, int> counts(List<WorkerAttention> list) =>
-      {for (final w in list) w.workerName.trim().toLowerCase(): w.outstanding};
+  /// Outstanding count per worker, keyed by email and by lowercase name (for the Team screen).
+  static Map<String, int> counts(List<WorkerAttention> list) => {
+        for (final w in list) w.workerName.trim().toLowerCase(): w.outstanding,
+        for (final w in list)
+          if (w.workerEmail.isNotEmpty) w.workerEmail: w.outstanding,
+      };
 }

@@ -63,6 +63,7 @@ abstract class FirestoreMappers {
       followUpCount: calls,
       month: _str(d['month']),
       assignedWorkerName: _str(d['assignedName']),
+      assignedEmail: _str(d['assignedTo']).trim().toLowerCase(),
     );
   }
 

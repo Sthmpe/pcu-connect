@@ -31,6 +31,7 @@ import 'core/sync/connectivity.dart';
 import 'core/sync/sync_signals.dart';
 import 'core/sync/sync_status_cubit.dart';
 import 'data/firestore/message_templates_repository.dart';
+import 'data/firestore/nudge_repository.dart';
 import 'data/firestore/worker_calls_repository.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/repositories/guest_repository_impl.dart';
@@ -138,6 +139,11 @@ void main() async {
     // "Add to Home Screen" (web only; the flags live on this device).
     installPrompt: InstallPromptCubit(prefs: prefs, support: InstallSupport()),
     celebrations: MemberCelebrations(prefs),
+    nudgeRepository: NudgeRepository(
+      apiClient: apiClient,
+      authRepository: authRepository,
+      db: AppConfig.useFirestore ? FirebaseFirestore.instance : null,
+    ),
   ));
 }
 
@@ -164,6 +170,9 @@ class PCUConnectApp extends StatelessWidget {
   /// Guests whose membership was already celebrated on this device.
   final MemberCelebrations? celebrations;
 
+  /// The HOD's nudges (sent by Apps Script).
+  final INudgeRepository? nudgeRepository;
+
   const PCUConnectApp({
     super.key,
     required this.authRepository,
@@ -176,6 +185,7 @@ class PCUConnectApp extends StatelessWidget {
     this.syncSignals,
     this.installPrompt,
     this.celebrations,
+    this.nudgeRepository,
   });
 
   @override
@@ -198,6 +208,7 @@ class PCUConnectApp extends StatelessWidget {
               : const DefaultMessageTemplatesRepository(),
         ),
         if (celebrations != null) RepositoryProvider<MemberCelebrations>.value(value: celebrations!),
+        if (nudgeRepository != null) RepositoryProvider<INudgeRepository>.value(value: nudgeRepository!),
         if (sheetSyncRepository != null)
           RepositoryProvider<ISheetSyncRepository>.value(value: sheetSyncRepository!),
       ],

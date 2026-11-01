@@ -482,3 +482,30 @@ describe('message templates (config/messageTemplates)', () => {
     await assertFails(deleteDoc(ref(as(ADMIN))));
   });
 });
+
+describe('nudges', () => {
+  const nudge = (over = {}) => ({ worker: DAVID, sentBy: ADMIN, sentAt: new Date(), outstanding: 4, title: 'A gentle nudge from your HOD', body: 'x', ...over });
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'nudges', 'N1'), nudge()); });
+  });
+
+  test('admins read the log; workers, even the one nudged, do not', async () => {
+    await assertSucceeds(getDoc(doc(as(ADMIN), 'nudges', 'N1')));
+    await assertSucceeds(getDocs(query(collection(as(ADMIN), 'nudges'), where('worker', '==', DAVID))));
+    await assertFails(getDoc(doc(as(DAVID), 'nudges', 'N1')));
+    await assertFails(getDocs(collection(as(ADA), 'nudges')));
+  });
+  test('nobody writes a nudge from the app, not even an admin (only Apps Script)', async () => {
+    await assertFails(setDoc(doc(as(ADMIN), 'nudges', 'N2'), nudge({ sentAt: serverTimestamp() })));
+    await assertFails(updateDoc(doc(as(ADMIN), 'nudges', 'N1'), { outstanding: 1 }));
+    await assertFails(deleteDoc(doc(as(ADMIN), 'nudges', 'N1')));
+    await assertFails(setDoc(doc(as(DAVID), 'nudges', 'N3'), nudge()));
+  });
+  test('the nudge notice is readable by the worker in their own list', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', DAVID, 'notifications', 'n1'), { title: 'A gentle nudge from your HOD', body: 'x', tag: 'nudge', read: false, createdAt: new Date() });
+    });
+    await assertSucceeds(getDoc(doc(as(DAVID), 'users', DAVID, 'notifications', 'n1')));
+    await assertFails(getDoc(doc(as(ADA), 'users', DAVID, 'notifications', 'n1')));
+  });
+});

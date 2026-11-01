@@ -38,6 +38,9 @@ class GuestEntity extends Equatable {
   final String month; // e.g. 'Oct 2026'
   final String? assignedWorkerName;
 
+  /// Email of the assigned worker ('' when not assigned or not known).
+  final String assignedEmail;
+
   /// Newest first. Only filled by the single guest request.
   final List<FollowUpEntry> history;
 
@@ -63,6 +66,7 @@ class GuestEntity extends Equatable {
     required this.followUpCount,
     required this.month,
     this.assignedWorkerName,
+    this.assignedEmail = '',
     this.history = const [],
   });
 
@@ -152,6 +156,7 @@ class GuestEntity extends Equatable {
           (json['fu'] as num?)?.toInt() ??
           0,
       month: json['month']?.toString() ?? '',
+      assignedEmail: (json['assignedTo']?.toString() ?? '').contains('@') ? json['assignedTo'].toString().trim().toLowerCase() : '',
       assignedWorkerName: json['assignedName']?.toString() ??
           json['assignedWorker']?.toString() ??
           json['assignedTo']?.toString(),
@@ -185,6 +190,7 @@ class GuestEntity extends Equatable {
       'fu': followUpCount,
       'month': month,
       'assignedWorker': assignedWorkerName,
+      'assignedTo': assignedEmail,
     };
   }
 
@@ -211,6 +217,7 @@ class GuestEntity extends Equatable {
         followUpCount,
         month,
         assignedWorkerName,
+        assignedEmail,
         history,
       ];
 }

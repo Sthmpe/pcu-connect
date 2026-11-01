@@ -168,6 +168,11 @@ function pcuHandlers_() {
       if (typeof pcuSyncNow_ !== 'function') throw pcuError_('NOT_READY', 'Sync to sheet is not set up yet.');
       return pcuSyncNow_(user);
     },
+    // Firestore.gs: admin only, a friendly nudge to a worker with guests waiting.
+    nudge: function (user, req) {
+      if (typeof pcuNudge_ !== 'function') throw pcuError_('NOT_READY', 'Nudges are not set up yet.');
+      return pcuNudge_(user, req);
+    },
     // Firestore.gs: admin only, checks that pushes can be sent (sends nothing).
     pushCheck: function (user) {
       if (typeof pcuPushCheck_ !== 'function') throw pcuError_('NOT_READY', 'Notifications are not set up yet.');

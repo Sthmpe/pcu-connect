@@ -1242,6 +1242,129 @@ function pcuSaveNotification_(email, n) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Nudge (admin only): a friendly reminder to a worker with guests waiting
+// ---------------------------------------------------------------------------
+
+var PCU_NUDGE = {
+  TITLE: 'A gentle nudge from your HOD',
+  BODY: 'You have {n} guests waiting for a call. A quick call today makes a big difference. We are cheering you on.',
+  EVERY_MS: 24 * 60 * 60 * 1000,
+  MAX_LINE: 200,
+  MAX_GUESTS: 1000
+};
+
+/** The nudge text for [n] waiting guests ("1 guest" when there is one). */
+function pcuNudgeBody_(n) {
+  var body = PCU_NUDGE.BODY.replace('{n}', String(n));
+  return n === 1 ? body.replace('1 guests', '1 guest') : body;
+}
+
+/** When [email] was last nudged (Date), or null. */
+function pcuLastNudge_(email) {
+  var last = null;
+  pcuFsQueryEqual_('nudges', 'worker', email).forEach(function (d) {
+    var sentAt = d.data.sentAt;
+    var at = sentAt instanceof Date ? sentAt : sentAt ? new Date(sentAt) : null;
+    if (at && (!last || at.getTime() > last.getTime())) last = at;
+  });
+  return last;
+}
+
+/**
+ * Sends one nudge: logged in nudges/{id} first (at most one per worker per
+ * 24 hours), then an in-app notice, a push to registered devices and an
+ * email. The in-app notice and the email do not need the push (FCM) role.
+ * req: { workerEmail, outstanding, personalLine? }.
+ */
+function pcuNudge_(user, req) {
+  pcuRequireAdmin_(user);
+  if (!pcuFsEnabled_()) throw pcuError_('NOT_READY', 'Nudges are not set up yet.');
+  var email = pcuEmail_(req.workerEmail);
+  var worker = pcuWorkers_().byEmail[email];
+  if (!worker || !worker.active || worker.isAdmin) throw pcuError_('VALIDATION', 'Choose an active worker to nudge.');
+  var n = Number(req.outstanding);
+  if (!(n >= 1 && n <= PCU_NUDGE.MAX_GUESTS && Math.floor(n) === n)) {
+    throw pcuError_('VALIDATION', 'A nudge needs the number of guests waiting.');
+  }
+  var line = pcuStr_(req.personalLine).replace(/\s+/g, ' ').trim();
+  if (line.length > PCU_NUDGE.MAX_LINE) {
+    throw pcuError_('VALIDATION', 'Keep the personal line to ' + PCU_NUDGE.MAX_LINE + ' characters.');
+  }
+  var body = pcuNudgeBody_(n);
+  var full = line ? body + '\n' + line : body;
+  var now = new Date();
+  var id = Utilities.getUuid();
+
+  // Check and log under the lock, so two quick taps cannot both send.
+  var logged = pcuWithLock_(function () {
+    var last = pcuLastNudge_(email);
+    if (last && now.getTime() - last.getTime() < PCU_NUDGE.EVERY_MS) {
+      var next = new Date(last.getTime() + PCU_NUDGE.EVERY_MS);
+      var err = pcuError_('TOO_SOON', (worker.name || 'This worker') + ' was nudged in the last 24 hours. You can nudge again at ' +
+        Utilities.formatDate(next, PCU.TZ, 'HH:mm') + ' on ' + Utilities.formatDate(next, PCU.TZ, 'EEEE') + '.');
+      err.nextAt = next;
+      throw err;
+    }
+    pcuFsCommit_([
+      pcuFsSet_('nudges/' + id, {
+        worker: email,
+        workerName: worker.name || '',
+        sentBy: pcuEmail_(user.email),
+        sentByName: user.name || '',
+        sentAt: now,
+        outstanding: n,
+        personalLine: line,
+        title: PCU_NUDGE.TITLE,
+        body: full
+      })
+    ]);
+    return true;
+  });
+  if (logged !== true) throw pcuError_('BUSY', 'Another nudge is being sent. Try again in a moment.');
+
+  var notice = { title: PCU_NUDGE.TITLE, body: full, tag: 'nudge' };
+  pcuSaveNotification_(email, notice);
+  var push = pcuSendPush_(email, notice);
+  var emailSent = pcuNudgeEmail_(worker, body, line);
+  try {
+    pcuFsCommit_([
+      pcuFsSet_('nudges/' + id, { inApp: true, pushSent: push.sent || 0, pushError: push.error || '', emailSent: emailSent })
+    ]);
+  } catch (err) {
+    console.warn('Nudge ' + id + ' delivery not recorded: ' + (err && err.message));
+  }
+  return {
+    id: id,
+    sentAt: now,
+    nextAt: new Date(now.getTime() + PCU_NUDGE.EVERY_MS),
+    inApp: true,
+    pushSent: push.sent || 0,
+    emailSent: emailSent
+  };
+}
+
+/** The nudge by email. Never throws; false when it could not be sent. */
+function pcuNudgeEmail_(worker, body, line) {
+  if (!/@/.test(worker.email) || /@example\.(com|org)$/i.test(worker.email)) return false;
+  try {
+    var esc = function (t) {
+      return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    };
+    var html = '<p>Hi ' + esc(worker.name || 'there') + ',</p><p>' + esc(body) + '</p>' + (line ? '<p>' + esc(line) + '</p>' : '');
+    MailApp.sendEmail({
+      to: worker.email,
+      subject: PCU_NUDGE.TITLE,
+      body: 'Hi ' + (worker.name || 'there') + ',\n\n' + body + (line ? '\n\n' + line : '') + '\n\n' + pcuAppLink_() + '/',
+      htmlBody: typeof emailShell_ === 'function' ? emailShell_(PCU_NUDGE.TITLE, html) : html
+    });
+    return true;
+  } catch (err) {
+    console.warn('Nudge email to ' + worker.email + ' failed: ' + (err && err.message));
+    return false;
+  }
+}
+
 /** Every active admin, for HOD notices. */
 function pcuNotifyAdmins_(n) {
   pcuWorkers_().list.forEach(function (w) {
