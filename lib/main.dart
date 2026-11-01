@@ -166,6 +166,7 @@ class PCUConnectApp extends StatelessWidget {
             create: (ctx) => AuthBloc(
               authRepository: authRepository,
               localCache: localCache,
+              beforeSignOut: pushService?.forget,
             )..add(AuthCheckSessionEvent()),
           ),
           BlocProvider<GuestsBloc>(

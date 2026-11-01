@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../errors/failures.dart';
@@ -39,7 +40,15 @@ class ApiClient {
           .timeout(const Duration(seconds: 25));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        final decoded = jsonDecode(response.body);
+        final dynamic decoded;
+        try {
+          decoded = jsonDecode(response.body);
+        } on FormatException {
+          // Apps Script sends an HTML page when the script itself fails.
+          return const ApiResult.failure(
+            ServerFailure('The server sent an unexpected answer. Please try again in a minute.', 'BAD_RESPONSE'),
+          );
+        }
         if (decoded is Map<String, dynamic>) {
           if (decoded['ok'] == true) {
             return ApiResult.success(decoded['data']);
@@ -58,8 +67,12 @@ class ApiClient {
           ServerFailure('HTTP ${response.statusCode}: ${response.reasonPhrase}'),
         );
       }
+    } on TimeoutException {
+      return const ApiResult.failure(
+          NetworkFailure('The server took too long to answer. Check your connection and try again.'));
     } catch (e) {
-      return ApiResult.failure(NetworkFailure(e.toString()));
+      return const ApiResult.failure(
+          NetworkFailure('We could not reach the server. Check your connection and try again.'));
     }
   }
 

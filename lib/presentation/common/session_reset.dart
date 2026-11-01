@@ -4,9 +4,10 @@ import '../guests/bloc/guests_bloc.dart';
 import '../guests/bloc/guests_event.dart';
 import 'insights_cubits.dart';
 import 'notifications_cubit.dart';
+import 'push_cubit.dart';
 
 /// Clears everything that belongs to the signed-in person (guests and their
-/// live listeners, ranking, dashboard, team, notifications). Called on sign-in
+/// live listeners, ranking, dashboard, team, notifications, push listener). Called on sign-in
 /// and on sign-out, so a second person on the same device, or the same person
 /// with a new role, never sees the first one's data.
 void resetSessionState(BuildContext context) {
@@ -15,4 +16,5 @@ void resetSessionState(BuildContext context) {
   context.read<DashboardCubit>().reset();
   context.read<TeamCubit>().reset();
   context.read<NotificationsCubit>().stop();
+  context.read<PushCubit>().reset();
 }

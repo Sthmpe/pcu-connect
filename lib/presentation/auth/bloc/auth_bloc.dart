@@ -9,9 +9,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final IAuthRepository _authRepository;
   final LocalCache _localCache;
 
+  /// Runs while the person is still signed in, just before sign-out (for
+  /// example removing this device's push token). Never blocks sign-out.
+  final Future<void> Function()? beforeSignOut;
+
   AuthBloc({
     required IAuthRepository authRepository,
     required LocalCache localCache,
+    this.beforeSignOut,
   })  : _authRepository = authRepository,
         _localCache = localCache,
         super(AuthInitialState()) {
@@ -108,6 +113,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     emit(AuthLoadingState());
+    try {
+      await beforeSignOut?.call().timeout(const Duration(seconds: 4));
+    } catch (_) {
+      // Sign-out goes ahead whatever happens here.
+    }
     await _authRepository.signOut();
     emit(AuthUnauthenticatedState());
   }

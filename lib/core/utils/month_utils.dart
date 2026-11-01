@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import 'lagos_time.dart';
 
 /// Months travel as API keys ('2026-10') and are only formatted for display.
 abstract class MonthUtils {
@@ -6,11 +7,13 @@ abstract class MonthUtils {
 
   static String keyOf(DateTime date) => _key.format(date);
 
-  static String current() => keyOf(DateTime.now());
+  /// This month in Africa/Lagos, whatever the device's time zone (the
+  /// backend counts months the same way).
+  static String current([DateTime? clock]) => LagosTime.month(clock);
 
-  /// The last [count] month keys, newest first.
-  static List<String> recent([int count = 6]) {
-    final now = DateTime.now();
+  /// The last [count] month keys, newest first (Lagos time).
+  static List<String> recent([int count = 6, DateTime? clock]) {
+    final now = LagosTime.now(clock);
     return [
       for (var i = 0; i < count; i++) keyOf(DateTime(now.year, now.month - i)),
     ];
@@ -51,7 +54,7 @@ abstract class MonthUtils {
     if (isCurrent(key)) return 'This month';
     final d = _parse(key);
     if (d == null) return key;
-    return d.year == DateTime.now().year
+    return d.year == LagosTime.now().year
         ? DateFormat('MMM').format(d)
         : DateFormat('MMM y').format(d);
   }

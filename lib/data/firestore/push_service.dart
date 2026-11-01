@@ -24,6 +24,10 @@ abstract class IPushService {
   /// Saves the current token again when permission was given before.
   Future<void> refresh();
 
+  /// Before sign-out: removes this device's token from the person's list, so
+  /// the next person on this device never gets their pushes.
+  Future<void> forget();
+
   Stream<ForegroundPush> get foreground;
 }
 
@@ -80,6 +84,21 @@ class PushService implements IPushService {
     await _saveToken();
     // ignore: deprecated_member_use
     _refreshSub ??= _messaging.onTokenRefresh.listen((t) => _store(t));
+  }
+
+  @override
+  Future<void> forget() async {
+    await _refreshSub?.cancel();
+    _refreshSub = null;
+    if (await permission() != PushPermission.granted) return;
+    try {
+      // ignore: deprecated_member_use
+      final token = await _messaging.getToken(vapidKey: AppConfig.fcmVapidKey);
+      if (token == null || token.isEmpty) return;
+      await _db.collection('users').doc(_email).collection('tokens').doc(token).delete();
+    } catch (e) {
+      debugPrint('Push token not removed: $e');
+    }
   }
 
   Future<void> _saveToken() async {

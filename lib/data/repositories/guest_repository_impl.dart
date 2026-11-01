@@ -2,6 +2,8 @@ import '../../core/errors/failures.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_result.dart';
 import '../../core/storage/local_cache.dart';
+import '../../core/utils/lagos_time.dart';
+import '../../domain/follow_up_rules.dart';
 import '../../domain/entities/guest_entity.dart';
 import '../../domain/repositories/i_auth_repository.dart';
 import '../../domain/repositories/i_guest_repository.dart';
@@ -111,24 +113,22 @@ class GuestRepositoryImpl implements IGuestRepository {
     DateTime? wednesdayDate,
     required String team,
   }) async {
-    final now = DateTime.now();
-
-    // Business rule validation: Reject future attendance dates!
-    if (attendedSunday && sundayDate != null) {
-      if (sundayDate.isAfter(DateTime(now.year, now.month, now.day, 23, 59))) {
-        return const ApiResult.failure(
-          ValidationFailure('Attendance date cannot be in the future.'),
-        );
-      }
-    }
-
-    if (attendedWednesday && wednesdayDate != null) {
-      if (wednesdayDate.isAfter(DateTime(now.year, now.month, now.day, 23, 59))) {
-        return const ApiResult.failure(
-          ValidationFailure('Attendance date cannot be in the future.'),
-        );
-      }
-    }
+    // Same checks as the backend, with Lagos days (not the device's time zone).
+    final sunday = attendedSunday && sundayDate != null ? LagosTime.pickedDay(sundayDate) : '';
+    final wednesday = attendedWednesday && wednesdayDate != null ? LagosTime.pickedDay(wednesdayDate) : '';
+    final invalid = FollowUpRules.validate(
+      FollowUpInput(
+        outcome: outcome,
+        note: note,
+        attendedSunday: attendedSunday,
+        sundayDate: sunday,
+        attendedWednesday: attendedWednesday,
+        wednesdayDate: wednesday,
+        team: team,
+      ),
+      today: LagosTime.today(),
+    );
+    if (invalid != null) return ApiResult.failure(ValidationFailure(invalid));
 
     final result = await _apiClient.postAuthed(
       action: 'logFollowUp',
@@ -138,9 +138,9 @@ class GuestRepositoryImpl implements IGuestRepository {
         'outcome': outcome,
         'note': note,
         'attendedSunday': attendedSunday,
-        'sundayDate': sundayDate?.toIso8601String().substring(0, 10),
+        'sundayDate': sunday.isEmpty ? null : sunday,
         'attendedWednesday': attendedWednesday,
-        'wednesdayDate': wednesdayDate?.toIso8601String().substring(0, 10),
+        'wednesdayDate': wednesday.isEmpty ? null : wednesday,
         'team': team,
       },
     );

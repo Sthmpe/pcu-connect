@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_icons.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/utils/lagos_time.dart';
 import '../../../core/widgets/app_controls.dart';
 import '../../../core/widgets/app_feedback.dart';
 import '../../../core/widgets/app_page.dart';
@@ -34,10 +35,16 @@ class _LogFollowUpScreenState extends State<LogFollowUpScreen> {
   final TextEditingController _noteController = TextEditingController();
 
   bool _cameSunday = false;
-  DateTime _sundayDate = DateTime.now();
+  // Lagos today as a calendar day, so the picker matches the backend's "not in the future".
+  static DateTime get _lagosToday {
+    final n = LagosTime.now();
+    return DateTime(n.year, n.month, n.day);
+  }
+
+  DateTime _sundayDate = _lagosToday;
 
   bool _cameWednesday = false;
-  DateTime _wednesdayDate = DateTime.now();
+  DateTime _wednesdayDate = _lagosToday;
 
   String _selectedTeam = 'Not yet'; // 'Not yet' | 'Workforce' | 'Evangelism'
   bool _isSubmitting = false;
@@ -64,7 +71,7 @@ class _LogFollowUpScreenState extends State<LogFollowUpScreen> {
       context: context,
       initialDate: isSunday ? _sundayDate : _wednesdayDate,
       firstDate: DateTime(2026, 1, 1),
-      lastDate: DateTime.now(), // Enforce: No future dates allowed!
+      lastDate: _lagosToday, // no future dates (Lagos time)
     );
 
     if (picked != null) {

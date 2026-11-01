@@ -55,9 +55,15 @@ class AuthRepositoryImpl implements IAuthRepository {
           e.code == 'cancelled-popup-request') {
         return const ApiResult.failure(AuthFailure('Sign in was canceled.'));
       }
-      return ApiResult.failure(AuthFailure(e.message ?? e.code));
-    } catch (e) {
-      return ApiResult.failure(AuthFailure(e.toString()));
+      if (e.code == 'popup-blocked') {
+        return const ApiResult.failure(AuthFailure('Your browser blocked the sign-in window. Allow pop-ups and try again.'));
+      }
+      if (e.code == 'network-request-failed') {
+        return const ApiResult.failure(AuthFailure('We could not reach Google. Check your connection and try again.'));
+      }
+      return ApiResult.failure(AuthFailure(e.message ?? 'Sign in did not work. Please try again.'));
+    } catch (_) {
+      return const ApiResult.failure(AuthFailure('Sign in did not work. Please try again.'));
     }
   }
 

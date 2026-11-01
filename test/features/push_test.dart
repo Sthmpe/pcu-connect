@@ -24,6 +24,9 @@ class _Service implements IPushService {
 
   @override
   Future<void> refresh() async => refreshed++;
+  int forgotten = 0;
+  @override
+  Future<void> forget() async => forgotten++;
   @override
   Stream<ForegroundPush> get foreground => pushes.stream;
 }
@@ -85,6 +88,19 @@ void main() {
     expect(s.refreshed, 1);
     expect(granted.state.showPrompt, isFalse);
     await granted.close();
+  });
+
+  test('reset after sign-out stops hearing pushes', () async {
+    final s = _Service(PushPermission.granted);
+    final heard = <String>[];
+    final cubit = PushCubit(s, cache: await cache(), onForeground: (p) => heard.add(p.title));
+    await cubit.start();
+    await cubit.reset();
+    s.pushes.add(const ForegroundPush('For the previous person', ''));
+    await Future<void>.delayed(Duration.zero);
+    expect(heard, isEmpty);
+    expect(cubit.state.permission, PushPermission.unsupported);
+    await cubit.close();
   });
 
   test('no service (API mode or not the web): nothing shows', () async {

@@ -87,6 +87,14 @@ class PushCubit extends Cubit<PushState> {
     }
   }
 
+  /// Sign-out: stop listening and forget the state (the token itself is
+  /// removed by IPushService.forget before signing out).
+  Future<void> reset() async {
+    await _sub?.cancel();
+    _sub = null;
+    if (!isClosed) emit(const PushState());
+  }
+
   /// "Not now": hide the card for two weeks.
   Future<void> snooze() async {
     await _cache?.write(snoozeKey, true);
