@@ -170,11 +170,15 @@ class _Profile extends StatelessWidget {
         SizedBox(height: AppSizes.s16),
         Text(guest.name, style: AppTextStyles.title, textAlign: TextAlign.center),
         SizedBox(height: AppSizes.s4),
-        Text(
-          assignee == null
-              ? guest.phone
-              : '${guest.phone} · ${assignee!.isEmpty ? 'Not assigned' : 'With ${firstNameOf(assignee!)}'}',
-          style: AppTextStyles.bodyMuted,
+        // Long-press the number to copy it.
+        GestureDetector(
+          onLongPress: () => ContactLauncher.copyPhone(guest),
+          child: Text(
+            assignee == null
+                ? guest.phone
+                : '${guest.phone} · ${assignee!.isEmpty ? 'Not assigned' : 'With ${firstNameOf(assignee!)}'}',
+            style: AppTextStyles.bodyMuted,
+          ),
         ),
         SizedBox(height: AppSizes.s16),
         AppPill(label: guest.status, tone: StatusTone.forStatus(guest.status)),

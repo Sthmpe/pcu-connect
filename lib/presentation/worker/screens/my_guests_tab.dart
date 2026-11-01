@@ -13,12 +13,21 @@ import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
 import '../../guests/bloc/guests_filter_cubit.dart';
 import '../../guests/bloc/guests_state.dart';
+import '../../guests/widgets/guest_search_field.dart';
 import '../../guests/widgets/watch_months.dart';
 
 /// The worker's Guests screen. Its month and chip live in its own
 /// GuestsFilterCubit, so they never change Today or any other screen.
-class MyGuestsTab extends StatelessWidget {
+class MyGuestsTab extends StatefulWidget {
   const MyGuestsTab({super.key});
+
+  @override
+  State<MyGuestsTab> createState() => _MyGuestsTabState();
+}
+
+class _MyGuestsTabState extends State<MyGuestsTab> {
+  final _searchController = TextEditingController();
+  String _query = '';
 
   static const _filters = [
     ('all', 'All'),
@@ -27,6 +36,17 @@ class MyGuestsTab extends StatelessWidget {
     ('mem', 'Members'),
     ('team', 'In a team'),
   ];
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() => _query = '');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,15 +64,24 @@ class MyGuestsTab extends StatelessWidget {
                 trailing: MonthPill(month: filter.month, onChanged: selection.selectMonth),
                 below: month == null || !month.hasData
                     ? null
-                    : ChipBar(
-                        chips: [
-                          for (final (key, label) in _filters)
-                            AppChip(
-                              label: label,
-                              count: GuestFilters.count(guests, key),
-                              selected: filter.chip == key,
-                              onTap: () => selection.selectChip(key),
-                            ),
+                    : Column(
+                        children: [
+                          GuestSearchField(
+                            controller: _searchController,
+                            onChanged: (v) => setState(() => _query = v),
+                          ),
+                          SizedBox(height: AppSizes.s8),
+                          ChipBar(
+                            chips: [
+                              for (final (key, label) in _filters)
+                                AppChip(
+                                  label: label,
+                                  count: GuestFilters.count(guests, key),
+                                  selected: filter.chip == key,
+                                  onTap: () => selection.selectChip(key),
+                                ),
+                            ],
+                          ),
                         ],
                       ),
                 child: _body(context, filter, state),
@@ -74,11 +103,19 @@ class MyGuestsTab extends StatelessWidget {
     }
     if (state.waitingFor([filter.month])) return const SkeletonPage();
 
-    final list = GuestFilters.apply(state.guestsOf(filter.month), filter.chip);
+    final list = GuestFilters.apply(GuestFilters.search(state.guestsOf(filter.month), _query), filter.chip);
+    final searching = _query.trim().isNotEmpty;
     return PageList(
       children: [
         if (state.fromCacheIn([filter.month])) OfflineBanner(isRefreshing: state.refreshingIn([filter.month])),
-        if (list.isEmpty)
+        if (list.isEmpty && searching)
+          EmptyState(
+            icon: AppIcons.search,
+            message: 'No one matches "${_query.trim()}".',
+            actionLabel: 'Clear search',
+            onAction: _clearSearch,
+          )
+        else if (list.isEmpty)
           EmptyState(
             icon: AppIcons.empty,
             message: filter.chip == 'all' ? 'No guests in ${MonthUtils.name(filter.month)}.' : 'Nobody matches this filter.',

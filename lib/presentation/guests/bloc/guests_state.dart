@@ -96,4 +96,16 @@ abstract class GuestFilters {
       guests.where((g) => matches(g, filter)).toList();
 
   static int count(List<GuestEntity> guests, String filter) => guests.where((g) => matches(g, filter)).length;
+
+  /// Name contains [query], or the phone's digits contain the query's digits.
+  static List<GuestEntity> search(List<GuestEntity> guests, String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return guests;
+    final digits = q.replaceAll(RegExp(r'\D'), '');
+    return guests
+        .where((g) =>
+            g.name.toLowerCase().contains(q) ||
+            (digits.isNotEmpty && g.phone.replaceAll(RegExp(r'\D'), '').contains(digits)))
+        .toList();
+  }
 }

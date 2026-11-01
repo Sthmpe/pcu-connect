@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_icons.dart';
 import '../../../core/constants/app_sizes.dart';
-import '../../../core/constants/app_text_styles.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/utils/month_utils.dart';
 import '../../../core/widgets/app_controls.dart';
@@ -17,6 +15,7 @@ import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
 import '../../guests/bloc/guests_filter_cubit.dart';
 import '../../guests/bloc/guests_state.dart';
+import '../../guests/widgets/guest_search_field.dart';
 import '../../guests/widgets/watch_months.dart';
 
 /// All church guests for admins. With [workerFilter] it is pushed as its own
@@ -56,15 +55,7 @@ class _AdminGuestsTabState extends State<AdminGuestsTab> {
           .where((g) => (g.assignedWorkerName ?? '').trim().toLowerCase() == worker)
           .toList();
     }
-    final q = _query.trim().toLowerCase();
-    if (q.isNotEmpty) {
-      final digits = q.replaceAll(RegExp(r'\D'), '');
-      list = list
-          .where((g) =>
-              g.name.toLowerCase().contains(q) ||
-              (digits.isNotEmpty && g.phone.replaceAll(RegExp(r'\D'), '').contains(digits)))
-          .toList();
-    }
+    list = GuestFilters.search(list, _query);
     return list;
   }
 
@@ -87,28 +78,9 @@ class _AdminGuestsTabState extends State<AdminGuestsTab> {
                   ? null
                   : Column(
                       children: [
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: AppSizes.gutter),
-                          child: TextField(
-                            controller: _searchController,
-                            onChanged: (v) => setState(() => _query = v),
-                            style: AppTextStyles.body,
-                            textInputAction: TextInputAction.search,
-                            decoration: InputDecoration(
-                              hintText: 'Search by name or phone',
-                              prefixIcon: Icon(AppIcons.search, size: AppSizes.iconMd, color: AppColors.muted),
-                              suffixIcon: _query.isEmpty
-                                  ? null
-                                  : IconButton(
-                                      tooltip: 'Clear',
-                                      icon: Icon(AppIcons.close, size: AppSizes.iconSm, color: AppColors.muted),
-                                      onPressed: () {
-                                        _searchController.clear();
-                                        setState(() => _query = '');
-                                      },
-                                    ),
-                            ),
-                          ),
+                        GuestSearchField(
+                          controller: _searchController,
+                          onChanged: (v) => setState(() => _query = v),
                         ),
                         SizedBox(height: AppSizes.s8),
                         ChipBar(

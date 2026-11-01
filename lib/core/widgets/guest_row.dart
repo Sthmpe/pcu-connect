@@ -25,6 +25,9 @@ class GuestRow extends StatelessWidget {
   final String? pill;
   final StatusTone? pillTone;
 
+  /// Long-press; by default it copies the guest's number.
+  final VoidCallback? onLongPress;
+
   const GuestRow({
     super.key,
     required this.guest,
@@ -33,6 +36,7 @@ class GuestRow extends StatelessWidget {
     this.line,
     this.pill,
     this.pillTone,
+    this.onLongPress,
   });
 
   @override
@@ -46,6 +50,7 @@ class GuestRow extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress ?? () => ContactLauncher.copyPhone(guest),
       child: Padding(
         padding: EdgeInsets.fromLTRB(
             AppSizes.s16, AppSizes.s8 + 4, AppSizes.s8, AppSizes.s8 + 4),
