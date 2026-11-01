@@ -13,7 +13,7 @@ const TEST_PREFIX = 'TEST Guest';
 const CALLS_SHEET = 'Call Log';            // the app's Call Log tab (fallback: Follow-ups)
 const GO_LIVE = '2026-10-28';              // only guests assigned from this day are chased
 const REMINDER_HOUR = 18;                  // 6pm daily reminder
-const APP_LINK = 'https://www.appsheet.com/start/37ecd84f-d7d6-44b0-bc88-2372b0933e3e';
+const APP_LINK = 'https://pcu-workflow.web.app';  // the PCU Connect web app (also the link in pushes)
 
 /* ------------------------------------------------------------------ */
 /* Menu                                                                */
