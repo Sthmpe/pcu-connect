@@ -65,6 +65,13 @@ abstract class AppRoutes {
         // Its own month and chip, separate from the HOD's Guests tab.
         page = BlocProvider(create: (_) => GuestsFilterCubit(), child: AdminGuestsTab(workerFilter: args));
         break;
+      case workerGuests when args is WorkerGuestsArgs:
+        // From "Needs attention": that month, only guests still to call.
+        page = BlocProvider(
+          create: (_) => GuestsFilterCubit()..show(month: args.month, chip: args.chip),
+          child: AdminGuestsTab(workerFilter: args.workerName),
+        );
+        break;
       case notifications:
         page = const NotificationsScreen();
         break;
@@ -77,6 +84,14 @@ abstract class AppRoutes {
 
     return MaterialPageRoute(settings: settings, builder: (_) => page);
   }
+}
+
+class WorkerGuestsArgs {
+  final String workerName;
+  final String month;
+  final String chip;
+
+  const WorkerGuestsArgs(this.workerName, {required this.month, this.chip = 'call'});
 }
 
 class GuestDetailArgs {

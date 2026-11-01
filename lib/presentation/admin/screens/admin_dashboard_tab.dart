@@ -21,6 +21,7 @@ import '../../guests/bloc/guests_state.dart';
 import '../../guests/widgets/watch_months.dart';
 import '../bloc/sheet_sync_cubit.dart';
 import '../../common/notification_bell.dart';
+import '../widgets/needs_attention_card.dart';
 import '../../common/push_prompt_card.dart';
 
 class AdminDashboardTab extends StatelessWidget {
@@ -83,6 +84,7 @@ class AdminDashboardTab extends StatelessWidget {
             StatItem('${data.members}', 'Became members', onTap: () => onOpenGuests('mem')),
             StatItem('${data.inTeam}', 'Joined a team', onTap: () => onOpenGuests('team')),
           ]),
+          const NeedsAttentionCard(),
           _Journey(month: data.month),
           SectionLabel('Top workers', actionLabel: 'See team', onAction: onOpenTeam),
           if (data.topWorkers.isEmpty)

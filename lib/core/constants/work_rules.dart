@@ -18,8 +18,8 @@ abstract class WorkRules {
   /// A guest who was called is due another call after this many days without one.
   static const int FOLLOWUP_DUE_AFTER_DAYS = 7;
 
-  /// The HOD's "Needs attention" counts a worker whose oldest outstanding guest
-  /// has waited at least this many days.
+  /// On the HOD's "Needs attention" card, a worker whose oldest outstanding
+  /// guest has waited at least this many days is shown in red.
   static const int ATTENTION_AFTER_DAYS = 7;
 
   /// Call outcomes that mean "no answer" for Retry: the person was not reached
