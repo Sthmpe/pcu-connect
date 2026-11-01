@@ -237,3 +237,23 @@ Node harness for Apps Script with mocked Firestore REST and mocked Sheets: field
 
 ## Safety
 Test sheet only until go-live. Never delete sheet data. Create a separate Firebase project for the live church data before go-live.
+
+## Query audit (2026-11-01)
+Every Firestore read the app makes, checked against firestore.indexes.json (deployed and built), the rules, and the
+real documents (1,908 guests, 42 follow-ups, 5 users): no query needs a missing index, no filtered or ordered field is
+missing from any document the migration, the 5-minute push or the app writes, and no rule denies a read the app makes.
+
+| Screen | Query | Index | Rule |
+| --- | --- | --- | --- |
+| Guests, Today, Me (worker) | guests where assignedTo == me and month == m | assignedTo+month | canSeeGuest (provable from assignedTo) |
+| Guests, Dashboard (HOD) | guests where month == m | single field | isAdmin |
+| Guest history | followUps where guestId == g [and worker == me] orderBy createdAt desc | guestId+createdAt, worker+guestId+createdAt | admin, or worker == me |
+| Today calls | followUps where worker == me | single field | worker == me |
+| Dashboard, Team | guests where month in (12 months); guests where membershipStatus == Member; followUps where month >= oldest; users | single field | isAdmin |
+| Ranking | rankings/{m}/entries (users only for admins) | none | isMember |
+| Trend | count of guests where month == m [and membershipStatus == Member] | single field | isAdmin |
+| Bell | users/{me}/notifications orderBy createdAt desc | single field | own list |
+| Nudges | nudges where sentAt > now - 24 h | single field | isAdmin |
+
+The empty lists after 1 November came from the month defaults (every screen opened on a new, still empty month), not
+from the data or the queries.
