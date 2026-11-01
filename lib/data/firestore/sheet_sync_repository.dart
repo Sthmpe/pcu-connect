@@ -38,6 +38,7 @@ class SheetSyncRepository implements ISheetSyncRepository {
       running: d['running'] == true,
       lastOk: ok,
       lastError: ok ? null : result['error']?.toString(),
+      sheetUrl: (d['sheetUrl'] ?? '').toString(),
     );
   }
 
@@ -69,6 +70,8 @@ class SheetSyncRepository implements ISheetSyncRepository {
     return ApiResult.success(SheetSyncResult(
       followUps: (data['followUps'] as num?)?.toInt() ?? 0,
       guests: (data['guests'] as num?)?.toInt() ?? 0,
+      followUpGuests: (data['followUpGuests'] as num?)?.toInt() ?? 0,
+      sheetUrl: (data['sheetUrl'] ?? '').toString(),
     ));
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_icons.dart';
 import '../../../core/constants/app_sizes.dart';
@@ -363,6 +364,13 @@ class SheetSyncCard extends StatelessWidget {
                       color: state.messageIsError ? AppColors.redInk : AppColors.greenInk),
                 ),
               ],
+              if (state.status.sheetUrl.isNotEmpty)
+                Center(
+                  child: TextButton(
+                    onPressed: () => launchUrl(Uri.parse(state.status.sheetUrl), mode: LaunchMode.externalApplication),
+                    child: Text('Open the sheet', style: AppTextStyles.captionStrong.copyWith(color: AppColors.navy)),
+                  ),
+                ),
             ],
           ),
         );

@@ -87,6 +87,7 @@ function setup(opts = {}) {
   const ctx = {
     console: { log() {}, warn() {}, error: console.error },
     SpreadsheetApp: { getActive: () => ({
+      getUrl: () => 'https://docs.google.com/spreadsheets/d/TEST/edit',
       getSheetByName: n => sheets[n] || null,
       insertSheet: n => (sheets[n] = makeSheet([])),
     }), flush() {} },
@@ -295,7 +296,7 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
 
 // --- Phase 2 and 3: the app saves to Firestore, the sheet sync copies the work back
 {
-  const { ctx, sheets, store, call, commits, triggers } = setup();
+  const { ctx, sheets, store, call, commits, triggers, props } = setup();
   ctx.pcuSetupSyncColumns();
   ctx.pcuMigrate();
   const today = ymd(now);
@@ -323,6 +324,9 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
 
   const r = call({ action: 'syncNow', idToken: 'tokAdmin' });
   check('syncNow ok', r.ok && r.data.followUps === 3 && r.data.guests === 2 && r.data.missingGuests === 0, r);
+  check('the result says 3 follow-ups for 2 guests', r.data.followUpGuests === 2, r.data);
+  check('the sheet URL comes from the SHEET_URL property, filled once from the spreadsheet, and is shared in meta/sync',
+    r.data.sheetUrl === 'https://docs.google.com/spreadsheets/d/TEST/edit' && props.SHEET_URL === r.data.sheetUrl && store['meta/sync'].sheetUrl === r.data.sheetUrl, [r.data.sheetUrl, props.SHEET_URL]);
   const added = fuRows.slice(before.fuCount);
   check('3 follow-ups appended to the Follow-ups tab', added.length === 3 && added.map(x => x[0]).join() === 'app1,app3,app2', added.map(x => x[0]));
   const a3 = added.find(x => x[0] === 'app3');

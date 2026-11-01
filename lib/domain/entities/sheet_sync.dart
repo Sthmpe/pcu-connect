@@ -11,11 +11,15 @@ class SheetSyncStatus extends Equatable {
   final bool lastOk;
   final String? lastError;
 
+  /// For "Open the sheet" (SHEET_URL Script Property, shared by Apps Script); '' when not known.
+  final String sheetUrl;
+
   const SheetSyncStatus({
     this.lastSyncedAt,
     this.running = false,
     this.lastOk = true,
     this.lastError,
+    this.sheetUrl = '',
   });
 
   /// "Last synced: today 12:05 AM", in Lagos time.
@@ -53,22 +57,33 @@ class SheetSyncStatus extends Equatable {
   }
 
   @override
-  List<Object?> get props => [lastSyncedAt, running, lastOk, lastError];
+  List<Object?> get props => [lastSyncedAt, running, lastOk, lastError, sheetUrl];
 }
 
 /// What one "Sync to sheet" did.
 class SheetSyncResult extends Equatable {
   final int followUps;
+
+  /// Guest rows updated in the sheet.
   final int guests;
 
-  const SheetSyncResult({required this.followUps, required this.guests});
+  /// Distinct guests of the follow-ups just added.
+  final int followUpGuests;
 
+  final String sheetUrl;
+
+  const SheetSyncResult({required this.followUps, required this.guests, this.followUpGuests = 0, this.sheetUrl = ''});
+
+  static String _n(int n, String one) => '$n ${n == 1 ? one : '${one}s'}';
+
+  /// "Synced 6 follow-ups for 4 guests".
   String get message {
     if (guests == 0 && followUps == 0) return 'The sheet is up to date.';
-    if (guests == 0) return 'Synced $followUps ${followUps == 1 ? 'follow-up' : 'follow-ups'}';
-    return 'Synced $guests ${guests == 1 ? 'guest' : 'guests'}';
+    if (followUps == 0) return 'Synced ${_n(guests, 'guest')}';
+    if (followUpGuests == 0) return 'Synced ${_n(followUps, 'follow-up')}';
+    return 'Synced ${_n(followUps, 'follow-up')} for ${_n(followUpGuests, 'guest')}';
   }
 
   @override
-  List<Object?> get props => [followUps, guests];
+  List<Object?> get props => [followUps, guests, followUpGuests, sheetUrl];
 }

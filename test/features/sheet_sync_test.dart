@@ -9,7 +9,7 @@ import 'package:workflow/presentation/admin/bloc/sheet_sync_cubit.dart';
 
 class _Repo implements ISheetSyncRepository {
   final statuses = StreamController<SheetSyncStatus>.broadcast();
-  ApiResult<SheetSyncResult> next = const ApiResult.success(SheetSyncResult(followUps: 3, guests: 42));
+  ApiResult<SheetSyncResult> next = const ApiResult.success(SheetSyncResult(followUps: 3, guests: 42, followUpGuests: 2));
   final gate = Completer<void>();
   int calls = 0;
 
@@ -43,8 +43,9 @@ void main() {
           'The last sync did not finish. Try again.');
     });
     test('result messages', () {
-      expect(const SheetSyncResult(followUps: 50, guests: 42).message, 'Synced 42 guests');
-      expect(const SheetSyncResult(followUps: 1, guests: 1).message, 'Synced 1 guest');
+      expect(const SheetSyncResult(followUps: 50, guests: 42, followUpGuests: 40).message, 'Synced 50 follow-ups for 40 guests');
+      expect(const SheetSyncResult(followUps: 1, guests: 1, followUpGuests: 1).message, 'Synced 1 follow-up for 1 guest');
+      expect(const SheetSyncResult(followUps: 0, guests: 1).message, 'Synced 1 guest');
       expect(const SheetSyncResult(followUps: 2, guests: 0).message, 'Synced 2 follow-ups');
       expect(const SheetSyncResult(followUps: 0, guests: 0).message, 'The sheet is up to date.');
     });
@@ -62,7 +63,7 @@ void main() {
   });
 
   group('SheetSyncCubit', () {
-    test('Syncing... then "Synced 42 guests", and the dashboard is refreshed', () async {
+    test('Syncing... then "Synced 3 follow-ups for 2 guests", and the dashboard is refreshed', () async {
       final repo = _Repo();
       var refreshed = 0;
       final cubit = SheetSyncCubit(repo, onSynced: () => refreshed++);
@@ -74,7 +75,7 @@ void main() {
       repo.gate.complete();
       await done;
       expect(cubit.state.syncing, isFalse);
-      expect(cubit.state.message, 'Synced 42 guests');
+      expect(cubit.state.message, 'Synced 3 follow-ups for 2 guests');
       expect(cubit.state.messageIsError, isFalse);
       expect(refreshed, 1);
       await cubit.close();

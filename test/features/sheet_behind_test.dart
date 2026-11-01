@@ -28,6 +28,35 @@ class _Repo implements ISheetSyncRepository {
 void main() {
   final now = DateTime.utc(2026, 11, 2, 12);
 
+  test('the sync result says what was synced', () {
+    expect(const SheetSyncResult(followUps: 6, guests: 4, followUpGuests: 4).message, 'Synced 6 follow-ups for 4 guests');
+    expect(const SheetSyncResult(followUps: 1, guests: 1, followUpGuests: 1).message, 'Synced 1 follow-up for 1 guest');
+    expect(const SheetSyncResult(followUps: 0, guests: 0).message, 'The sheet is up to date.');
+    expect(const SheetSyncResult(followUps: 0, guests: 3).message, 'Synced 3 guests');
+    expect(const SheetSyncResult(followUps: 2, guests: 2).message, 'Synced 2 follow-ups', reason: 'an older backend without the guest count');
+  });
+
+  test('the sheet link comes from meta/sync', () {
+    expect(SheetSyncRepository.fromDoc({'sheetUrl': 'https://docs.google.com/spreadsheets/d/X/edit'}).sheetUrl,
+        'https://docs.google.com/spreadsheets/d/X/edit');
+    expect(SheetSyncRepository.fromDoc({}).sheetUrl, '');
+  });
+
+  testWidgets('Open the sheet shows once the address is known', (tester) async {
+    final repo = _Repo();
+    final cubit = SheetSyncCubit(repo);
+    await tester.pumpWidget(ScreenUtilInit(
+      designSize: AppSizes.designSize,
+      builder: (_, _) => MaterialApp(home: Scaffold(body: BlocProvider.value(value: cubit, child: const SheetSyncCard()))),
+    ));
+    expect(find.text('Open the sheet'), findsNothing);
+    repo.statuses.add(SheetSyncStatus(lastSyncedAt: now, sheetUrl: 'https://docs.google.com/spreadsheets/d/X/edit'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Open the sheet'), findsOneWidget);
+    unawaited(cubit.close());
+  });
+
   test('a day or more behind', () {
     expect(SheetSyncStatus(lastSyncedAt: now.subtract(const Duration(hours: 23))).behind(now), isNull);
     expect(SheetSyncStatus(lastSyncedAt: now.subtract(const Duration(hours: 24))).behind(now), 'Sheet is a day behind. Sync now.');

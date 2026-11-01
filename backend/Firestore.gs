@@ -851,14 +851,17 @@ function pcuSheetSync_(by) {
     result.by = by;
     result.ok = true;
     var finishedAt = new Date();
+    result.sheetUrl = pcuSheetUrl_();
     pcuFsCommit_([
       pcuFsSet_(PCU_SYNC.META, {
         running: false,
         lastSheetSyncAt: finishedAt,
+        sheetUrl: result.sheetUrl,
         lastResult: {
           ok: true,
           by: by,
           followUps: result.followUps,
+          followUpGuests: result.followUpGuests,
           guests: result.guests,
           alreadyInSheet: result.alreadyInSheet,
           missingGuests: result.missingGuests,
@@ -912,10 +915,12 @@ function pcuSheetSyncLocked_() {
     if (id) inSheet[id] = true;
   });
   var newRows = [];
+  var newFor = {};
   pending.forEach(function (f) {
     if (inSheet[f.id]) return;
     inSheet[f.id] = true;
     newRows.push(pcuSyncFollowUpRow_(fu, f));
+    newFor[pcuStr_(f.data.guestId)] = true;
   });
   if (newRows.length) {
     fu.sheet.getRange(fu.dataRows + 2, 1, newRows.length, fu.headers.length).setValues(newRows);
@@ -980,11 +985,32 @@ function pcuSheetSyncLocked_() {
   pcuClearStatsCache_();
   return {
     followUps: newRows.length,
+    // Distinct guests of the follow-ups just added: "Synced 6 follow-ups for 4 guests".
+    followUpGuests: Object.keys(newFor).filter(function (id) {
+      return !!id;
+    }).length,
     alreadyInSheet: pending.length - newRows.length,
     guests: updated,
     guestsChecked: ids.length - missing,
     missingGuests: missing
   };
+}
+
+/**
+ * The sheet's address for the HOD's "Open the sheet" link: the SHEET_URL
+ * Script Property, filled once from this script's spreadsheet when missing.
+ */
+function pcuSheetUrl_() {
+  var props = PropertiesService.getScriptProperties();
+  var url = props.getProperty('SHEET_URL');
+  if (url) return url;
+  try {
+    url = SpreadsheetApp.getActive().getUrl();
+    if (url) props.setProperty('SHEET_URL', url);
+  } catch (err) {
+    console.warn('No sheet URL: ' + (err && err.message));
+  }
+  return url || '';
 }
 
 /** Nightly at 00:05 Africa/Lagos (see pcuEnsureSyncTriggers_). */
