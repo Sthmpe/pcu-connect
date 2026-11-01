@@ -638,3 +638,17 @@ firebase hosting:clone pcu-workflow:@876dfe9dc93285cf pcu-workflow:live --projec
 ```
 
 The Firebase console can do the same: Hosting, Release history, the 2026-10-31 20:28 release, Roll back.
+
+Result (2026-11-01): **not deployed.** The rules were confirmed (already up to date) and the Firestore-mode build was
+made with exec URL `AKfycby0H6Sk...` (@12), but `firebase deploy --only hosting --project pcu-workflow` was refused by
+this session's permission check (production deploy). The live site was re-checked afterwards: same ETag and
+last-modified (2026-10-31 20:28 UTC) and still the old exec URL, so nothing changed and no rollback was needed.
+To deploy, from the repo root on this branch:
+
+```
+tool/build_web.sh --dart-define=DATA_SOURCE=firestore --dart-define=APPS_SCRIPT_URL=https://script.google.com/macros/s/AKfycby0H6Sk-V1mCGJNtst4KzvraWplYqMn6exWDlLCybiINoGlXnSCUNdkNaJ8D4o0tC3u/exec
+firebase deploy --only hosting --project pcu-workflow
+```
+
+or copy the verified preview to live: `firebase hosting:clone pcu-workflow:firestore-test pcu-workflow:live --project pcu-workflow`.
+Then check with `node tool/web/render_check.mjs https://pcu-workflow.web.app`.
