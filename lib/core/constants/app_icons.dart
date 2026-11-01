@@ -27,6 +27,7 @@ abstract class AppIcons {
   static const IconData signOut = LucideIcons300.logOut;
   static const IconData info = LucideIcons300.info;
   static const IconData retry = LucideIcons300.refreshCw;
+  static const IconData sync = LucideIcons300.refreshCw;
   static const IconData up = LucideIcons300.arrowUp;
   static const IconData down = LucideIcons300.arrowDown;
 

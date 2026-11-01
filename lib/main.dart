@@ -15,6 +15,7 @@ import 'core/theme/app_theme.dart';
 import 'core/widgets/responsive_web_shell.dart';
 import 'data/firestore/firestore_guest_repository.dart';
 import 'data/firestore/firestore_profile_source.dart';
+import 'data/firestore/sheet_sync_repository.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/repositories/guest_repository_impl.dart';
 import 'data/repositories/team_repository_impl.dart';
@@ -75,10 +76,19 @@ void main() async {
       ? SampleTeamRepository()
       : TeamRepositoryImpl(apiClient: apiClient, authRepository: authRepository);
 
+  final ISheetSyncRepository? sheetSyncRepository = AppConfig.useFirestore
+      ? SheetSyncRepository(
+          db: FirebaseFirestore.instance,
+          apiClient: apiClient,
+          authRepository: authRepository,
+        )
+      : null;
+
   runApp(PCUConnectApp(
     authRepository: authRepository,
     guestRepository: guestRepository,
     teamRepository: teamRepository,
+    sheetSyncRepository: sheetSyncRepository,
     localCache: localCache,
   ));
 }
@@ -87,6 +97,9 @@ class PCUConnectApp extends StatelessWidget {
   final IAuthRepository authRepository;
   final IGuestRepository guestRepository;
   final ITeamRepository teamRepository;
+
+  /// Firestore mode only: the HOD's sheet sync.
+  final ISheetSyncRepository? sheetSyncRepository;
   final LocalCache localCache;
 
   const PCUConnectApp({
@@ -94,6 +107,7 @@ class PCUConnectApp extends StatelessWidget {
     required this.authRepository,
     required this.guestRepository,
     required this.teamRepository,
+    this.sheetSyncRepository,
     required this.localCache,
   });
 
@@ -104,6 +118,8 @@ class PCUConnectApp extends StatelessWidget {
         RepositoryProvider<IAuthRepository>.value(value: authRepository),
         RepositoryProvider<IGuestRepository>.value(value: guestRepository),
         RepositoryProvider<ITeamRepository>.value(value: teamRepository),
+        if (sheetSyncRepository != null)
+          RepositoryProvider<ISheetSyncRepository>.value(value: sheetSyncRepository!),
       ],
       child: MultiBlocProvider(
         providers: [

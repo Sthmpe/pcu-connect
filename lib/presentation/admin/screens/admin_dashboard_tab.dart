@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_icons.dart';
 import '../../../core/constants/app_sizes.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/month_utils.dart';
 import '../../../core/widgets/app_controls.dart';
@@ -12,11 +13,13 @@ import '../../../core/widgets/app_surfaces.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../domain/entities/guest_entity.dart';
 import '../../../domain/entities/insights.dart';
+import '../../../data/firestore/sheet_sync_repository.dart';
 import '../../common/insights_cubits.dart';
 import '../../common/load_state.dart';
 import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
 import '../../guests/bloc/guests_state.dart';
+import '../bloc/sheet_sync_cubit.dart';
 
 class AdminDashboardTab extends StatelessWidget {
   final ValueChanged<String> onOpenGuests;
@@ -89,6 +92,23 @@ class AdminDashboardTab extends StatelessWidget {
                   _TopWorkerRow(rank: i + 1, worker: data.topWorkers[i]),
               ],
             ),
+          // Saved work reaches the sheet with the nightly sync or this button.
+          if (AppConfig.useFirestore) ...[
+            SectionLabel('Sheet'),
+            BlocProvider(
+              create: (ctx) => SheetSyncCubit(
+                ctx.read<ISheetSyncRepository>(),
+                onSynced: () {
+                  ctx.read<DashboardCubit>().load();
+                  final ranking = ctx.read<RankingCubit>();
+                  if (ranking.state.data != null) ranking.load();
+                  final team = ctx.read<TeamCubit>();
+                  if (team.state.data != null) team.load();
+                },
+              ),
+              child: const SheetSyncCard(),
+            ),
+          ],
         ],
       ),
     );
@@ -234,6 +254,66 @@ class _TopWorkerRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// HOD only: when work last reached the sheet, and the "Sync to sheet" button.
+class SheetSyncCard extends StatelessWidget {
+  const SheetSyncCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<SheetSyncCubit, SheetSyncState>(
+      builder: (context, state) {
+        final warning = state.busy ? null : state.status.warning();
+        return AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(AppIcons.sync, size: AppSizes.iconMd, color: AppColors.inkSoft),
+                  SizedBox(width: AppSizes.s16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          state.status.running && !state.syncing ? 'Syncing...' : state.status.line(),
+                          style: AppTextStyles.bodyStrong,
+                        ),
+                        if (warning != null) ...[
+                          SizedBox(height: AppSizes.s4),
+                          Text(warning,
+                              style: AppTextStyles.caption.copyWith(color: AppColors.amberInk)),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: AppSizes.s16),
+              AppButton(
+                label: state.busy ? 'Syncing...' : 'Sync to sheet',
+                icon: AppIcons.sync,
+                variant: AppButtonVariant.secondary,
+                isLoading: state.syncing,
+                onPressed: state.busy ? null : () => context.read<SheetSyncCubit>().syncNow(),
+              ),
+              if (state.message != null) ...[
+                SizedBox(height: AppSizes.s8),
+                Text(
+                  state.message!,
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.caption.copyWith(
+                      color: state.messageIsError ? AppColors.redInk : AppColors.greenInk),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }
