@@ -441,3 +441,45 @@ Measured live with the opt-in profiler (`"profile": true`, mock tokens only). Wa
   `2026-04` at row 5842, `2025-11` from row 4211). From 2026-05 on, months are contiguous at the bottom. So "read the
   last N rows" alone would drop stray rows; an exact row-to-month index is needed to keep behaviour.
 - Only 2 rows have MEMBERSHIP STATUS = Member (TextFinder `findAll` 0.12 s).
+
+## 2026-11-01 Update: fast reads deployed (steps 2 to 5)
+
+Code: `ad58e07`. Deployed with clasp to the existing deployment
+`AKfycby0H6Sk-V1mCGJNtst4KzvraWplYqMn6exWDlLCybiINoGlXnSCUNdkNaJ8D4o0tC3u` (@8); the exec URL is unchanged.
+The clasp login stays active in this Codespace (`~/.clasprc.json`, never committed).
+
+What changed (no business rule changed):
+- Lagos day/month strings in plain JS (UTC+1, no DST since 1919); dates before 1920 still use `Utilities.formatDate`.
+- `guest` and `logFollowUp` find the row with TextFinder and read only that row plus the Follow-ups tab.
+- `guests`, `team`, `dashboard` use a cached month -> rows index (CacheService, 1 h). Appended rows are read and
+  added; the index is rebuilt when the tab gets shorter, and dropped (full read) when a row no longer has the month the
+  index says. Rows are not in date order on the sheet, so a plain "last N rows" read would have dropped stray rows.
+- `ranking` and points read only guests with a first call that month (ID column) and Member rows (TextFinder).
+- `ranking`, `dashboard`, `team` are cached for 90 s. `logFollowUp`, `saveWorker` and `setWorkerActive` start a new
+  cache generation, so a save shows on the next request. Sheet edits made outside the API can take up to 90 s to show
+  in these three.
+- Tests: `node backend/test/pcu_equivalence_harness.js` runs the previous `Api.gs` (472bccc) and the current one on
+  1,900 messy rows (out of order, stray years, string dates, missing/duplicate/spaced ids, old members) and compares
+  1,300 responses and the sheets after saves: all identical. Takes about 3.5 minutes. The API and Firestore harnesses
+  use shared mocks in `backend/test/gas_mocks.js`.
+
+Live test through the exec URL (mock tokens, TEST sheet), wall time per call:
+
+| Call | Before | After |
+|---|---|---|
+| me | 1.3 to 2.7 s | 1.1 to 1.8 s |
+| guests | 8.6 to 18.8 s | 2.0 to 2.7 s |
+| guest | 9.0 to 12.8 s | 2.6 to 3.7 s |
+| ranking (cold) | 9.6 to 12.2 s | 1.3 to 3.8 s, one 9.1 s outlier right after the saves |
+| dashboard (cold) | 8.0 to 12.9 s | 3.6 to 3.8 s |
+| team (cold) | 12.8 s | 2.5 to 2.7 s |
+| ranking / dashboard / team (cached) | n/a | 1.4 to 2.5 s |
+| logFollowUp (save) | 9.3 to 15.0 s, avg 11.5 s | 3.0 to 4.7 s, avg 3.7 s |
+
+All 32 checks passed (earlier notes said 33; that was a miscount of the same set). Most calls are now under 3 s;
+saves and some cold reads are 3 to 4.7 s. The fixed floor is about 1.1 to 1.6 s of web app overhead plus about
+0.4 s to read the Workers tab for auth. No further trimming was done, by decision.
+
+**Test data only (TEST sheet):** an interrupted test run kept running in the background and overlapped a second run,
+so G-10161115 and G-3AF5CD6A got their live-test follow-ups twice (9 follow-ups each, both Member). The clean run used
+G09204, G-C195DCB0 and G09202. Earlier runs also wrote to G-C195DCB0, G-E41460DE, G-043CDBA9 and G09201.
