@@ -68,11 +68,13 @@ class AdminDashboardTab extends StatelessWidget {
       return const SkeletonPage(hero: true, rows: 3);
     }
 
-    return RefreshIndicator(
+    final page = RefreshIndicator(
       color: AppColors.navy,
       onRefresh: () => context.read<DashboardCubit>().load(),
       child: PageList(
         children: [
+          // Only when the sheet is a day or more behind; otherwise nothing.
+          if (AppConfig.useFirestore) const SheetBehindBanner(),
           const PushPromptCard(reason: 'when guests come in and when the sheet sync needs you'),
           _CalledHero(data: data, onSeeWaiting: () => onOpenGuests('call')),
           SizedBox(height: AppSizes.s16),
@@ -102,22 +104,63 @@ class AdminDashboardTab extends StatelessWidget {
           // Saved work reaches the sheet with the nightly sync or this button.
           if (AppConfig.useFirestore) ...[
             SectionLabel('Sheet'),
-            BlocProvider(
-              create: (ctx) => SheetSyncCubit(
-                ctx.read<ISheetSyncRepository>(),
-                onSynced: () {
-                  ctx.read<DashboardCubit>().load();
-                  final ranking = ctx.read<RankingCubit>();
-                  if (ranking.state.data != null) ranking.load();
-                  final team = ctx.read<TeamCubit>();
-                  if (team.state.data != null) team.load();
-                },
-              ),
-              child: const SheetSyncCard(),
-            ),
+            const SheetSyncCard(),
           ],
         ],
       ),
+    );
+    if (!AppConfig.useFirestore) return page;
+    // One sync state for the banner at the top and the Sheet card below.
+    return BlocProvider(
+      create: (ctx) => SheetSyncCubit(
+        ctx.read<ISheetSyncRepository>(),
+        onSynced: () {
+          ctx.read<DashboardCubit>().load();
+          final ranking = ctx.read<RankingCubit>();
+          if (ranking.state.data != null) ranking.load();
+          final team = ctx.read<TeamCubit>();
+          if (team.state.data != null) team.load();
+        },
+      ),
+      child: page,
+    );
+  }
+}
+
+/// Slim gold-outlined banner at the top of the Dashboard when the sheet is a
+/// day or more behind, with a Sync now button. Nothing otherwise.
+class SheetBehindBanner extends StatelessWidget {
+  final DateTime? clock;
+
+  const SheetBehindBanner({super.key, this.clock});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<SheetSyncCubit, SheetSyncState>(
+      builder: (context, state) {
+        final text = state.busy ? null : state.status.behind(clock);
+        if (text == null) return const SizedBox.shrink();
+        return Container(
+          margin: EdgeInsets.only(bottom: AppSizes.s16),
+          padding: EdgeInsets.only(left: AppSizes.s16, right: AppSizes.s4),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            border: Border.all(color: AppColors.gold, width: 1.5),
+            borderRadius: BorderRadius.circular(AppSizes.radiusSm),
+          ),
+          child: Row(
+            children: [
+              Icon(AppIcons.sync, size: AppSizes.iconSm, color: AppColors.goldInk),
+              SizedBox(width: AppSizes.s8),
+              Expanded(child: Text(text, style: AppTextStyles.caption.copyWith(color: AppColors.ink))),
+              TextButton(
+                onPressed: () => context.read<SheetSyncCubit>().syncNow(),
+                child: Text('Sync now', style: AppTextStyles.captionStrong.copyWith(color: AppColors.navy)),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -275,7 +318,8 @@ class SheetSyncCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<SheetSyncCubit, SheetSyncState>(
       builder: (context, state) {
-        final warning = state.busy ? null : state.status.warning();
+        // "A day behind" is said by the banner at the top, not twice.
+        final warning = state.busy || state.status.behind() != null ? null : state.status.warning();
         return AppCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,

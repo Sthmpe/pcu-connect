@@ -30,6 +30,17 @@ class SheetSyncStatus extends Equatable {
     return 'Last synced: ${DateFormat('d MMM').format(at.toUtc().add(LagosTime.offset))}, $time';
   }
 
+  /// For the Dashboard banner: "Sheet is a day behind. Sync now." when the
+  /// last sync was 24 hours ago or more, otherwise null.
+  String? behind([DateTime? clock]) {
+    final at = lastSyncedAt;
+    if (at == null) return null;
+    final hours = (clock ?? DateTime.now()).difference(at).inHours;
+    if (hours < 24) return null;
+    final days = hours ~/ 24;
+    return days == 1 ? 'Sheet is a day behind. Sync now.' : 'Sheet is $days days behind. Sync now.';
+  }
+
   /// A gentle warning when the sheet is more than a day behind, otherwise null.
   String? warning([DateTime? clock]) {
     if (!lastOk) return 'The last sync did not finish. Try again.';
