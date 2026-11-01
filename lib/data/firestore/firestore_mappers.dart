@@ -56,6 +56,7 @@ abstract class FirestoreMappers {
       lastFeedbackDate: _shortDay(_date(d['lastFeedbackDate'])),
       lastOutcome: _str(d['callStatus']),
       lastCallDate: _str(d['lastCallDate']),
+      gender: _str(d['gender']),
       followUpCount: calls,
       month: _str(d['month']),
       assignedWorkerName: _str(d['assignedName']),

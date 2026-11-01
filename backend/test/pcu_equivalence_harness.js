@@ -144,8 +144,18 @@ const after = makeRuntime(newSource);
 
 // Follow-up ids come from getUuid, which the new code also uses for its cache;
 // compare everything except those ids.
+// Guest fields added on purpose after the old version: compared by their own tests, not here.
+const ADDED_GUEST_FIELDS = ['gender', 'lastCallDate'];
 function normalise(value) {
-  return JSON.parse(JSON.stringify(value), (k, v) => (k === 'id' && typeof v === 'string' && v.startsWith('uuid') ? 'ID' : v));
+  return JSON.parse(JSON.stringify(value), function (k, v) {
+    if (k === 'id' && typeof v === 'string' && v.startsWith('uuid')) return 'ID';
+    if (v && typeof v === 'object' && !Array.isArray(v) && 'serviceDate' in v && 'phone' in v) {
+      const copy = Object.assign({}, v);
+      ADDED_GUEST_FIELDS.forEach(f => delete copy[f]);
+      return copy;
+    }
+    return v;
+  });
 }
 const sheetRows = rt => Object.fromEntries(Object.entries(rt.sheets).map(([name, s]) =>
   [name, normalise(s.rows.slice(0, s.getLastRow()).map(r => (name === 'Follow-ups' ? r.slice(1) : r)))]));

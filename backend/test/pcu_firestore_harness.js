@@ -360,6 +360,17 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
   check('running the migration again keeps app work and app follow-ups', store['guests/G1'].callStatus === 'Busy'
     && store['followUps/app1'].points === 40 && store['followUps/app1'].createdAt.getTime() === now.getTime() - 60000, [store['guests/G1'].callStatus, store['followUps/app1']]);
 
+  // GENDER is a sheet-owned field: the backfill sends it to every guest, app work stays.
+  check('gender read as Male, Female or blank', ctx.pcuGender_('female') === 'Female' && ctx.pcuGender_(' M ') === 'Male'
+    && ctx.pcuGender_('MALE') === 'Male' && ctx.pcuGender_('') === '' && ctx.pcuGender_('Prefer not to say') === '');
+  check('existing docs have the gender field after the migration', store['guests/G2'].gender === '', store['guests/G2']);
+  g[1][6] = 'Female';
+  g[2][6] = 'male';
+  const gb = ctx.pcuBackfillGender();
+  check('the backfill sends gender for the changed guests', gb.pending === 2 && store['guests/G1'].gender === 'Female' && store['guests/G2'].gender === 'Male', [gb, store['guests/G1'].gender, store['guests/G2'].gender]);
+  check('the backfill keeps app work', store['guests/G1'].callStatus === 'Busy' && store['guests/G1'].followUpCount === 2, store['guests/G1']);
+  check('a second backfill has nothing to send', ctx.pcuBackfillGender().pending === 0);
+
   // Many follow-ups: query pages of 500, commits of at most 500.
   commits.length = 0;
   for (let i = 0; i < 1200; i++) {

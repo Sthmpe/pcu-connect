@@ -24,6 +24,9 @@ class GuestEntity extends Equatable {
 
   /// Lagos day of the latest call ('yyyy-MM-dd'), '' when unknown.
   final String lastCallDate;
+
+  /// 'Male', 'Female', or '' when the sheet's GENDER cell is blank or unclear.
+  final String gender;
   final int followUpCount;
   final String month; // e.g. 'Oct 2026'
   final String? assignedWorkerName;
@@ -46,6 +49,7 @@ class GuestEntity extends Equatable {
     required this.lastFeedbackDate,
     this.lastOutcome = '',
     this.lastCallDate = '',
+    this.gender = '',
     required this.followUpCount,
     required this.month,
     this.assignedWorkerName,
@@ -125,6 +129,7 @@ class GuestEntity extends Equatable {
           '',
       lastOutcome: json['lastOutcome']?.toString() ?? '',
       lastCallDate: json['lastCallDate']?.toString() ?? '',
+      gender: json['gender']?.toString() ?? '',
       lastFeedbackDate: json['lastFeedbackDate']?.toString() ??
           json['fbDate']?.toString() ??
           '',
@@ -158,6 +163,7 @@ class GuestEntity extends Equatable {
       'fbDate': lastFeedbackDate,
       'lastOutcome': lastOutcome,
       'lastCallDate': lastCallDate,
+      'gender': gender,
       'fu': followUpCount,
       'month': month,
       'assignedWorker': assignedWorkerName,
@@ -180,6 +186,7 @@ class GuestEntity extends Equatable {
         lastFeedbackDate,
         lastOutcome,
         lastCallDate,
+        gender,
         followUpCount,
         month,
         assignedWorkerName,

@@ -78,6 +78,7 @@ void main() {
         {
           'name': 'Ada Obi',
           'phone': '0803 555 0101',
+          'gender': 'Female',
           'serviceDate': '2026-10-25',
           'month': '2026-10',
           'assignedTo': 'david@x.com',
@@ -100,6 +101,7 @@ void main() {
       expect(g.assignedWorkerName, 'David Olanite');
       expect(g.lastFeedbackDate, '29 Oct', reason: 'shown in Lagos time');
       expect(g.urgency, GuestUrgency.green);
+      expect(g.gender, 'Female');
     });
 
     test('missing fields fall back safely', () {
@@ -108,6 +110,13 @@ void main() {
       expect(g.status, 'New guest');
       expect(g.callCount, 0);
       expect(g.daysSinceVisit, 0);
+      expect(g.gender, '', reason: 'guests sent before gender existed');
+    });
+
+    test('gender from the Apps Script guest JSON', () {
+      final base = {'id': 'G1', 'name': 'Tunde', 'phone': '', 'month': '2026-10'};
+      expect(GuestEntity.fromJson({...base, 'gender': 'Male'}).gender, 'Male');
+      expect(GuestEntity.fromJson(base).gender, '');
     });
 
     test('follow-up logged by an admin keeps the worker and gets the label', () {

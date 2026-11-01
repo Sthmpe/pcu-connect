@@ -1,5 +1,6 @@
 // Security rules tests. Run from firestore-tests/: npm test
 // (starts the Firestore emulator for project demo-pcu, no real data involved).
+import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { after, before, beforeEach, describe, test } from 'node:test';
 import {
@@ -83,7 +84,7 @@ beforeEach(async () => {
     await setDoc(doc(db, 'users', ADA), { name: 'Ada', email: ADA, role: 'worker', active: true });
     await setDoc(doc(db, 'users', PAUSED), { name: 'Paused', email: PAUSED, role: 'worker', active: false });
     await setDoc(doc(db, 'guests', 'G1'), {
-      name: 'Guest One', phone: '0803', month: '2026-10', assignedTo: DAVID, followUpCount: 0,
+      name: 'Guest One', phone: '0803', gender: 'Female', month: '2026-10', assignedTo: DAVID, followUpCount: 0,
     });
     await setDoc(doc(db, 'guests', 'G2'), {
       name: 'Guest Two', phone: '0804', month: '2026-10', assignedTo: ADA, followUpCount: 0,
@@ -136,6 +137,10 @@ describe('guests', () => {
     await assertSucceeds(getDoc(doc(as(DAVID), 'guests', 'G1')));
     await assertFails(getDoc(doc(as(DAVID), 'guests', 'G2')));
   });
+  test('a worker reads the gender the backend wrote, without any rule change', async () => {
+    const snap = await assertSucceeds(getDoc(doc(as(DAVID), 'guests', 'G1')));
+    assert.equal(snap.data().gender, 'Female');
+  });
   test('a worker query must be limited to their guests', async () => {
     const db = as(DAVID);
     await assertSucceeds(getDocs(query(collection(db, 'guests'), where('assignedTo', '==', DAVID))));
@@ -155,6 +160,8 @@ describe('guests', () => {
     await assertFails(updateDoc(doc(as(DAVID), 'guests', 'G1'), { assignedTo: ADA }));
     await assertFails(updateDoc(doc(as(DAVID), 'guests', 'G1'), { name: 'Renamed' }));
     await assertFails(updateDoc(doc(as(ADMIN), 'guests', 'G1'), { phone: '000' }));
+    await assertFails(updateDoc(doc(as(DAVID), 'guests', 'G1'), { gender: 'Male' }));
+    await assertFails(updateDoc(doc(as(ADMIN), 'guests', 'G1'), { gender: 'Male' }));
   });
   test('a worker cannot touch someone else\'s guest', async () => {
     await assertFails(updateDoc(doc(as(DAVID), 'guests', 'G2'), { followUpCount: 1 }));
@@ -280,6 +287,7 @@ describe('phase 2: saving from the app (one batch)', () => {
     await assertFails(save(as(DAVID), 'F2', {}, 'G1', { name: 'Renamed' }));
     await assertFails(save(as(DAVID), 'F3', {}, 'G1', { phone: '000' }));
     await assertFails(save(as(ADMIN), 'F4', { loggedBy: ADMIN }, 'G1', { serviceDate: '2026-01-01' }));
+    await assertFails(save(as(DAVID), 'F5', {}, 'G1', { gender: 'Male' }));
   });
 });
 

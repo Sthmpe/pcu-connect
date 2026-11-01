@@ -39,6 +39,7 @@ var PCU = {
     SERVICE_DATE: 'SERVICE DATE',
     NAME: 'FULL NAME',
     PHONE: 'PHONE NUMBER',
+    GENDER: 'GENDER',
     ASSIGNED_TO: 'ASSIGNED TO',
     ASSIGNED_DATE: 'ASSIGNED DATE',
     CALL_STATUS: 'CALL STATUS',
@@ -524,6 +525,14 @@ function pcuPhone_(value) {
   return s;
 }
 
+/** 'Male', 'Female', or '' for a blank or unclear GENDER cell. */
+function pcuGender_(value) {
+  var s = pcuStr_(value).toLowerCase();
+  if (s === 'male' || s === 'm' || s === 'man' || s === 'brother') return 'Male';
+  if (s === 'female' || s === 'f' || s === 'woman' || s === 'sister') return 'Female';
+  return '';
+}
+
 function pcuMonthParam_(value) {
   var s = pcuStr_(value);
   if (/^\d{4}-\d{2}$/.test(s)) return s;
@@ -638,6 +647,7 @@ function pcuParseGuests_(t) {
       id: id,
       name: pcuStr_(pcuCell_(t, row, PCU.G.NAME)),
       phone: pcuPhone_(pcuCell_(t, row, PCU.G.PHONE)),
+      gender: pcuGender_(pcuCell_(t, row, PCU.G.GENDER)),
       serviceDate: serviceDate,
       serviceDay: pcuDay_(serviceDate),
       month: pcuMonth_(serviceDate),
@@ -945,6 +955,7 @@ function pcuGuestJson_(guest, followUps, workers, withHistory) {
     id: guest.id,
     name: guest.name,
     phone: guest.phone,
+    gender: guest.gender || '',
     serviceDate: guest.serviceDay,
     month: guest.month,
     daysSinceVisit: guest.serviceDay ? Math.max(0, pcuDaysBetween_(guest.serviceDay, pcuToday_())) : 0,

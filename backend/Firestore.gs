@@ -209,6 +209,7 @@ function pcuGuestSheetFields_(guest, workers) {
   return {
     name: guest.name,
     phone: guest.phone,
+    gender: guest.gender || '',
     serviceDate: guest.serviceDay,
     month: guest.month,
     assignedTo: pcuEmail_(guest.assignedTo),
@@ -598,6 +599,18 @@ function pcuMigrate() {
     console.log('Migration ' + (result.done ? 'done' : 'paused, run again') + ': ' + JSON.stringify(result));
     return result;
   });
+}
+
+/**
+ * Sends GENDER (and any other changed sheet-owned field) for every recent
+ * assigned guest now, instead of waiting for the 5-minute run. Adding gender
+ * changed every guest's SYNC KEY, so this reaches them all; work saved in the
+ * app is never touched. Run by hand until "pending" reaches 0.
+ */
+function pcuBackfillGender() {
+  var result = pcuPushPendingGuests();
+  console.log('Gender backfill: ' + JSON.stringify(result));
+  return result;
 }
 
 /** Clears the migration marker so the next run starts from the top. */
