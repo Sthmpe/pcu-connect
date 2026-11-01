@@ -259,38 +259,55 @@ class _OutcomeCard extends StatelessWidget {
           Wrap(
             spacing: AppSizes.s8,
             children: [
-              for (final label in kQuickOutcomes)
-                GestureDetector(
-                  onTap: () => onPick(label),
-                  behavior: HitTestBehavior.opaque,
-                  child: Padding(
-                    // 36px chip plus 6px above and below makes a 48px target.
-                    padding: EdgeInsets.symmetric(vertical: (AppSizes.touch - AppSizes.chipHeight - AppSizes.s4) / 2),
-                    child: IntrinsicWidth(
-                      child: Container(
-                        height: AppSizes.chipHeight + AppSizes.s4,
-                        padding: EdgeInsets.symmetric(horizontal: AppSizes.s16 - 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.sunken,
-                          borderRadius: BorderRadius.circular(AppSizes.radiusFull),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(outcomeIcon(label), size: AppSizes.iconSm, color: AppColors.inkSoft),
-                            SizedBox(width: AppSizes.s8 - 2),
-                            Text(label,
-                                style: AppTextStyles.centered(AppTextStyles.caption)
-                                    .copyWith(color: AppColors.ink)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+              for (final label in kQuickOutcomes) QuickOutcomeChip(label: label, onTap: () => onPick(label)),
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One quick outcome as a chip with a 48px touch target. Gold when [selected].
+class QuickOutcomeChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const QuickOutcomeChip({super.key, required this.label, required this.onTap, this.selected = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          // 36px chip plus 6px above and below makes a 48px target.
+          padding: EdgeInsets.symmetric(vertical: (AppSizes.touch - AppSizes.chipHeight - AppSizes.s4) / 2),
+          child: IntrinsicWidth(
+            child: Container(
+              height: AppSizes.chipHeight + AppSizes.s4,
+              padding: EdgeInsets.symmetric(horizontal: AppSizes.s16 - 4),
+              decoration: BoxDecoration(
+                color: selected ? AppColors.gold : AppColors.sunken,
+                borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(outcomeIcon(label), size: AppSizes.iconSm, color: selected ? AppColors.navy : AppColors.inkSoft),
+                  SizedBox(width: AppSizes.s8 - 2),
+                  Text(label,
+                      style: AppTextStyles.centered(AppTextStyles.caption)
+                          .copyWith(color: selected ? AppColors.navy : AppColors.ink)),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

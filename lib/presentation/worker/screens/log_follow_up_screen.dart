@@ -7,17 +7,14 @@ import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/lagos_time.dart';
 import '../../../core/widgets/app_controls.dart';
-import '../../../core/widgets/app_feedback.dart';
 import '../../../core/widgets/app_page.dart';
 import '../../../core/widgets/app_surfaces.dart';
 import '../../../core/widgets/status_tone.dart';
 import '../../../domain/entities/guest_entity.dart';
-import '../../../domain/repositories/i_guest_repository.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../auth/bloc/auth_state.dart';
-import '../../common/insights_cubits.dart';
 import '../../guests/bloc/guests_bloc.dart';
-import '../../guests/bloc/guests_event.dart';
+import '../follow_up_saver.dart';
 import 'guest_detail_screen.dart';
 
 class LogFollowUpScreen extends StatefulWidget {
@@ -87,14 +84,8 @@ class _LogFollowUpScreenState extends State<LogFollowUpScreen> {
 
   Future<void> _submit() async {
     setState(() => _isSubmitting = true);
-    final guestName = _guestName ?? 'this guest';
-    final creditedTo = _creditedTo;
-    final ranking = context.read<RankingCubit>();
-    final dashboard = context.read<DashboardCubit>();
-    final team = context.read<TeamCubit>();
-
-    final guestRepo = context.read<IGuestRepository>();
-    final result = await guestRepo.logFollowUp(
+    final saved = await saveFollowUp(
+      context,
       guestId: widget.guestId,
       outcome: _selectedOutcome,
       note: _noteController.text.trim(),
@@ -103,25 +94,11 @@ class _LogFollowUpScreenState extends State<LogFollowUpScreen> {
       attendedWednesday: _cameWednesday,
       wednesdayDate: _cameWednesday ? _wednesdayDate : null,
       team: _selectedTeam == 'Not yet' ? '' : _selectedTeam,
+      close: () {
+        if (mounted) Navigator.pop(context);
+      },
     );
-
-    if (!mounted) return;
-    setState(() => _isSubmitting = false);
-
-    if (result.isSuccess) {
-      final points = (result.data?['pointsEarned'] as num?)?.toInt() ?? 0;
-      final pendingSync = result.data?['pendingSync'] == true;
-      // Firestore lists are live; the Apps Script source is fetched again.
-      context.read<GuestsBloc>().add(const RefreshMonthsEvent());
-      if (ranking.state.data != null) ranking.load();
-      if (dashboard.state.data != null) dashboard.load();
-      if (team.state.data != null) team.load();
-      Navigator.pop(context);
-      AppFeedback.pointsEarned(
-          points: points, guestName: guestName, creditedTo: creditedTo, pendingSync: pendingSync);
-    } else {
-      AppFeedback.error('Not saved', result.failure?.message ?? 'Please try again.');
-    }
+    if (!saved && mounted) setState(() => _isSubmitting = false);
   }
 
   @override

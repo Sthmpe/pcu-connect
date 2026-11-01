@@ -14,6 +14,7 @@ import '../../../core/config/app_config.dart';
 import '../../../data/firestore/worker_calls_repository.dart';
 import '../../../domain/repositories/i_auth_repository.dart';
 import '../bloc/today_cubit.dart';
+import '../widgets/call_outcome_sheet.dart';
 import '../../common/push_cubit.dart';
 import 'today_tab.dart';
 import 'my_guests_tab.dart';
@@ -77,31 +78,34 @@ class _WorkerShellScreenState extends State<WorkerShellScreen> {
           BlocProvider.value(value: _guestsFilter),
           BlocProvider.value(value: _today),
         ],
-        child: Scaffold(
-        backgroundColor: AppColors.bg,
-        body: FadeIndexedStack(
-          index: _index,
-          children: [
-            TodayTab(onSeeAll: () => setState(() => _index = 1)),
-            const MyGuestsTab(),
-            RankingTab(active: _index == 2),
-            const MeTab(),
-          ],
-        ),
-        // The Today tab shows how many guests need action, live.
-        bottomNavigationBar: BlocBuilder<TodayCubit, TodayState>(
-          bloc: _today,
-          buildWhen: (a, b) => a.view.total != b.view.total,
-          builder: (context, today) => AppBottomNav(
-            items: [
-              AppNavItem(_items[0].icon, _items[0].label, badge: today.loading ? 0 : today.view.total),
-              ..._items.skip(1),
-            ],
-            currentIndex: _index,
-            onTap: (i) => setState(() => _index = i),
+        // Coming back from a call or WhatsApp asks how it went.
+        child: CallReturnPrompt(
+          child: Scaffold(
+            backgroundColor: AppColors.bg,
+            body: FadeIndexedStack(
+              index: _index,
+              children: [
+                TodayTab(onSeeAll: () => setState(() => _index = 1)),
+                const MyGuestsTab(),
+                RankingTab(active: _index == 2),
+                const MeTab(),
+              ],
+            ),
+            // The Today tab shows how many guests need action, live.
+            bottomNavigationBar: BlocBuilder<TodayCubit, TodayState>(
+              bloc: _today,
+              buildWhen: (a, b) => a.view.total != b.view.total,
+              builder: (context, today) => AppBottomNav(
+                items: [
+                  AppNavItem(_items[0].icon, _items[0].label, badge: today.loading ? 0 : today.view.total),
+                  ..._items.skip(1),
+                ],
+                currentIndex: _index,
+                onTap: (i) => setState(() => _index = i),
+              ),
+            ),
           ),
         ),
-      ),
       ),
     );
   }
