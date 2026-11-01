@@ -44,18 +44,18 @@ const outputs = [
   ['badge', 96, `web/icons/notification-badge-96-${V}.png`],
 ];
 
-// Android launcher icons (legacy mipmaps).
-for (const [dpi, size] of [['mdpi', 48], ['hdpi', 72], ['xhdpi', 96], ['xxhdpi', 144], ['xxxhdpi', 192]]) {
-  const file = `android/app/src/main/res/mipmap-${dpi}/ic_launcher.png`;
-  if (fs.existsSync(path.dirname(file))) outputs.push(['tile', size, file]);
-}
-// iOS app icons: every size listed in the asset catalogue, full bleed.
-const iosDir = 'ios/Runner/Assets.xcassets/AppIcon.appiconset';
-if (fs.existsSync(iosDir)) {
-  for (const name of fs.readdirSync(iosDir)) {
-    const m = /^Icon-App-([\d.]+)x[\d.]+@(\d)x\.png$/.exec(name);
-    if (m) outputs.push(['square', Math.round(Number(m[1]) * Number(m[2])), path.join(iosDir, name)]);
-  }
+// Sources for flutter_launcher_icons (it writes the Android and iOS launcher icons).
+svgs.foreground = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72">${mark(GOLD, 0.5)}</svg>`;
+svgs.monochrome = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72">${mark('#FFFFFF', 0.5)}</svg>`;
+outputs.push(
+  ['tile', 1024, 'design/logo/launcher/pcu-logo-rounded-1024.png'],
+  ['square', 1024, 'design/logo/launcher/pcu-logo-square-1024.png'],
+  ['foreground', 1024, 'design/logo/launcher/pcu-adaptive-foreground-1024.png'],
+  ['monochrome', 1024, 'design/logo/launcher/pcu-adaptive-monochrome-1024.png'],
+);
+// Android notification small icon: white silhouette, 24 dp at every density.
+for (const [dpi, size] of [['mdpi', 24], ['hdpi', 36], ['xhdpi', 48], ['xxhdpi', 72], ['xxxhdpi', 96]]) {
+  if (fs.existsSync('android/app/src/main/res')) outputs.push(['badge', size, `android/app/src/main/res/drawable-${dpi}/ic_notification.png`]);
 }
 
 fs.writeFileSync('design/logo/pcu-logo-square.svg', svgs.square + '\n');
