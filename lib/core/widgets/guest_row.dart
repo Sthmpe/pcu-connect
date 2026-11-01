@@ -5,6 +5,7 @@ import '../constants/app_icons.dart';
 import '../constants/app_sizes.dart';
 import '../constants/app_text_styles.dart';
 import '../utils/contact_launcher.dart';
+import 'attention.dart';
 import 'app_controls.dart';
 import 'app_display.dart';
 import 'status_tone.dart';
@@ -28,6 +29,9 @@ class GuestRow extends StatelessWidget {
   /// Long-press; by default it copies the guest's number.
   final VoidCallback? onLongPress;
 
+  /// Never called and waiting more than 3 days: a gently pulsing red dot.
+  final bool outstanding;
+
   const GuestRow({
     super.key,
     required this.guest,
@@ -37,6 +41,7 @@ class GuestRow extends StatelessWidget {
     this.pill,
     this.pillTone,
     this.onLongPress,
+    this.outstanding = false,
   });
 
   @override
@@ -56,7 +61,18 @@ class GuestRow extends StatelessWidget {
             AppSizes.s16, AppSizes.s8 + 4, AppSizes.s8, AppSizes.s8 + 4),
         child: Row(
           children: [
-            AppAvatar(name: guest.name, size: AppSizes.avatarMd),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                AppAvatar(name: guest.name, size: AppSizes.avatarMd),
+                if (outstanding)
+                  Positioned(
+                    right: -6,
+                    top: -6,
+                    child: Semantics(label: 'Outstanding', child: const PulseDot(size: 10)),
+                  ),
+              ],
+            ),
             SizedBox(width: AppSizes.s16),
             Expanded(
               child: Column(

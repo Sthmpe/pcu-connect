@@ -133,6 +133,7 @@ class TodayTab extends StatelessWidget {
                 line: todayLine(i),
                 pill: todayPill(i.section),
                 pillTone: i.section == TodaySection.outstanding ? StatusTone.red : StatusTone.neutral,
+                outstanding: i.section == TodaySection.outstanding,
                 onTap: () => _open(context, i),
               ),
           ],

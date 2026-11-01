@@ -96,11 +96,13 @@ class _WorkerShellScreenState extends State<WorkerShellScreen> {
             // The Today tab shows how many guests need action, live.
             bottomNavigationBar: BlocBuilder<TodayCubit, TodayState>(
               bloc: _today,
-              buildWhen: (a, b) => a.view.total != b.view.total,
+              buildWhen: (a, b) => a.view.total != b.view.total || a.view.outstanding.length != b.view.outstanding.length,
               builder: (context, today) => AppBottomNav(
                 items: [
                   AppNavItem(_items[0].icon, _items[0].label, badge: today.loading ? 0 : today.view.total),
-                  ..._items.skip(1),
+                  // Guests: outstanding guests, a red count with soft ripples.
+              AppNavItem(_items[1].icon, _items[1].label, alert: today.loading ? 0 : today.view.outstanding.length),
+              ..._items.skip(2),
                 ],
                 currentIndex: _index,
                 onTap: (i) => setState(() => _index = i),

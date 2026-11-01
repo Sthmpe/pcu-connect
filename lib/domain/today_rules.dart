@@ -187,3 +187,23 @@ abstract class TodayRules {
     );
   }
 }
+
+/// Outstanding guests grouped by the month of their first visit: the current
+/// month first, then earlier months newest to oldest. Within a month the
+/// longest wait comes first.
+List<(String, List<TodayItem>)> outstandingByMonth(List<TodayItem> items, {required String currentMonth}) {
+  final byMonth = <String, List<TodayItem>>{};
+  for (final i in items) {
+    final month = i.guest.serviceDate.length >= 7 ? i.guest.serviceDate.substring(0, 7) : i.guest.month;
+    (byMonth[month] ??= []).add(i);
+  }
+  final months = byMonth.keys.toList()
+    ..sort((a, b) {
+      if (a == currentMonth) return -1;
+      if (b == currentMonth) return 1;
+      return b.compareTo(a);
+    });
+  return [
+    for (final m in months) (m, byMonth[m]!..sort((a, b) => b.days.compareTo(a.days))),
+  ];
+}

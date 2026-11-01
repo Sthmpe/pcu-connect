@@ -13,7 +13,10 @@ import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
 import '../../guests/bloc/guests_filter_cubit.dart';
 import '../../guests/bloc/guests_state.dart';
+import '../../common/outstanding_button.dart';
 import '../../guests/widgets/guest_search_field.dart';
+import '../bloc/today_cubit.dart';
+import 'outstanding_screen.dart';
 import '../../guests/widgets/watch_months.dart';
 
 /// The worker's Guests screen. Its month and chip live in its own
@@ -61,7 +64,18 @@ class _MyGuestsTabState extends State<MyGuestsTab> {
               final guests = state.guestsOf(filter.month);
               return AppPage(
                 title: 'Guests',
-                trailing: MonthPill(month: filter.month, onChanged: selection.selectMonth, allowAll: true),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Outstanding of every month: a month change never hides waiting work.
+                    BlocSelector<TodayCubit, TodayState, int>(
+                      selector: (s) => s.loading ? 0 : s.view.outstanding.length,
+                      builder: (context, n) => OutstandingButton(count: n, onTap: () => OutstandingScreen.open(context)),
+                    ),
+                    SizedBox(width: AppSizes.s4),
+                    MonthPill(month: filter.month, onChanged: selection.selectMonth, allowAll: true),
+                  ],
+                ),
                 below: month == null || !month.hasData
                     ? null
                     : Column(
@@ -103,6 +117,8 @@ class _MyGuestsTabState extends State<MyGuestsTab> {
     }
     if (state.waitingFor([filter.month])) return const SkeletonPage();
 
+    final outstanding = context.select<TodayCubit, Set<String>>(
+        (c) => {for (final i in c.state.view.outstanding) i.guest.id});
     final list = GuestFilters.apply(GuestFilters.search(state.guestsOf(filter.month), _query), filter.chip);
     // All months: the newest visit first.
     if (filter.month == MonthUtils.all) list.sort((a, b) => b.serviceDate.compareTo(a.serviceDate));
@@ -135,6 +151,7 @@ class _MyGuestsTabState extends State<MyGuestsTab> {
               for (final g in list)
                 GuestRow(
                   guest: g,
+                  outstanding: outstanding.contains(g.id),
                   onTap: () => Navigator.of(context).pushNamed(
                     AppRoutes.guestDetail,
                     arguments: GuestDetailArgs(g.id),

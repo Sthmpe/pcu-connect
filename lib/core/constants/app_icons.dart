@@ -42,6 +42,7 @@ abstract class AppIcons {
   static const IconData wrongNumber = LucideIcons300.ban;
   static const IconData offline = LucideIcons300.cloudOff;
   static const IconData install = LucideIcons300.smartphone;
+  static const IconData outstanding = LucideIcons300.phoneMissed;
   static const IconData error = LucideIcons300.circleAlert;
   static const IconData empty = LucideIcons300.inbox;
   static const IconData done = LucideIcons300.sparkles;
