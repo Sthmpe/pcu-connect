@@ -16,6 +16,7 @@ function fmt(d, tz, pattern) {
   if (pattern === "yyyy-MM-dd'T'HH:mm:ss") return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`;
   if (pattern === 'u') return String(wd);
   if (pattern === 'HH:mm') return `${get('hour')}:${get('minute')}`;
+  if (pattern === 'HHmmss') return `${get('hour')}${get('minute')}${get('second')}`;
   if (pattern === 'EEEE') return new Intl.DateTimeFormat('en-GB', { timeZone: tz, weekday: 'long' }).format(d);
   throw new Error('pattern ' + pattern);
 }
@@ -613,6 +614,21 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
     && Object.keys(store).filter(k => k.startsWith('users/boss@x.com/notifications/')).length === 1, again);
   check('summary wording', ctx.assignSummaryText_(['david@x.com', 'david@x.com', 'worker.a@x.com']) === '3 guests assigned: David 2, Worker A 1'
     && ctx.assignSummaryText_(['david@x.com']) === '1 guest assigned: David 1' && ctx.assignSummaryText_([]) === '');
+}
+
+// --- Every assignment path sends one summary per run
+{
+  const { ctx, sheets, store } = setup();
+  const notices = () => Object.keys(store).filter(k => k.startsWith('users/boss@x.com/notifications/')).map(k => store[k].body);
+  ctx.testAddGuests();
+  check('the menu test path sends one summary for its run', notices().length === 1 && /^6 guests assigned: /.test(notices()[0]), notices());
+  const rows = sheets['Form Responses 1'].rows;
+  sheets['Form Responses 1'].name = 'Form Responses 1';
+  rows.push(guestRow('', 'Form Guest', daysAgo(0), '', 8000000021));
+  ctx.assignOnSubmit({ range: { getSheet: () => sheets['Form Responses 1'], getRow: () => rows.length } });
+  check('a form entry sends a one-guest summary', notices().length === 2 && notices().some(b => /^1 guest assigned: /.test(b)), notices());
+  ctx.assignOnSubmit({ range: { getSheet: () => sheets['Form Responses 1'], getRow: () => rows.length } });
+  check('a form entry that was already assigned sends nothing', notices().length === 2, notices());
 }
 
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');

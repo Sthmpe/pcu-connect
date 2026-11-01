@@ -342,13 +342,15 @@ function assignSelectedRows() {
     return;
   }
   const range = sheet.getActiveRange();
-  let done = 0;
+  const run = [];
   withLock_(() => {
     for (let r = range.getRow(); r <= range.getLastRow(); r++) {
-      if (assignRow_(sheet, r)) done++;
+      const worker = assignRow_(sheet, r);
+      if (worker) run.push(worker);
     }
   });
-  ui.alert(done + ' guest(s) assigned. Rows that already had a worker were left alone.');
+  notifyAssignSummary_(run);
+  ui.alert(run.length + ' guest(s) assigned. Rows that already had a worker were left alone.');
 }
 
 /** Assigns every guest whose Timestamp is today and who has no worker yet. */
@@ -361,17 +363,19 @@ function assignTodaysUnassigned() {
   const assignedCol = h.indexOf('ASSIGNED TO');
   const today = dayKey_(new Date());
   const data = sheet.getDataRange().getValues();
-  let done = 0;
+  const run = [];
 
   withLock_(() => {
     for (let i = HEADER_ROW; i < data.length; i++) {
       const ts = data[i][tsCol];
       if (!(ts instanceof Date) || dayKey_(ts) !== today) continue;
       if (!String(data[i][nameCol]).trim() || String(data[i][assignedCol]).trim()) continue;
-      if (assignRow_(sheet, i + 1)) done++;
+      const worker = assignRow_(sheet, i + 1);
+      if (worker) run.push(worker);
     }
   });
-  ui.alert(done + " of today's guest(s) assigned.");
+  notifyAssignSummary_(run);
+  ui.alert(run.length + " of today's guest(s) assigned.");
 }
 
 function showNextWorker() {
@@ -536,6 +540,7 @@ function testAddGuests() {
   const sheet = responses_();
   const h = headers_(sheet);
   const col = name => h.indexOf(name);
+  const run = [];
 
   withLock_(() => {
     for (let i = 1; i <= HOW_MANY; i++) {
@@ -551,9 +556,11 @@ function testAddGuests() {
       const newRow = sheet.getLastRow() + 1;
       sheet.getRange(newRow, 1, 1, row.length).setValues([row]);
       SpreadsheetApp.flush();
-      assignRow_(sheet, newRow);
+      const worker = assignRow_(sheet, newRow);
+      if (worker) run.push(worker);
     }
   });
+  notifyAssignSummary_(run);
   alert_(HOW_MANY + ' test guests added and assigned. Scroll to the bottom of ' + RESPONSES_SHEET + '.');
 }
 
