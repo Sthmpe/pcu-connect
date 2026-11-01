@@ -59,6 +59,7 @@ abstract class FirestoreMappers {
       lastOutcome: _str(d['callStatus']),
       lastCallDate: _str(d['lastCallDate']),
       gender: _str(d['gender']),
+      memberSince: _date(d['memberSince']) == null ? '' : LagosTime.day(_date(d['memberSince'])!),
       followUpCount: calls,
       month: _str(d['month']),
       assignedWorkerName: _str(d['assignedName']),

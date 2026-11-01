@@ -31,6 +31,9 @@ class GuestEntity extends Equatable {
   /// Lagos days ('yyyy-MM-dd') attended this month, for Road to membership.
   final List<String> sundayDates;
   final List<String> wednesdayDates;
+
+  /// Lagos day the guest became a member ('yyyy-MM-dd'), '' when not (yet) known.
+  final String memberSince;
   final int followUpCount;
   final String month; // e.g. 'Oct 2026'
   final String? assignedWorkerName;
@@ -56,6 +59,7 @@ class GuestEntity extends Equatable {
     this.gender = '',
     this.sundayDates = const [],
     this.wednesdayDates = const [],
+    this.memberSince = '',
     required this.followUpCount,
     required this.month,
     this.assignedWorkerName,
@@ -140,6 +144,7 @@ class GuestEntity extends Equatable {
       gender: json['gender']?.toString() ?? '',
       sundayDates: _dayList(json['sundayDates']),
       wednesdayDates: _dayList(json['wednesdayDates']),
+      memberSince: json['membershipDate']?.toString() ?? '',
       lastFeedbackDate: json['lastFeedbackDate']?.toString() ??
           json['fbDate']?.toString() ??
           '',
@@ -176,6 +181,7 @@ class GuestEntity extends Equatable {
       'gender': gender,
       'sundayDates': sundayDates,
       'wednesdayDates': wednesdayDates,
+      'membershipDate': memberSince,
       'fu': followUpCount,
       'month': month,
       'assignedWorker': assignedWorkerName,
@@ -201,6 +207,7 @@ class GuestEntity extends Equatable {
         gender,
         sundayDates,
         wednesdayDates,
+        memberSince,
         followUpCount,
         month,
         assignedWorkerName,

@@ -26,6 +26,7 @@ import 'data/firestore/notifications_repository.dart';
 import 'data/firestore/push_service.dart';
 import 'data/firestore/sheet_sync_repository.dart';
 import 'core/install/install_support.dart';
+import 'core/storage/member_celebrations.dart';
 import 'core/sync/connectivity.dart';
 import 'core/sync/sync_signals.dart';
 import 'core/sync/sync_status_cubit.dart';
@@ -136,6 +137,7 @@ void main() async {
     syncSignals: syncSignals,
     // "Add to Home Screen" (web only; the flags live on this device).
     installPrompt: InstallPromptCubit(prefs: prefs, support: InstallSupport()),
+    celebrations: MemberCelebrations(prefs),
   ));
 }
 
@@ -159,6 +161,9 @@ class PCUConnectApp extends StatelessWidget {
 
   final InstallPromptCubit? installPrompt;
 
+  /// Guests whose membership was already celebrated on this device.
+  final MemberCelebrations? celebrations;
+
   const PCUConnectApp({
     super.key,
     required this.authRepository,
@@ -170,6 +175,7 @@ class PCUConnectApp extends StatelessWidget {
     required this.localCache,
     this.syncSignals,
     this.installPrompt,
+    this.celebrations,
   });
 
   @override
@@ -191,6 +197,7 @@ class PCUConnectApp extends StatelessWidget {
               ? FirestoreMessageTemplatesRepository(db: FirebaseFirestore.instance, authRepository: authRepository)
               : const DefaultMessageTemplatesRepository(),
         ),
+        if (celebrations != null) RepositoryProvider<MemberCelebrations>.value(value: celebrations!),
         if (sheetSyncRepository != null)
           RepositoryProvider<ISheetSyncRepository>.value(value: sheetSyncRepository!),
       ],

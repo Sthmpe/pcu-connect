@@ -1,8 +1,12 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get/get.dart';
+import '../../core/storage/member_celebrations.dart';
+import '../../core/widgets/confetti.dart';
 import '../../core/widgets/app_feedback.dart';
 import '../../core/widgets/status_tone.dart';
+import '../../domain/milestones.dart';
 import '../../domain/repositories/i_guest_repository.dart';
 import '../auth/bloc/auth_bloc.dart';
 import '../auth/bloc/auth_state.dart';
@@ -38,12 +42,10 @@ Future<bool> saveFollowUp(
   final ranking = context.read<RankingCubit>();
   final dashboard = context.read<DashboardCubit>();
   final team0 = context.read<TeamCubit>();
-  InstallPromptCubit? install;
-  try {
-    install = context.read<InstallPromptCubit>();
-  } on ProviderNotFoundException {
-    // Not provided (tests).
-  }
+  // Optional (not provided in some tests).
+  final install = _maybeRead<InstallPromptCubit>(context);
+  final celebrations = _maybeRead<MemberCelebrations>(context);
+  final statusBefore = guest?.status ?? '';
 
   final result = await context.read<IGuestRepository>().logFollowUp(
         guestId: guestId,
@@ -71,5 +73,27 @@ Future<bool> saveFollowUp(
   if (install != null) unawaited(install.saved());
   close?.call();
   AppFeedback.pointsEarned(points: points, guestName: guestName, creditedTo: creditedTo, pendingSync: pendingSync);
+
+  // Gold confetti the first time a guest becomes a member through this worker's follow-ups.
+  final guestJson = result.data?['guest'];
+  final statusAfter =
+      (result.data?['status'] ?? (guestJson is Map ? guestJson['status'] : null) ?? '').toString();
+  if (!isAdmin &&
+      celebrations != null &&
+      Milestones.becameMember(before: statusBefore, after: statusAfter) &&
+      await celebrations.claim(guestId)) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final overlay = Get.key.currentState?.overlay;
+      if (overlay != null) showGoldConfetti(overlay);
+    });
+  }
   return true;
+}
+
+T? _maybeRead<T>(BuildContext context) {
+  try {
+    return context.read<T>();
+  } on ProviderNotFoundException {
+    return null;
+  }
 }
