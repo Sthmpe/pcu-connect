@@ -50,17 +50,77 @@ function onOpen() {
 /* Automatic assignment                                                */
 /* ------------------------------------------------------------------ */
 
-/** Runs on every form submission once auto-assign is switched on. */
+/** Runs on every form submission (auto-assign is always on). */
 function assignOnSubmit(e) {
+  const run = [];
   withLock_(() => {
     const sheet = e.range.getSheet();
     if (sheet.getName() !== RESPONSES_SHEET) return;
-    assignRow_(sheet, e.range.getRow());
+    const worker = assignRow_(sheet, e.range.getRow());
+    if (worker) run.push(worker);
   });
+  notifyAssignSummary_(run);
 }
 
-/** Gives one row to the next active worker. Returns the email, or '' if nothing was done. */
-function assignRow_(sheet, row) {
+/**
+ * Every 5 minutes (backup for the form trigger): assigns each guest on
+ * Form Responses 1 whose service date is on or after GO_LIVE and who has no
+ * ASSIGNED TO, through the same rotation, lock and assignRow_ path.
+ */
+function assignBackup() {
+  ensureAssignTriggersQuietly_();
+  return assignUnassigned_({ from: GO_LIVE });
+}
+
+/** 'yyyy-MM-dd' of a row's SERVICE DATE, else its TIMESTAMP (as the app reads it); '' when neither. */
+function rowServiceDay_(row, h) {
+  for (const name of ['SERVICE DATE', 'TIMESTAMP']) {
+    const v = row[h.indexOf(name)];
+    if (v instanceof Date && !isNaN(v.getTime())) return dayKey_(v);
+    if (typeof pcuDate_ === 'function') {
+      const d = pcuDate_(v);
+      if (d) return dayKey_(d);
+    }
+  }
+  return '';
+}
+
+/**
+ * Assigns every guest with a name, no worker and a service day in
+ * [opts.from, opts.to] (inclusive; to defaults to no limit), under the
+ * shared lock, re-reading the sheet inside it so a second run assigns
+ * nothing twice. Sends the new guests to Firestore in one pass and one
+ * summary to the admins. Returns { assigned, byWorker, summary }.
+ */
+function assignUnassigned_(opts) {
+  const run = [];
+  withLock_(() => {
+    const sheet = responses_();
+    const h = headers_(sheet);
+    const nameCol = h.indexOf('FULL NAME');
+    const assignedCol = h.indexOf('ASSIGNED TO');
+    const data = sheet.getDataRange().getValues();
+    for (let i = HEADER_ROW; i < data.length; i++) {
+      if (!String(data[i][nameCol]).trim() || String(data[i][assignedCol]).trim()) continue;
+      const day = rowServiceDay_(data[i], h);
+      if (!day || day < opts.from || (opts.to && day > opts.to)) continue;
+      const worker = assignRow_(sheet, i + 1, { push: false });
+      if (worker) run.push({ worker: worker, row: i + 1 });
+    }
+    if (run.length && typeof pcuPushGuestsQuietly_ === 'function') {
+      SpreadsheetApp.flush();
+      const idCol = h.indexOf('GUEST ID') + 1;
+      pcuPushGuestsQuietly_(run.map(x => String(sheet.getRange(x.row, idCol).getValue()).trim()));
+    }
+  });
+  const emails = run.map(x => x.worker);
+  notifyAssignSummary_(emails);
+  return { assigned: emails.length, byWorker: countByWorker_(emails), summary: assignSummaryText_(emails) };
+}
+
+/** Gives one row to the next active worker. Returns the email, or '' if nothing was done.
+ *  opts.push false: the caller sends the guest to Firestore (bulk runs). */
+function assignRow_(sheet, row, opts) {
   const h = headers_(sheet);
   const assignedCol = h.indexOf('ASSIGNED TO') + 1;
   const dateCol = h.indexOf('ASSIGNED DATE') + 1;
@@ -96,11 +156,65 @@ function assignRow_(sheet, row) {
   props.setProperty('NEXT_INDEX', String((next + 1) % workers.length));
   notifyNewGuest_(workers[next], sheet, row, h);
   // Send the new guest to Firestore straight away (no-op until it is set up).
-  if (idCol && typeof pcuPushGuestQuietly_ === 'function') {
+  if (idCol && typeof pcuPushGuestQuietly_ === 'function' && !(opts && opts.push === false)) {
     SpreadsheetApp.flush();
     pcuPushGuestQuietly_(String(sheet.getRange(row, idCol).getValue()).trim());
   }
   return worker;
+}
+
+/* ------------------------------------------------------------------ */
+/* Admin summary: one per run that assigned guests                     */
+/* ------------------------------------------------------------------ */
+
+/** { email: count } in first-assigned order. */
+function countByWorker_(emails) {
+  const out = {};
+  emails.forEach(e => { out[e] = (out[e] || 0) + 1; });
+  return out;
+}
+
+/**
+ * "5 guests assigned: David 2, Worker A 1, Worker B 1". A worker is named by
+ * first name; test accounts ("TEST Worker A") by their name without "TEST";
+ * full names when two in the run share a first name.
+ */
+function assignSummaryText_(emails) {
+  if (!emails.length) return '';
+  const counts = countByWorker_(emails);
+  const full = {};
+  const short = {};
+  allWorkers_().forEach(w => {
+    const name = String(w.name || w.email).trim();
+    const test = /^TEST\s+/i.test(name);
+    full[w.email] = name.replace(/^TEST\s+/i, '');
+    short[w.email] = test ? full[w.email] : full[w.email].split(/\s+/)[0];
+  });
+  const first = Object.keys(counts).map(e => short[e] || e);
+  const clash = first.some((f, i) => first.indexOf(f) !== i);
+  const parts = Object.keys(counts).map((e, i) => (clash ? full[e] || e : first[i]) + ' ' + counts[e]);
+  const n = emails.length;
+  return n + (n === 1 ? ' guest' : ' guests') + ' assigned: ' + parts.join(', ');
+}
+
+/**
+ * Tells every active admin once per run: an in-app notice, a push if their
+ * device is registered, and an email. Nothing when nothing was assigned.
+ */
+function notifyAssignSummary_(emails) {
+  if (!emails.length) return;
+  const text = assignSummaryText_(emails);
+  allWorkers_()
+    .filter(w => w.active && /^(admin|hod)$/i.test(String(w.role).trim()))
+    .forEach(admin => {
+      try {
+        if (typeof pcuNotify_ === 'function') pcuNotify_(admin.email, { title: 'Guests assigned', body: text, tag: 'assigned' });
+      } catch (err) { console.warn('Summary notice failed: ' + err); }
+      if (!realEmail_(admin.email)) return;
+      try {
+        MailApp.sendEmail({ to: admin.email, subject: text, htmlBody: emailShell_('Guests assigned', '<p>' + text + '.</p>') });
+      } catch (err) { console.warn('Summary email failed: ' + err); }
+    });
 }
 
 /* ------------------------------------------------------------------ */

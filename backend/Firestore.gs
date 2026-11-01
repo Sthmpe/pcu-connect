@@ -522,6 +522,47 @@ function pcuPushGuestDataQuietly_(guestsTable, guest, followUps, workers) {
   }
 }
 
+/**
+ * Sends several guests in one pass (one read of the sheet), for bulk
+ * assignment. Like pcuPushGuest_: everything the first time, then only the
+ * sheet-owned fields. Returns the documents written.
+ */
+function pcuPushGuests_(ids) {
+  if (!pcuFsEnabled_() || !ids.length) return 0;
+  var guests = pcuGuestRows_(true);
+  var followUps = pcuFollowUps_(true);
+  var workers = pcuWorkers_();
+  var want = {};
+  ids.forEach(function (id) {
+    want[id] = true;
+  });
+  var list = guests.list.filter(function (g) {
+    return want[g.id] && g.assignedTo;
+  });
+  var exists = pcuExistingGuests_(list);
+  var writes = [];
+  list.forEach(function (g) {
+    writes = writes.concat(pcuGuestSheetWrites_(g, followUps.byGuest[g.id] || [], workers, !!exists[g.id]));
+  });
+  var written = pcuFsCommit_(writes);
+  var now = new Date();
+  list.forEach(function (g) {
+    pcuSetCell_(guests.table, g.rowIndex, PCU_FS.SYNC_KEY, pcuGuestSyncKey_(g, followUps.byGuest[g.id] || [], workers));
+    pcuSetCell_(guests.table, g.rowIndex, PCU_FS.SYNCED_AT, now);
+  });
+  return written;
+}
+
+/** Same as pcuPushGuests_, but never fails the caller. */
+function pcuPushGuestsQuietly_(ids) {
+  try {
+    return pcuPushGuests_(ids);
+  } catch (err) {
+    console.warn('Could not send ' + ids.length + ' guests to Firestore: ' + (err && err.message));
+    return 0;
+  }
+}
+
 /** Same as pcuPushGuest_, but never fails the caller. */
 function pcuPushGuestQuietly_(guestId) {
   try {

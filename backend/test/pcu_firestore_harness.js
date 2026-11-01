@@ -583,5 +583,37 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
   check('the PCU menu has no Switch on or Switch off items', !/addItem\('Switch (on|off)/.test(src) && !/notificationsO(n|ff)\b/.test(src));
 }
 
+// --- The 5-minute backup assigns guests the form trigger missed
+{
+  const { ctx, sheets, store, mails } = setup();
+  ctx.pcuSetupSyncColumns();
+  ctx.pcuSyncUsers_();
+  const rows = sheets['Form Responses 1'].rows;
+  rows.push(guestRow('', 'New Visitor One', daysAgo(1), '', 8000000011));
+  rows.push(guestRow('', 'New Visitor Two', daysAgo(2), '', 8000000012));
+  rows.push(guestRow('', 'New Visitor Three', daysAgo(0), '', 8000000013));
+  rows.push(guestRow('', 'Before Go Live', new Date('2026-10-20T10:00:00Z'), '', 8000000014));
+  rows.push(guestRow('', '', daysAgo(1), '', '')); // an empty row
+  const before = mails.length;
+  const r = ctx.assignBackup();
+  const byName = n => rows.find(x => x[4] === n);
+  const assignedTo = ['New Visitor One', 'New Visitor Two', 'New Visitor Three'].map(n => byName(n)[13]);
+  check('the backup assigns guests since go-live that have no worker', r.assigned === 3 && assignedTo.every(e => e === 'david@x.com' || e === 'worker.a@x.com'), [r, assignedTo]);
+  check('it uses the rotation, never an admin and never an inactive worker', !assignedTo.includes('boss@x.com') && !assignedTo.includes('worker.c@x.com')
+    && new Set(assignedTo).size === 2, assignedTo);
+  check('guests before go-live and empty rows are left alone', byName('Before Go Live')[13] === '' && rows[rows.length - 1][13] === '');
+  const ids = ['New Visitor One', 'New Visitor Two', 'New Visitor Three'].map(n => byName(n)[20]);
+  check('each gets a GUEST ID and reaches Firestore with its worker', ids.every(id => /^G-[0-9A-F]{8}$/.test(id) && store['guests/' + id] && store['guests/' + id].assignedTo === byName(store['guests/' + id].name)[13]), ids);
+  const notices = Object.keys(store).filter(k => k.startsWith('users/boss@x.com/notifications/')).map(k => store[k]);
+  check('the admin gets one summary for the run, in the app and by email', notices.length === 1 && notices[0].title === 'Guests assigned'
+    && /^3 guests assigned: (David 2, Worker A 1|David 1, Worker A 2|Worker A 2, David 1|Worker A 1, David 2)$/.test(notices[0].body)
+    && mails.slice(before).filter(m => m.to === 'boss@x.com').length === 1, [notices, mails.slice(before).map(m => [m.to, m.subject])]);
+  const again = ctx.assignBackup();
+  check('a second run assigns nothing and sends no summary', again.assigned === 0
+    && Object.keys(store).filter(k => k.startsWith('users/boss@x.com/notifications/')).length === 1, again);
+  check('summary wording', ctx.assignSummaryText_(['david@x.com', 'david@x.com', 'worker.a@x.com']) === '3 guests assigned: David 2, Worker A 1'
+    && ctx.assignSummaryText_(['david@x.com']) === '1 guest assigned: David 1' && ctx.assignSummaryText_([]) === '');
+}
+
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
 process.exitCode = fails ? 1 : 0;
