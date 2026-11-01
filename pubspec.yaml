@@ -16,7 +16,6 @@ dependencies:
 
   # UI, Typography & Responsiveness
   flutter_screenutil: ^5.9.3
-  google_fonts: ^6.2.1
   # Navigation & Custom UI Utilities
   get: ^4.6.6
 
@@ -43,3 +42,13 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+  # Rubik (SIL Open Font License, assets/fonts/OFL.txt), bundled so the app
+  # never fetches fonts from Google at startup. Build with tool/build_web.sh.
+  fonts:
+    - family: Rubik
+      fonts:
+        # The design uses two weights (AppTextStyles); others fall back to the nearest.
+        - asset: assets/fonts/Rubik-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Rubik-SemiBold.ttf
+          weight: 600

@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
 /// Rubik, four sizes and two weights:
 /// display 26 · title 18 · body 14 · caption 12, regular (400) and semibold (600).
+/// The font ships with the app (assets/fonts), so nothing is fetched at startup.
 abstract class AppTextStyles {
+  static const String fontFamily = 'Rubik';
+
   static const FontWeight regular = FontWeight.w400;
   static const FontWeight semibold = FontWeight.w600;
 
   static TextStyle _rubik(double size, FontWeight weight, Color color, double height) =>
-      GoogleFonts.rubik(
+      TextStyle(
+        fontFamily: fontFamily,
         fontSize: size.sp,
         fontWeight: weight,
         color: color,
@@ -42,5 +45,5 @@ abstract class AppTextStyles {
 
   /// Rubik text theme so Material widgets (dialogs, pickers) match.
   static TextTheme get textTheme =>
-      GoogleFonts.rubikTextTheme().apply(bodyColor: AppColors.ink);
+      ThemeData.light().textTheme.apply(fontFamily: fontFamily, bodyColor: AppColors.ink);
 }

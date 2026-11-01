@@ -12,6 +12,7 @@ import 'core/network/api_client.dart';
 import 'core/routing/app_routes.dart';
 import 'core/storage/local_cache.dart';
 import 'core/theme/app_theme.dart';
+import 'core/web/bundled_firebase.dart';
 import 'core/widgets/responsive_web_shell.dart';
 import 'data/firestore/firestore_guest_repository.dart';
 import 'data/firestore/firestore_profile_source.dart';
@@ -31,6 +32,7 @@ import 'presentation/guests/bloc/guests_bloc.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await waitForBundledFirebase();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   final prefs = await SharedPreferences.getInstance();

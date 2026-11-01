@@ -1,0 +1,8 @@
+{
+  "name": "pcu-web-tools",
+  "private": true,
+  "description": "Web checks for PCU Connect: phone load test (load_test.mjs) and icon rendering (render_icons.mjs).",
+  "type": "module",
+  "scripts": { "test": "node load_test.mjs" },
+  "devDependencies": { "playwright": "1.49.1" }
+}
