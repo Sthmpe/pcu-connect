@@ -51,7 +51,45 @@ service cloud.firestore {
     function workFields() {
       return ['callStatus', 'membershipStatus', 'followUpCount', 'firstCallAt',
         'lastFeedback', 'lastFeedbackDate', 'teamJoined', 'memberSince',
-        'sundayDates', 'wednesdayDates', 'updatedAt'];
+        'sundayDates', 'wednesdayDates', 'updatedAt', 'lastFollowUpId'];
+    }
+
+    function outcomes() {
+      return ['Reached', 'No answer', 'Busy', 'Switched off', 'Wrong number', 'Not interested'];
+    }
+
+    function teams() {
+      return ['', 'Workforce', 'Evangelism'];
+    }
+
+    function statuses() {
+      return ['New guest', 'Contacted', 'Returning', 'Member', 'Not interested', 'Unreachable'];
+    }
+
+    // Days as yyyymmdd numbers, so 'yyyy-MM-dd' strings compare with today.
+    function isDay(s) {
+      return s is string && s.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}');
+    }
+
+    function dayNumber(s) {
+      return int(s[0:4]) * 10000 + int(s[5:7]) * 100 + int(s[8:10]);
+    }
+
+    // Today in Africa/Lagos (UTC+1 all year), from the server clock.
+    function lagosToday() {
+      let t = request.time + duration.value(1, 'h');
+      return t.year() * 10000 + t.month() * 100 + t.day();
+    }
+
+    function pastDay(s) {
+      return isDay(s) && dayNumber(s) <= lagosToday();
+    }
+
+    // An attendance flag with its date: a past day when set, empty otherwise.
+    function validAttendance(d, flag, date) {
+      return !(flag in d) || d[flag] == false
+        ? (!(date in d) || d[date] == '')
+        : (d[flag] == true && date in d && pastDay(d[date]));
     }
 
     function canSeeGuest(data) {
@@ -71,14 +109,40 @@ service cloud.firestore {
           'outcome', 'note', 'attendedSunday', 'sundayDate', 'attendedWednesday',
           'wednesdayDate', 'team', 'points', 'syncedToSheet', 'createdAt'])
         && d.guestId is string
-        && d.outcome in ['Reached', 'No answer', 'Busy', 'Switched off',
-          'Wrong number', 'Not interested']
+        && d.outcome in outcomes()
         && (!('note' in d) || (d.note is string && d.note.size() <= 2000))
-        && (!('team' in d) || d.team in ['', 'Workforce', 'Evangelism'])
+        && (!('team' in d) || d.team in teams())
         && (!('syncedToSheet' in d) || d.syncedToSheet == false)
         && validPoints(d.points)
+        && pastDay(d.callDate)
+        && d.month == d.callDate[0:7]
+        && validAttendance(d, 'attendedSunday', 'sundayDate')
+        && validAttendance(d, 'attendedWednesday', 'wednesdayDate')
+        && d.createdAt == request.time
+        && d.worker is string && d.worker.size() > 0
         && d.worker == get(guestPath(d.guestId)).data.assignedTo
         && d.loggedBy == myEmail();
+    }
+
+    // A guest's work fields change only together with a new follow-up for
+    // that guest in the same batch, and every value has the right shape.
+    function validWorkUpdate(guestId) {
+      let after = request.resource.data;
+      let changed = after.diff(resource.data).affectedKeys();
+      return changed.hasOnly(workFields())
+        && changed.hasAll(['followUpCount', 'lastFollowUpId', 'updatedAt'])
+        && after.followUpCount == resource.data.get('followUpCount', 0) + 1
+        && after.updatedAt == request.time
+        && after.lastFollowUpId is string
+        && existsAfter(/databases/$(database)/documents/followUps/$(after.lastFollowUpId))
+        && !exists(/databases/$(database)/documents/followUps/$(after.lastFollowUpId))
+        && getAfter(/databases/$(database)/documents/followUps/$(after.lastFollowUpId)).data.guestId == guestId
+        && (!('callStatus' in changed) || after.callStatus in outcomes())
+        && (!('membershipStatus' in changed) || after.membershipStatus in statuses())
+        && (!('teamJoined' in changed) || after.teamJoined in teams())
+        && (!('lastFeedback' in changed) || (after.lastFeedback is string && after.lastFeedback.size() <= 2000))
+        && (!('sundayDates' in changed) || after.sundayDates is list)
+        && (!('wednesdayDates' in changed) || after.wednesdayDates is list);
     }
 
     match /users/{email} {
@@ -94,8 +158,7 @@ service cloud.firestore {
     match /guests/{guestId} {
       allow read: if canSeeGuest(resource.data);
       allow create, delete: if false;
-      allow update: if canSeeGuest(resource.data)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(workFields());
+      allow update: if canSeeGuest(resource.data) && validWorkUpdate(guestId);
     }
 
     match /followUps/{followUpId} {
