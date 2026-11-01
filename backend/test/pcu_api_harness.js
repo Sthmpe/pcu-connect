@@ -87,6 +87,11 @@ check('G1 first visit counted', g1.sundays + g1.wednesdays >= 1, g1);
 check('attended days this month match the counts', Array.isArray(g1.sundayDates) && g1.sundayDates.length === g1.sundays
   && g1.wednesdayDates.length === g1.wednesdays && [...g1.sundayDates, ...g1.wednesdayDates].every(d => d.startsWith(month)), g1);
 const g2 = r.data.guests.find(g => g.id === 'G2'); check('G2 has 1 follow-up', !g2 || g2.followUps === 1, g2);
+r = call({ action: 'guests', idToken: 'tokDavid', month: 'all' });
+check('All months: every guest of the worker, from every month', r.ok && r.data.month === 'all' && r.data.guests.length >= 1
+  && r.data.guests.every(g => g.assignedTo === 'david@x.com'), r.data);
+r = call({ action: 'guests', idToken: 'tokAdmin', month: 'all' });
+check('All months is for workers only: an admin gets this month', r.ok && r.data.month === month, r.data && r.data.month);
 r = call({ action: 'guests', idToken: 'tokDavid', month, workerEmail: 'worker.a@x.com' }); check('worker cannot widen scope', r.ok && r.data.guests.every(g => g.assignedTo === 'david@x.com'), r);
 r = call({ action: 'guests', idToken: 'tokAdmin', month }); check('admin sees all this month', r.ok && r.data.guests.length >= 2, r.data && r.data.guests.length);
 r = call({ action: 'guest', idToken: 'tokDavid', id: 'G3' }); check('worker blocked from other guest', !r.ok && r.code === 'FORBIDDEN', r);

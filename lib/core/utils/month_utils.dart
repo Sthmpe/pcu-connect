@@ -5,6 +5,11 @@ import 'lagos_time.dart';
 abstract class MonthUtils {
   static final _key = DateFormat('yyyy-MM');
 
+  /// The worker's "All months" choice on the Guests screen: every guest
+  /// assigned to them, whatever the month.
+  static const all = 'all';
+  static const allLabel = 'All months';
+
   static String keyOf(DateTime date) => _key.format(date);
 
   /// This month in Africa/Lagos, whatever the device's time zone (the
@@ -38,12 +43,14 @@ abstract class MonthUtils {
 
   /// '2026-10' -> 'October 2026'
   static String label(String key) {
+    if (key == all) return allLabel;
     final d = _parse(key);
     return d == null ? key : DateFormat('MMMM y').format(d);
   }
 
   /// '2026-10' -> 'Oct 2026'
   static String short(String key) {
+    if (key == all) return allLabel;
     final d = _parse(key);
     return d == null ? key : DateFormat('MMM y').format(d);
   }
@@ -51,6 +58,7 @@ abstract class MonthUtils {
   /// Chip label: 'This month' for the current month, else 'Sep', or 'Dec 2025'
   /// when the year differs from now.
   static String chip(String key) {
+    if (key == all) return allLabel;
     if (isCurrent(key)) return 'This month';
     final d = _parse(key);
     if (d == null) return key;
@@ -61,6 +69,7 @@ abstract class MonthUtils {
 
   /// '2026-10' -> 'October'
   static String name(String key) {
+    if (key == all) return allLabel;
     final d = _parse(key);
     return d == null ? key : DateFormat('MMMM').format(d);
   }

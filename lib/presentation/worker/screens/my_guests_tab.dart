@@ -61,7 +61,7 @@ class _MyGuestsTabState extends State<MyGuestsTab> {
               final guests = state.guestsOf(filter.month);
               return AppPage(
                 title: 'Guests',
-                trailing: MonthPill(month: filter.month, onChanged: selection.selectMonth),
+                trailing: MonthPill(month: filter.month, onChanged: selection.selectMonth, allowAll: true),
                 below: month == null || !month.hasData
                     ? null
                     : Column(
@@ -104,6 +104,8 @@ class _MyGuestsTabState extends State<MyGuestsTab> {
     if (state.waitingFor([filter.month])) return const SkeletonPage();
 
     final list = GuestFilters.apply(GuestFilters.search(state.guestsOf(filter.month), _query), filter.chip);
+    // All months: the newest visit first.
+    if (filter.month == MonthUtils.all) list.sort((a, b) => b.serviceDate.compareTo(a.serviceDate));
     final searching = _query.trim().isNotEmpty;
     return PageList(
       children: [
@@ -118,7 +120,11 @@ class _MyGuestsTabState extends State<MyGuestsTab> {
         else if (list.isEmpty)
           EmptyState(
             icon: AppIcons.empty,
-            message: filter.chip == 'all' ? 'No guests in ${MonthUtils.name(filter.month)}.' : 'Nobody matches this filter.',
+            message: filter.chip != 'all'
+                ? 'Nobody matches this filter.'
+                : filter.month == MonthUtils.all
+                    ? 'No guests have been given to you yet.'
+                    : 'No guests in ${MonthUtils.name(filter.month)}.',
             actionLabel: filter.chip == 'all' ? null : 'Show everyone',
             onAction: () => context.read<GuestsFilterCubit>().selectChip('all'),
           )

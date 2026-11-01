@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_icons.dart';
 import '../../../core/routing/app_routes.dart';
+import '../../../core/utils/month_utils.dart';
 import '../../../core/widgets/app_bottom_nav.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../auth/bloc/auth_state.dart';
@@ -32,7 +33,8 @@ class _WorkerShellScreenState extends State<WorkerShellScreen> {
   int _index = 0;
 
   /// The Guests tab's own month and chip. Today follows no month at all.
-  final _guestsFilter = GuestsFilterCubit();
+  // The worker's Guests screen opens on All months, so no guest is out of view.
+  final _guestsFilter = GuestsFilterCubit(month: MonthUtils.all);
 
   /// Today's to-do list, shared by the Today tab and its badge.
   late final TodayCubit _today;

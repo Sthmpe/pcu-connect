@@ -1055,6 +1055,21 @@ function pcuMe_(user) {
  * @deprecated Firestore build reads guests. Still used by the live site.
  */
 function pcuGuests_(user, req) {
+  // "All months": every guest assigned to the signed-in worker (workers only).
+  if (pcuStr_(req.month) === 'all' && !user.isAdmin) {
+    var allFollowUps = pcuFollowUps_();
+    var allWorkers = pcuWorkers_();
+    return {
+      month: 'all',
+      guests: pcuGuestRows_().list
+        .filter(function (g) {
+          return g.assignedTo === user.email;
+        })
+        .map(function (g) {
+          return pcuGuestJson_(g, allFollowUps.byGuest[g.id] || [], allWorkers, false);
+        })
+    };
+  }
   var month = pcuMonthParam_(req.month);
   var scope = user.isAdmin ? pcuStr_(req.workerEmail).toLowerCase() : user.email;
   var guests = pcuGuestsWhere_({ months: [month] });

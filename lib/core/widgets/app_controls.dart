@@ -416,7 +416,10 @@ class MonthPill extends StatelessWidget {
   final String month;
   final ValueChanged<String> onChanged;
 
-  const MonthPill({super.key, required this.month, required this.onChanged});
+  /// Offers "All months" at the top of the list (the worker's Guests screen).
+  final bool allowAll;
+
+  const MonthPill({super.key, required this.month, required this.onChanged, this.allowAll = false});
 
   @override
   Widget build(BuildContext context) {
@@ -426,7 +429,7 @@ class MonthPill extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () async {
-          final m = await showMonthSheet(context, month);
+          final m = await showMonthSheet(context, month, allowAll: allowAll);
           if (m != null && m != month) onChanged(m);
         },
         child: SizedBox(
@@ -459,7 +462,7 @@ class MonthPill extends StatelessWidget {
 }
 
 /// Bottom sheet listing recent months. Resolves to the chosen key or null.
-Future<String?> showMonthSheet(BuildContext context, String current) {
+Future<String?> showMonthSheet(BuildContext context, String current, {bool allowAll = false}) {
   return showModalBottomSheet<String>(
     context: context,
     builder: (sheetContext) => SafeArea(
@@ -475,7 +478,7 @@ Future<String?> showMonthSheet(BuildContext context, String current) {
                   AppSizes.s8, 0, AppSizes.s8, AppSizes.s8),
               child: Text('Choose a month', style: AppTextStyles.title),
             ),
-            for (final m in MonthUtils.recent(6))
+            for (final m in [if (allowAll) MonthUtils.all, ...MonthUtils.recent(6)])
               InkWell(
                 borderRadius: BorderRadius.circular(AppSizes.radiusSm),
                 onTap: () => Navigator.pop(sheetContext, m),

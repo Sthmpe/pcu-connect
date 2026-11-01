@@ -7,6 +7,7 @@ import '../../core/network/api_result.dart';
 import '../../core/sync/sync_signals.dart';
 import '../../core/utils/read_errors.dart';
 import '../../core/utils/lagos_time.dart';
+import '../../core/utils/month_utils.dart';
 import '../../domain/entities/guest_entity.dart';
 import '../../domain/follow_up_rules.dart';
 import '../../domain/repositories/i_auth_repository.dart';
@@ -42,6 +43,9 @@ class FirestoreGuestRepository implements IGuestRepository {
 
   Query<Map<String, dynamic>> _guestsQuery(String month) {
     Query<Map<String, dynamic>> q = _db.collection('guests');
+    // A worker's "All months": every guest assigned to them. Never the
+    // whole collection: an admin asking for it still gets only their own.
+    if (month == MonthUtils.all) return q.where('assignedTo', isEqualTo: _email);
     if (!_isAdmin) q = q.where('assignedTo', isEqualTo: _email);
     return q.where('month', isEqualTo: month);
   }
