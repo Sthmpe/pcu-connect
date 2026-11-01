@@ -483,3 +483,50 @@ saves and some cold reads are 3 to 4.7 s. The fixed floor is about 1.1 to 1.6 s 
 **Test data only (TEST sheet):** an interrupted test run kept running in the background and overlapped a second run,
 so G-10161115 and G-3AF5CD6A got their live-test follow-ups twice (9 follow-ups each, both Member). The clean run used
 G09204, G-C195DCB0 and G09202. Earlier runs also wrote to G-C195DCB0, G-E41460DE, G-043CDBA9 and G09201.
+
+## 2026-11-01 Update: phase 2 (app saves to Firestore) and phase 3 (sheet sync)
+
+Branch `phase-1-firestore`. Commits: rules `3411988`, app save `c0e98c9`, HOD on behalf tests `84badeb`,
+sheet sync `491a1a4`, sync UI `9c32181`. Plan checklists updated in `docs/BACKEND_PLAN.md`.
+
+- **Rules** (`firestore.rules`): a guest's work fields change only together with a new follow-up for that guest in the
+  same batch (`lastFollowUpId`, checked with `getAfter`), the count goes up by exactly one, values must be known,
+  `createdAt`/`updatedAt` are the server time, call and attendance dates are past Lagos days, never credited to an empty
+  worker. Workers credit themselves only; admins credit the assigned worker with `loggedBy` = admin. 37 emulator tests
+  (`cd firestore-tests && npm test`, needs Java 21: `sudo apt-get install -y openjdk-21-jre-headless`).
+- **App save** (Firestore mode): `FollowUpRules` (`lib/domain/follow_up_rules.dart`) applies points, status order and
+  the member rule on the device, same as Api.gs. `FirestoreGuestRepository.logFollowUp` writes one batch (followUps doc +
+  guest work fields, `increment(1)`, server timestamps). Persistence is on, so offline saves survive a reload; after 4 s
+  without a server answer the dialog says "Saved on this phone. It will sync when you are back online." and the
+  timeline shows "Waiting to sync". 58 Flutter tests (`flutter test`), including fake_cloud_firestore save tests.
+- **HOD log on behalf**: the phase 0 screens ("Log a follow-up for X", "It counts for X", "Logged by admin") now save to
+  Firestore; the worker gets the credit and points, the guest stays assigned.
+- **Sheet sync** (`backend/Firestore.gs`): `pcuSheetSync_` reads followUps with `syncedToSheet == false`, appends the new
+  ones to the Follow-ups tab (keyed by Follow-up ID), writes only the Firebase-owned guest columns (never ASSIGNED TO,
+  name, phone, service date; FEEDBACK 1/2 filled once), marks them synced (batches of 500), writes `meta/sync`. Shared
+  script lock. `pcuNightlySync` (00:05 Lagos), `pcuWeeklySync` (Monday 01:00 Lagos, plus one "Weekly Report" tab row
+  per week), `syncNow` (admin only; sets up both triggers if missing).
+- **Ownership fix**: the 5-minute job, the assignment push and the migration now send only sheet-owned fields for any
+  guest that already exists in Firestore (checked with batchGet), so they never overwrite app work. The old API save
+  sends the guest and its new follow-up only. Firestore harness: 63 checks (`node backend/test/pcu_firestore_harness.js`).
+- **HOD UI**: dashboard "Sheet" card (Firestore mode, admins only): "Last synced: today 12:05 AM", "Sheet is a day
+  behind. Sync now.", "Sync to sheet" / "Syncing..." / "Synced 42 guests", plain busy and offline messages.
+
+Deployed and tested:
+- Apps Script pushed with clasp to the existing deployment `AKfycby0H6Sk...` (@9); exec URL unchanged. Smoke test ok;
+  `syncNow` as worker: FORBIDDEN; as admin: ok in 5.2 s, 0 follow-ups pending (no app saves exist yet), and it set up
+  the nightly and weekly triggers on the TEST project. The sheet-writing path is covered by the harness only.
+- Firestore-mode build on the Hosting preview channel `firestore-test` (expires 2026-12-01):
+  https://pcu-workflow--firestore-test-3a07ufkq.web.app . The live site was not touched.
+
+**Blocked, needs the owner:** the new `firestore.rules` are not deployed (the deploy was refused by this session's
+permission check). Until `firebase deploy --only firestore:rules --project pcu-workflow` is run, saves from the
+Firestore-mode app are refused by the old rules (they do not allow `lastFollowUpId`).
+
+Known gaps (not built):
+- Ranking, Team and Dashboard still come from the Apps Script API (the sheet), so app saves show there after a sync.
+- The plan's nightly recalculation of guest totals and points from followUps.
+- Do not save from API-mode and Firestore-mode builds side by side on the same guests: the API save writes guest work
+  fields computed from the sheet, which can be behind unsynced app work.
+- For old guests whose sheet FOLLOW-UP COUNT came from legacy feedback columns, the app adds 1 to that count while the
+  sheet rule takes the larger of the two.

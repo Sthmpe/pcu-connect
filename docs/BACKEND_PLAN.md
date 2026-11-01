@@ -145,24 +145,28 @@ UI checklist:
 ### 2. Follow-ups written by the app
 Backend: app writes follow-ups with batch writes (offline safe) and rules; log on behalf moves to Firestore; dates use Africa/Lagos.
 
+Status (branch phase-1-firestore, 2026-11-01): built and tested (emulator, unit tests); waiting on the rules deploy (see SESSION.md).
+
 UI checklist:
-- [ ] Log follow-up saves instantly, online or offline
-- [ ] Offline save shows a calm note ("Saved on this phone. It will send when you are back online.") and nothing is lost
-- [ ] Points dialog shows the points from the saved follow-up
-- [ ] Guest detail, Today counts, Ranking and Me stats update right after saving
-- [ ] Admin log for a worker shows "It counts for <worker>" and the timeline label
-- [ ] Validation messages (future date, missing outcome) in plain words
+- [x] Log follow-up saves instantly, online or offline (one batch; after 4 s without a server answer it counts as saved on the phone)
+- [x] Offline save shows a calm note ("Saved on this phone. It will sync when you are back online.") and nothing is lost; timeline shows "Waiting to sync"
+- [x] Points dialog shows the points from the saved follow-up
+- [ ] Guest detail, Today counts, Ranking and Me stats update right after saving (guest detail and Today do; Ranking, Team and Dashboard still come from the sheet and update after a sync)
+- [x] Admin log for a worker shows "It counts for <worker>" and the timeline label
+- [x] Validation messages (future date, missing outcome) in plain words
 
 ### 3. Syncing to the sheet
 Backend: pcuNightlySync (recalculate, then sync work fields only), pcuWeeklySync, syncNow, meta/sync, batch writes with progress markers.
 
+Status (2026-11-01): pcuNightlySync, pcuWeeklySync and syncNow built, deployed to the test sheet (@9) and the triggers set up. Not built yet: the nightly recalculation of guest totals and points from followUps.
+
 UI checklist:
-- [ ] Dashboard status line: "Last synced: today 12:05 AM"
-- [ ] Gentle warning when more than a day behind: "Sheet is a day behind. Sync now."
-- [ ] "Sync to sheet" button: "Syncing..." while running, "Synced 42 guests" when done
-- [ ] Clear message when a sync is already running or fails
-- [ ] Points or counts corrected overnight show the new values without a confusing jump
-- [ ] Workers never see sync status
+- [x] Dashboard status line: "Last synced: today 12:05 AM"
+- [x] Gentle warning when more than a day behind: "Sheet is a day behind. Sync now."
+- [x] "Sync to sheet" button: "Syncing..." while running, "Synced 42 guests" when done
+- [x] Clear message when a sync is already running or fails
+- [ ] Points or counts corrected overnight show the new values without a confusing jump (no overnight correction yet)
+- [x] Workers never see sync status
 
 ### 4. Tidy up and go live
 Backend: retire the old API actions, tests everywhere, security review (including editors and the key), then go live on the church sheet only with the owner's approval.
