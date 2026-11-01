@@ -737,6 +737,18 @@ function pcuSyncDate_(value) {
   return pcuDate_(value) || '';
 }
 
+/**
+ * When the call happened. callDate is the Lagos day on the phone when it was
+ * saved; createdAt is when the server got it, which can be the next day for
+ * a save made offline. The day always comes from callDate; createdAt only
+ * adds the time when it falls on that same day.
+ */
+function pcuCallMoment_(d) {
+  var day = pcuDate_(d.callDate);
+  if (!day) return d.createdAt instanceof Date ? d.createdAt : '';
+  return d.createdAt instanceof Date && pcuDay_(d.createdAt) === pcuStr_(d.callDate) ? d.createdAt : day;
+}
+
 /** One Follow-ups tab row for a follow-up saved in the app. */
 function pcuSyncFollowUpRow_(table, f) {
   var d = f.data;
@@ -745,7 +757,7 @@ function pcuSyncFollowUpRow_(table, f) {
   values[PCU.F.GUEST] = d.guestId || '';
   values[PCU.F.WORKER] = pcuEmail_(d.worker);
   values[PCU.F.LOGGED_BY] = pcuEmail_(d.loggedBy || d.worker);
-  values[PCU.F.DATE] = d.createdAt instanceof Date ? d.createdAt : pcuSyncDate_(d.callDate);
+  values[PCU.F.DATE] = pcuCallMoment_(d);
   values[PCU.F.OUTCOME] = d.outcome || '';
   values[PCU.F.NOTE] = d.note || '';
   values[PCU.F.SUNDAY] = d.attendedSunday === true;
@@ -1287,7 +1299,9 @@ function pcuRecalcRankings_(now) {
       id: doc.id,
       guestId: guestId,
       workerEmail: pcuEmail_(f.worker),
-      date: f.createdAt instanceof Date ? f.createdAt : pcuDate_(f.callDate),
+      // The call's day decides the month (as in the app); createdAt only orders.
+      date: pcuCallMoment_(f) || null,
+      order: f.createdAt instanceof Date ? f.createdAt.getTime() : Number.MAX_SAFE_INTEGER,
       sunday: f.attendedSunday === true,
       wednesday: f.attendedWednesday === true,
       team: pcuStr_(f.team)
@@ -1295,7 +1309,7 @@ function pcuRecalcRankings_(now) {
   });
   Object.keys(byGuest).forEach(function (id) {
     byGuest[id].sort(function (a, b) {
-      return (a.date ? a.date.getTime() : 0) - (b.date ? b.date.getTime() : 0);
+      return a.order - b.order;
     });
   });
 

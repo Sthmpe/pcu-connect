@@ -459,6 +459,22 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
   check('a second run changes nothing', r2.corrected === 0 && r2.removed === 0 && r2.written === 0
     && snapshot === JSON.stringify(Object.keys(store).filter(k => k.startsWith('rankings/')).map(k => [k, store[k].points])), r2);
   check('previous month is rebuilt too', r.months.length === 2 && r.months[0] === month, r.months);
+
+  // An offline save on 31 Oct that reached the server at 00:30 on 1 Nov (Lagos).
+  const fixedNow = new Date('2026-11-15T10:00:00Z');
+  const pts = m => (store['rankings/' + m + '/entries/david@x.com'] || {}).points || 0;
+  ctx.pcuRecalcRankings_(fixedNow);
+  const octBefore = pts('2026-10'), novBefore = pts('2026-11');
+  store['guests/GX'] = { name: 'Late night', serviceDate: '2026-10-20', month: '2026-10', assignedTo: 'david@x.com', membershipStatus: 'Contacted' };
+  store['followUps/late'] = { guestId: 'GX', worker: 'david@x.com', loggedBy: 'david@x.com', callDate: '2026-10-31', month: '2026-10', outcome: 'Reached',
+    points: 5, createdAt: new Date('2026-10-31T23:30:00Z') };
+  ctx.pcuRecalcRankings_(fixedNow);
+  check('an offline save counts in the month of the call, not when the server got it', pts('2026-10') === octBefore + 5 && pts('2026-11') === novBefore, [octBefore, pts('2026-10'), novBefore, pts('2026-11')]);
+  const moment = ctx.pcuCallMoment_(store['followUps/late']);
+  // Dates made inside the script's own context, as Firestore.gs decodes them.
+  const sameDay = vm.runInContext("new Date('2026-10-31T09:15:00Z')", ctx);
+  check('the sheet gets the call day for a late sync, and the exact time for a same-day one', ymd(moment) === '2026-10-31'
+    && ctx.pcuCallMoment_({ callDate: '2026-10-31', createdAt: sameDay }) === sameDay, [ymd(moment)]);
 }
 
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
