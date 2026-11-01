@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../presentation/common/notifications_screen.dart';
 import '../../presentation/admin/screens/add_worker_screen.dart';
 import '../../presentation/admin/screens/admin_guests_tab.dart';
 import '../../presentation/admin/screens/admin_shell_screen.dart';
@@ -18,6 +19,7 @@ abstract class AppRoutes {
   static const String workerDetail = '/admin/worker';
   static const String addWorker = '/admin/worker/new';
   static const String workerGuests = '/admin/worker/guests';
+  static const String notifications = '/notifications';
 
   /// The app always starts on the sign-in screen, which restores the session
   /// and routes by role. A refreshed deep link therefore cannot open a screen
@@ -57,6 +59,9 @@ abstract class AppRoutes {
         break;
       case workerGuests when args is String:
         page = AdminGuestsTab(workerFilter: args);
+        break;
+      case notifications:
+        page = const NotificationsScreen();
         break;
       default:
         page = const LoginScreen();

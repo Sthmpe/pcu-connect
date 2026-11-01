@@ -318,3 +318,33 @@ describe('push tokens (users/{email}/tokens/{token})', () => {
     await assertFails(setDoc(tokenRef(as(DAVID, false)), tokenDoc()));
   });
 });
+
+describe('notifications (users/{email}/notifications)', () => {
+  const ref = (db, email = DAVID, id = 'N1') => doc(db, 'users', email, 'notifications', id);
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(ref(ctx.firestore()), { title: 'New guest for you', body: 'Ada Obi', tag: 'guest-G1', read: false, createdAt: new Date() });
+    });
+  });
+  test('a worker reads their own list and the unread count query', async () => {
+    await assertSucceeds(getDoc(ref(as(DAVID))));
+    await assertSucceeds(getDocs(query(collection(as(DAVID), 'users', DAVID, 'notifications'), where('read', '==', false))));
+  });
+  test('nobody else reads them, not even an admin', async () => {
+    await assertFails(getDoc(ref(as(ADA))));
+    await assertFails(getDoc(ref(as(ADMIN))));
+    await assertFails(getDocs(collection(as(ADMIN), 'users', DAVID, 'notifications')));
+  });
+  test('marking as read is the only change, with the server time', async () => {
+    await assertSucceeds(updateDoc(ref(as(DAVID)), { read: true, readAt: serverTimestamp() }));
+    await assertFails(updateDoc(ref(as(DAVID)), { title: 'Changed' }));
+    await assertFails(updateDoc(ref(as(DAVID)), { read: false, readAt: serverTimestamp() }));
+    await assertFails(updateDoc(ref(as(DAVID)), { read: true, readAt: new Date() }));
+    await assertFails(updateDoc(ref(as(ADA)), { read: true, readAt: serverTimestamp() }));
+  });
+  test('the app never creates or deletes notifications', async () => {
+    await assertFails(setDoc(ref(as(DAVID), DAVID, 'N2'), { title: 'Fake', read: false, createdAt: serverTimestamp() }));
+    await assertFails(deleteDoc(ref(as(DAVID))));
+    await assertFails(setDoc(ref(as(ADMIN), DAVID, 'N3'), { title: 'Fake', read: false }));
+  });
+});

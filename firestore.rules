@@ -163,6 +163,16 @@ service cloud.firestore {
 
       // Web push tokens: only the person themselves, never anyone else (Apps
       // Script reads them with the service account).
+      // The bell list. Apps Script writes them; the person only marks them read.
+      match /notifications/{id} {
+        allow read: if isMember() && email == myEmail();
+        allow update: if isMember() && email == myEmail()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt'])
+          && request.resource.data.read == true
+          && request.resource.data.readAt == request.time;
+        allow create, delete: if false;
+      }
+
       match /tokens/{token} {
         allow read, delete: if isMember() && email == myEmail();
         allow create: if isMember() && email == myEmail() && validToken(token, request.resource.data);

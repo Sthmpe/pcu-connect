@@ -13,6 +13,7 @@ import '../../../core/widgets/app_display.dart';
 import '../../../core/widgets/app_page.dart';
 import '../../../core/widgets/app_surfaces.dart';
 import '../../../core/widgets/guest_row.dart';
+import '../../common/notification_bell.dart';
 import '../../common/push_prompt_card.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../core/widgets/status_tone.dart';
@@ -52,6 +53,7 @@ class TodayTab extends StatelessWidget {
     return AppPage(
       eyebrow: DateFormat('EEEE, d MMMM').format(now),
       title: firstName.isEmpty ? _greeting(now) : '${_greeting(now)}, $firstName',
+      trailing: const NotificationBell(),
       child: BlocBuilder<GuestsBloc, GuestsState>(
         builder: (context, state) {
           final bloc = context.read<GuestsBloc>();

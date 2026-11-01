@@ -404,6 +404,9 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
     && m.webpush.notification.badge === 'icons/notification-badge-96.png' && m.webpush.fcm_options.link === 'https://pcu-workflow.web.app/' && m.data.tag === 'guest-G1', m);
   check('pcuNotify_ is false when a person has no devices (so email is the fallback)', ctx.pcuNotify_('worker.a@x.com', { title: 'x' }) === false);
   check('pcuNotify_ is true when a device got it', ctx.pcuNotify_('david@x.com', { title: 'x' }) === true);
+  const items = Object.keys(store).filter(k => k.startsWith('users/worker.a@x.com/notifications/')).map(k => store[k]);
+  check('every notice is kept for the bell, even without a device', items.length === 1 && items[0].read === false && items[0].title === 'x'
+    && Object.prototype.toString.call(items[0].createdAt) === '[object Date]' && items[0].link === 'https://pcu-workflow.web.app/', items);
 
   const denied = call({ action: 'pushCheck', idToken: 'tokDavid' });
   check('pushCheck is admin only', !denied.ok && denied.code === 'FORBIDDEN', denied);

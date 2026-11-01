@@ -21,6 +21,7 @@ import 'core/widgets/app_feedback.dart';
 import 'core/widgets/responsive_web_shell.dart';
 import 'data/firestore/firestore_guest_repository.dart';
 import 'data/firestore/firestore_profile_source.dart';
+import 'data/firestore/notifications_repository.dart';
 import 'data/firestore/push_service.dart';
 import 'data/firestore/sheet_sync_repository.dart';
 import 'data/repositories/auth_repository_impl.dart';
@@ -34,6 +35,7 @@ import 'domain/repositories/i_team_repository.dart';
 import 'presentation/auth/bloc/auth_bloc.dart';
 import 'presentation/auth/bloc/auth_event.dart';
 import 'presentation/common/insights_cubits.dart';
+import 'presentation/common/notifications_cubit.dart';
 import 'presentation/common/push_cubit.dart';
 import 'presentation/guests/bloc/guests_bloc.dart';
 
@@ -109,6 +111,9 @@ void main() async {
     teamRepository: teamRepository,
     sheetSyncRepository: sheetSyncRepository,
     pushService: pushService,
+    notificationsRepository: AppConfig.useFirestore
+        ? NotificationsRepository(db: FirebaseFirestore.instance, authRepository: authRepository)
+        : null,
     localCache: localCache,
   ));
 }
@@ -123,6 +128,9 @@ class PCUConnectApp extends StatelessWidget {
 
   /// Firestore mode on the web only: notifications.
   final IPushService? pushService;
+
+  /// Firestore mode only: the bell list.
+  final INotificationsRepository? notificationsRepository;
   final LocalCache localCache;
 
   const PCUConnectApp({
@@ -132,6 +140,7 @@ class PCUConnectApp extends StatelessWidget {
     required this.teamRepository,
     this.sheetSyncRepository,
     this.pushService,
+    this.notificationsRepository,
     required this.localCache,
   });
 
@@ -159,6 +168,7 @@ class PCUConnectApp extends StatelessWidget {
           BlocProvider<RankingCubit>(create: (ctx) => RankingCubit(teamRepository)),
           BlocProvider<DashboardCubit>(create: (ctx) => DashboardCubit(teamRepository)),
           BlocProvider<TeamCubit>(create: (ctx) => TeamCubit(teamRepository)),
+          BlocProvider<NotificationsCubit>(create: (ctx) => NotificationsCubit(notificationsRepository)),
           BlocProvider<PushCubit>(
             create: (ctx) => PushCubit(
               pushService,

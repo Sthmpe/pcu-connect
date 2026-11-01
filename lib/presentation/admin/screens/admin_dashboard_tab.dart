@@ -20,6 +20,7 @@ import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
 import '../../guests/bloc/guests_state.dart';
 import '../bloc/sheet_sync_cubit.dart';
+import '../../common/notification_bell.dart';
 import '../../common/push_prompt_card.dart';
 
 class AdminDashboardTab extends StatelessWidget {
@@ -39,12 +40,19 @@ class AdminDashboardTab extends StatelessWidget {
       builder: (context, state) {
         return AppPage(
           title: 'Dashboard',
-          trailing: MonthPill(
-            month: state.month,
-            onChanged: (m) {
-              cubit.load(m);
-              context.read<GuestsBloc>().add(SelectMonthEvent(m));
-            },
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const NotificationBell(),
+              SizedBox(width: AppSizes.s8),
+              MonthPill(
+                month: state.month,
+                onChanged: (m) {
+                  cubit.load(m);
+                  context.read<GuestsBloc>().add(SelectMonthEvent(m));
+                },
+              ),
+            ],
           ),
           child: _body(context, state),
         );

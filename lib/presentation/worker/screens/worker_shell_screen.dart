@@ -6,6 +6,7 @@ import '../../../core/routing/app_routes.dart';
 import '../../../core/widgets/app_bottom_nav.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../auth/bloc/auth_state.dart';
+import '../../common/notifications_cubit.dart';
 import '../../common/push_cubit.dart';
 import 'today_tab.dart';
 import 'my_guests_tab.dart';
@@ -26,6 +27,7 @@ class _WorkerShellScreenState extends State<WorkerShellScreen> {
   void initState() {
     super.initState();
     context.read<PushCubit>().start();
+    context.read<NotificationsCubit>().start();
   }
 
   static const _items = [
@@ -39,8 +41,10 @@ class _WorkerShellScreenState extends State<WorkerShellScreen> {
   Widget build(BuildContext context) {
     return BlocListener<AuthBloc, AuthState>(
       listenWhen: (_, s) => s is AuthUnauthenticatedState,
-      listener: (context, _) => Navigator.of(context)
-          .pushNamedAndRemoveUntil(AppRoutes.login, (_) => false),
+      listener: (context, _) {
+        context.read<NotificationsCubit>().stop();
+        Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
+      },
       child: Scaffold(
         backgroundColor: AppColors.bg,
         body: FadeIndexedStack(

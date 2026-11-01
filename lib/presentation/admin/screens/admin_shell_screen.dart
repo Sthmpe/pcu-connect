@@ -7,6 +7,7 @@ import '../../../core/widgets/app_bottom_nav.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../auth/bloc/auth_state.dart';
 import '../../common/insights_cubits.dart';
+import '../../common/notifications_cubit.dart';
 import '../../common/push_cubit.dart';
 import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
@@ -37,6 +38,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     super.initState();
     context.read<DashboardCubit>().ensureLoaded();
     context.read<PushCubit>().start();
+    context.read<NotificationsCubit>().start();
   }
 
   void _select(int i) {
@@ -53,8 +55,10 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   Widget build(BuildContext context) {
     return BlocListener<AuthBloc, AuthState>(
       listenWhen: (_, s) => s is AuthUnauthenticatedState,
-      listener: (context, _) => Navigator.of(context)
-          .pushNamedAndRemoveUntil(AppRoutes.login, (_) => false),
+      listener: (context, _) {
+        context.read<NotificationsCubit>().stop();
+        Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
+      },
       child: Scaffold(
         backgroundColor: AppColors.bg,
         body: FadeIndexedStack(

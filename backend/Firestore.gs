@@ -1178,11 +1178,32 @@ function pcuFsDeleteDocs_(paths) {
 }
 
 /**
- * Tells a person about something: a push to their devices. Returns true when
- * at least one device got it, so the caller can fall back to email.
+ * Tells a person about something: an item in their in-app list (the bell)
+ * and a push to their devices. Returns true when at least one device got the
+ * push, so the caller can fall back to email.
  */
 function pcuNotify_(email, n) {
+  pcuSaveNotification_(email, n);
   return pcuSendPush_(email, n).sent > 0;
+}
+
+/** users/{email}/notifications/{id}, read by the app's bell. Never throws. */
+function pcuSaveNotification_(email, n) {
+  if (!pcuFsEnabled_() || !email) return;
+  try {
+    pcuFsCommit_([
+      pcuFsSet_('users/' + pcuEmail_(email) + '/notifications/' + Utilities.getUuid(), {
+        title: n.title,
+        body: n.body || '',
+        tag: n.tag || '',
+        link: n.link || pcuAppLink_() + '/',
+        read: false,
+        createdAt: new Date()
+      })
+    ]);
+  } catch (err) {
+    console.warn('Notification for ' + email + ' not saved: ' + (err && err.message));
+  }
 }
 
 /** Every active admin, for HOD notices. */
