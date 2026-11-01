@@ -23,6 +23,9 @@ import 'ranking_tab.dart';
 import 'me_tab.dart';
 
 class WorkerShellScreen extends StatefulWidget {
+  /// The worker's Guests screen opens on All months, so no guest is out of view.
+  static const guestsDefaultMonth = MonthUtils.all;
+
   const WorkerShellScreen({super.key});
 
   @override
@@ -33,8 +36,7 @@ class _WorkerShellScreenState extends State<WorkerShellScreen> {
   int _index = 0;
 
   /// The Guests tab's own month and chip. Today follows no month at all.
-  // The worker's Guests screen opens on All months, so no guest is out of view.
-  final _guestsFilter = GuestsFilterCubit(month: MonthUtils.all);
+  final _guestsFilter = GuestsFilterCubit(month: WorkerShellScreen.guestsDefaultMonth);
 
   /// Today's to-do list, shared by the Today tab and its badge.
   late final TodayCubit _today;
