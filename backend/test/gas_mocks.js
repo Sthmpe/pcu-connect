@@ -17,6 +17,8 @@ function makeSheet(rows, name) {
     },
     getDataRange() { return sheet.getRange(1, 1, Math.max(1, sheet.getLastRow()), Math.max(1, sheet.getLastColumn())); },
     appendRow(r) { sheet.rows.splice(sheet.getLastRow(), 0, r.slice()); sheet.appended.push(r); },
+    deleteRow(r) { sheet.rows.splice(r - 1, 1); },
+    getName() { return sheet.name; },
     getRange(r, c, nr = 1, nc = 1) {
       if (r < 1 || c < 1 || nr < 1 || nc < 1) throw new Error(`bad range ${r},${c},${nr},${nc}`);
       return {
@@ -31,6 +33,9 @@ function makeSheet(rows, name) {
           }
           return out;
         },
+        getValue() { const v = (sheet.rows[r - 1] || [])[c - 1]; return isEmpty(v) ? '' : v; },
+        getRow() { return r; },
+        getSheet() { return sheet; },
         setValue(v) {
           while (sheet.rows.length < r) sheet.rows.push([]);
           sheet.rows[r - 1][c - 1] = v; sheet.sets.push([r, c, v]);

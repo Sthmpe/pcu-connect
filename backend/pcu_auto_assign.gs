@@ -32,14 +32,12 @@ function onOpen() {
       .addItem('Remove worker (stop new names)', 'deactivateWorker')
       .addItem('Bring worker back', 'reactivateWorker')
       .addItem('List workers', 'listWorkers'))
+    // Auto-assign and notifications are always on and repair themselves
+    // (ensureAssignTriggers_), so there is nothing to switch.
     .addSubMenu(ui.createMenu('Auto-assign')
-      .addItem('Switch on (run once)', 'setupTrigger')
-      .addItem('Switch off', 'removeTrigger')
       .addItem('Check status', 'triggerStatus')
       .addItem('Restart rotation from first worker', 'resetRotation'))
     .addSubMenu(ui.createMenu('Notifications')
-      .addItem('Switch on (new-guest emails + 6pm reminder)', 'notificationsOn')
-      .addItem('Switch off', 'notificationsOff')
       .addItem('Check status', 'notificationsStatus')
       .addItem("Send today's reminder now", 'dailyReminder'))
     .addSubMenu(ui.createMenu('Testing (test copy only)')
@@ -109,30 +107,14 @@ function assignRow_(sheet, row) {
 /* Notifications (email)                                               */
 /* ------------------------------------------------------------------ */
 
-function notificationsOn() {
-  PropertiesService.getScriptProperties().setProperty('NOTIFY', 'ON');
-  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'dailyReminder')
-    .forEach(t => ScriptApp.deleteTrigger(t));
-  ScriptApp.newTrigger('dailyReminder').timeBased().atHour(REMINDER_HOUR).everyDays(1).inTimezone(TZ).create();
-  alert_('Notifications are ON.\n- Each worker gets an email when a new guest is given to them.\n' +
-         '- Every day at 6pm, each worker gets a list of their guests not called yet.');
-}
-
-function notificationsOff() {
-  PropertiesService.getScriptProperties().setProperty('NOTIFY', 'OFF');
-  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'dailyReminder')
-    .forEach(t => ScriptApp.deleteTrigger(t));
-  alert_('Notifications are OFF. No emails will be sent.');
-}
-
 function notificationsStatus() {
-  const on = PropertiesService.getScriptProperties().getProperty('NOTIFY') === 'ON';
-  const daily = ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'dailyReminder');
-  alert_('New-guest emails: ' + (on ? 'ON' : 'OFF') + '\n6pm reminder: ' + (daily && on ? 'ON' : 'OFF') +
-         '\nEmails left today (Google limit): ' + MailApp.getRemainingDailyQuota());
+  ensureAssignTriggersQuietly_();
+  alert_('Notifications are always ON: a push (or an email when the phone has no push) for each new guest, ' +
+         'and the 6pm reminder.\nEmails left today (Google limit): ' + MailApp.getRemainingDailyQuota());
 }
 
-function notifyOn_() { return PropertiesService.getScriptProperties().getProperty('NOTIFY') === 'ON'; }
+/** Notifications are always on; NOTIFY=OFF is only honoured as an emergency stop set by hand. */
+function notifyOn_() { return PropertiesService.getScriptProperties().getProperty('NOTIFY') !== 'OFF'; }
 
 /** Skips fake/test addresses so test guests don't bounce. */
 function realEmail_(email) { return /@/.test(email) && !/@example\.(com|org)$/i.test(email); }
@@ -170,6 +152,7 @@ function notifyNewGuest_(worker, sheet, row, h) {
 
 /** Runs every day at 6pm: emails each active worker their guests not called yet. */
 function dailyReminder() {
+  ensureAssignTriggersQuietly_();
   if (!notifyOn_()) return;
   const sheet = responses_();
   const h = headers_(sheet);
@@ -376,37 +359,57 @@ function listWorkers() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Auto-assign switch                                                  */
+/* Always on: triggers that repair themselves                          */
 /* ------------------------------------------------------------------ */
 
-function setupTrigger() {
-  removeTriggerSilently_();
-  ScriptApp.newTrigger('assignOnSubmit')
-    .forSpreadsheet(SpreadsheetApp.getActive())
-    .onFormSubmit()
-    .create();
-  alert_('Auto-assign is ON. Every new form entry will go to the next active worker.');
+const BACKUP_EVERY_MINUTES = 5;
+
+/**
+ * Makes sure auto-assign is on: the form-submit trigger (assignOnSubmit), the
+ * 5-minute backup (assignBackup) and the 6pm reminder (dailyReminder) exist.
+ * Adds only what is missing. Called on every scheduled run, so a deleted
+ * trigger comes back within minutes. Returns the handlers it added.
+ */
+function ensureAssignTriggers_() {
+  const have = {};
+  ScriptApp.getProjectTriggers().forEach(t => { have[t.getHandlerFunction()] = true; });
+  const added = [];
+  if (!have.assignOnSubmit) {
+    ScriptApp.newTrigger('assignOnSubmit').forSpreadsheet(SpreadsheetApp.getActive()).onFormSubmit().create();
+    added.push('assignOnSubmit');
+  }
+  if (!have.assignBackup) {
+    ScriptApp.newTrigger('assignBackup').timeBased().everyMinutes(BACKUP_EVERY_MINUTES).create();
+    added.push('assignBackup');
+  }
+  if (!have.dailyReminder) {
+    ScriptApp.newTrigger('dailyReminder').timeBased().atHour(REMINDER_HOUR).everyDays(1).inTimezone(TZ).create();
+    added.push('dailyReminder');
+  }
+  if (added.length) console.log('Triggers added: ' + added.join(', '));
+  return added;
 }
 
-function removeTrigger() {
-  const n = removeTriggerSilently_();
-  alert_(n ? 'Auto-assign is OFF. New form entries will stay unassigned.' : 'Auto-assign was already off.');
+/** Same as ensureAssignTriggers_, but never fails the caller. */
+function ensureAssignTriggersQuietly_() {
+  try {
+    return ensureAssignTriggers_();
+  } catch (err) {
+    console.warn('Could not check the triggers: ' + (err && err.message));
+    return [];
+  }
 }
 
 function triggerStatus() {
-  const on = ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'assignOnSubmit');
-  alert_(on ? 'Auto-assign is ON.' : 'Auto-assign is OFF.');
+  const added = ensureAssignTriggers_();
+  alert_('Auto-assign is always ON: every new form entry goes to the next active worker, and every ' +
+    BACKUP_EVERY_MINUTES + ' minutes any guest still without a worker is assigned.' +
+    (added.length ? '\n\nRepaired just now: ' + added.join(', ') + '.' : ''));
 }
 
 function resetRotation() {
   PropertiesService.getScriptProperties().setProperty('NEXT_INDEX', '0');
   alert_('Rotation restarted. The next guest goes to the first active worker on the list.');
-}
-
-function removeTriggerSilently_() {
-  const ts = ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'assignOnSubmit');
-  ts.forEach(t => ScriptApp.deleteTrigger(t));
-  return ts.length;
 }
 
 /* ------------------------------------------------------------------ */

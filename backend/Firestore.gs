@@ -538,6 +538,8 @@ function pcuPushGuestQuietly_(guestId) {
  * new follow-ups). Only the last MIGRATION_MONTHS months are considered.
  */
 function pcuPushPendingGuests() {
+  // Every scheduled run checks that auto-assign is still on (pcu_auto_assign.gs).
+  if (typeof ensureAssignTriggersQuietly_ === 'function') ensureAssignTriggersQuietly_();
   if (!pcuFsEnabled_()) return { skipped: 'not set up' };
   return pcuWithLock_(function () {
     pcuEnsureGuestIds_();
@@ -1015,6 +1017,7 @@ function pcuSheetUrl_() {
 
 /** Nightly at 00:05 Africa/Lagos (see pcuEnsureSyncTriggers_). */
 function pcuNightlySync() {
+  if (typeof ensureAssignTriggersQuietly_ === 'function') ensureAssignTriggersQuietly_();
   return pcuSheetSync_('nightly');
 }
 
@@ -1388,7 +1391,8 @@ function pcuHealth_(user) {
     },
     triggers: ScriptApp.getProjectTriggers().map(function (t) {
       return t.getHandlerFunction();
-    })
+    }),
+    notify: PropertiesService.getScriptProperties().getProperty('NOTIFY') || '(not set)'
   };
 }
 

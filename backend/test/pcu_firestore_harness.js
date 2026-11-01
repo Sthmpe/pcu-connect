@@ -93,11 +93,13 @@ function setup(opts = {}) {
     }), flush() {} },
     ScriptApp: {
       WeekDay: { MONDAY: 'MONDAY' },
-      getProjectTriggers: () => triggers.map(t => ({ getHandlerFunction: () => t.fn })),
+      getProjectTriggers: () => triggers.map(t => ({ getHandlerFunction: () => t.fn, t })),
+      deleteTrigger: x => { const i = triggers.indexOf(x.t); if (i >= 0) triggers.splice(i, 1); },
       newTrigger: fn => {
         const t = { fn };
         const b = { timeBased: () => b, everyDays: d => ((t.days = d), b), atHour: h => ((t.hour = h), b), nearMinute: m => ((t.minute = m), b),
-          onWeekDay: d => ((t.weekDay = d), b), inTimezone: z => ((t.tz = z), b), create: () => (triggers.push(t), t) };
+          onWeekDay: d => ((t.weekDay = d), b), inTimezone: z => ((t.tz = z), b), everyMinutes: m => ((t.minutes = m), b),
+          forSpreadsheet: () => b, onFormSubmit: () => ((t.formSubmit = true), b), create: () => (triggers.push(t), t) };
         return b;
       },
     },
@@ -172,12 +174,12 @@ function setup(opts = {}) {
       const t = JSON.parse(o.payload).idToken; const email = tokens[t];
       return { getResponseCode: () => (email ? 200 : 400), getContentText: () => JSON.stringify(email ? { users: [{ email, emailVerified: true }] } : { error: {} }) };
     } },
-    LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
+    LockService: { getScriptLock: () => ({ tryLock: () => true, waitLock() {}, releaseLock() {} }) },
     ContentService: { createTextOutput: s => ({ text: s, setMimeType() { return this; } }), MimeType: { JSON: 'json' } },
   };
   vm.createContext(ctx);
   const dir = path.join(__dirname, '..');
-  vm.runInContext(fs.readFileSync(path.join(dir, 'Api.gs'), 'utf8') + '\n' + fs.readFileSync(path.join(dir, 'Firestore.gs'), 'utf8'), ctx);
+  vm.runInContext(['Api.gs', 'Firestore.gs', 'pcu_auto_assign.gs'].map(f => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n'), ctx);
   const call = body => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(body) } }).text);
   return { ctx, sheets, props, store, commits, call, reads, triggers, pushes, mails, tokenRequests: () => tokenRequests };
 }
@@ -562,6 +564,23 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
   const noMail = call({ action: 'nudge', idToken: 'tokAdmin', workerEmail: 'david@x.com', outstanding: 2 });
   ctx.MailApp.fail = false;
   check('a failed email is reported, the notice still saved', noMail.ok && noMail.data.emailSent === false && bell('david@x.com').length === 2, noMail);
+}
+
+// --- Auto-assign is always on and repairs itself
+{
+  const { ctx, triggers } = setup();
+  const names = () => triggers.map(t => t.fn).sort().join();
+  check('every trigger is installed when none exist', ctx.ensureAssignTriggers_().sort().join() === 'assignBackup,assignOnSubmit,dailyReminder'
+    && triggers.find(t => t.fn === 'assignOnSubmit').formSubmit && triggers.find(t => t.fn === 'assignBackup').minutes === 5, triggers);
+  check('a second check adds nothing', ctx.ensureAssignTriggers_().length === 0 && names() === 'assignBackup,assignOnSubmit,dailyReminder');
+  triggers.splice(triggers.findIndex(t => t.fn === 'assignOnSubmit'), 1);
+  ctx.pcuPushPendingGuests();
+  check('the 5-minute job puts back a deleted form trigger', names().split(',').includes('assignOnSubmit'), names());
+  triggers.splice(triggers.findIndex(t => t.fn === 'assignBackup'), 1);
+  ctx.dailyReminder();
+  check('the 6pm reminder puts back a deleted backup trigger', names().split(',').includes('assignBackup'), names());
+  const src = fs.readFileSync(path.join(__dirname, '..', 'pcu_auto_assign.gs'), 'utf8');
+  check('the PCU menu has no Switch on or Switch off items', !/addItem\('Switch (on|off)/.test(src) && !/notificationsO(n|ff)\b/.test(src));
 }
 
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
