@@ -13,6 +13,7 @@ import '../../../core/widgets/app_display.dart';
 import '../../../core/widgets/app_page.dart';
 import '../../../core/widgets/app_surfaces.dart';
 import '../../../core/widgets/guest_row.dart';
+import '../../common/push_prompt_card.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../core/widgets/status_tone.dart';
 import '../../../domain/entities/guest_entity.dart';
@@ -84,6 +85,7 @@ class TodayTab extends StatelessWidget {
                   child: Column(
                     children: [
                       if (state.isFromCache) OfflineBanner(isRefreshing: state.isRefreshing),
+                      const PushPromptCard(reason: 'when a new guest is assigned to you'),
                       _ProgressHero(state: state),
                     ],
                   ),

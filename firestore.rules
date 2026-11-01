@@ -145,9 +145,33 @@ service cloud.firestore {
         && (!('wednesdayDates' in changed) || after.wednesdayDates is list);
     }
 
+    // A push token document for one of the signed-in person's devices.
+    function validToken(token, d) {
+      return d.keys().hasAll(['token', 'platform', 'createdAt', 'lastSeenAt'])
+        && d.keys().hasOnly(['token', 'platform', 'userAgent', 'createdAt', 'lastSeenAt'])
+        && d.token == token
+        && token.size() <= 1024
+        && d.platform == 'web'
+        && (!('userAgent' in d) || (d.userAgent is string && d.userAgent.size() <= 300))
+        && d.createdAt == request.time
+        && d.lastSeenAt == request.time;
+    }
+
     match /users/{email} {
       allow read: if isMember() && (email == myEmail() || isAdmin());
       allow write: if false;
+
+      // Web push tokens: only the person themselves, never anyone else (Apps
+      // Script reads them with the service account).
+      match /tokens/{token} {
+        allow read, delete: if isMember() && email == myEmail();
+        allow create: if isMember() && email == myEmail() && validToken(token, request.resource.data);
+        allow update: if isMember() && email == myEmail()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSeenAt', 'userAgent'])
+          && request.resource.data.lastSeenAt == request.time
+          && (!('userAgent' in request.resource.data)
+            || (request.resource.data.userAgent is string && request.resource.data.userAgent.size() <= 300));
+      }
     }
 
     match /meta/{doc} {

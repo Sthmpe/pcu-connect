@@ -6,6 +6,7 @@ import '../../../core/routing/app_routes.dart';
 import '../../../core/widgets/app_bottom_nav.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../auth/bloc/auth_state.dart';
+import '../../common/push_cubit.dart';
 import 'today_tab.dart';
 import 'my_guests_tab.dart';
 import 'ranking_tab.dart';
@@ -20,6 +21,12 @@ class WorkerShellScreen extends StatefulWidget {
 
 class _WorkerShellScreenState extends State<WorkerShellScreen> {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    context.read<PushCubit>().start();
+  }
 
   static const _items = [
     AppNavItem(AppIcons.today, 'Today'),

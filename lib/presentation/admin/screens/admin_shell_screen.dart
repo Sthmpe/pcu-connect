@@ -7,6 +7,7 @@ import '../../../core/widgets/app_bottom_nav.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../auth/bloc/auth_state.dart';
 import '../../common/insights_cubits.dart';
+import '../../common/push_cubit.dart';
 import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
 import '../../worker/screens/me_tab.dart';
@@ -35,6 +36,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   void initState() {
     super.initState();
     context.read<DashboardCubit>().ensureLoaded();
+    context.read<PushCubit>().start();
   }
 
   void _select(int i) {

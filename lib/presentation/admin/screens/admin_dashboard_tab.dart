@@ -20,6 +20,7 @@ import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
 import '../../guests/bloc/guests_state.dart';
 import '../bloc/sheet_sync_cubit.dart';
+import '../../common/push_prompt_card.dart';
 
 class AdminDashboardTab extends StatelessWidget {
   final ValueChanged<String> onOpenGuests;
@@ -68,6 +69,7 @@ class AdminDashboardTab extends StatelessWidget {
       onRefresh: () => context.read<DashboardCubit>().load(),
       child: PageList(
         children: [
+          const PushPromptCard(reason: 'when guests come in and when the sheet sync needs you'),
           _CalledHero(data: data, onSeeWaiting: () => onOpenGuests('call')),
           SizedBox(height: AppSizes.s16),
           StatGrid(items: [

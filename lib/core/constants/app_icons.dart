@@ -28,6 +28,8 @@ abstract class AppIcons {
   static const IconData info = LucideIcons300.info;
   static const IconData retry = LucideIcons300.refreshCw;
   static const IconData sync = LucideIcons300.refreshCw;
+  static const IconData bell = LucideIcons300.bell;
+  static const IconData bellRing = LucideIcons300.bellRing;
   static const IconData up = LucideIcons300.arrowUp;
   static const IconData down = LucideIcons300.arrowDown;
 

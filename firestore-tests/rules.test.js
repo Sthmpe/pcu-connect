@@ -278,3 +278,43 @@ describe('phase 2: saving from the app (one batch)', () => {
     await assertFails(save(as(ADMIN), 'F4', { loggedBy: ADMIN }, 'G1', { serviceDate: '2026-01-01' }));
   });
 });
+
+describe('push tokens (users/{email}/tokens/{token})', () => {
+  const TOKEN = 'fcm-token_abc:123-XYZ';
+  const tokenDoc = (over = {}) => ({ token: TOKEN, platform: 'web', userAgent: 'Mozilla/5.0', createdAt: serverTimestamp(), lastSeenAt: serverTimestamp(), ...over });
+  const tokenRef = (db, email = DAVID, id = TOKEN) => doc(db, 'users', email, 'tokens', id);
+
+  test('a worker saves, refreshes, reads and deletes their own device token', async () => {
+    const db = as(DAVID);
+    await assertSucceeds(setDoc(tokenRef(db), tokenDoc()));
+    await assertSucceeds(updateDoc(tokenRef(db), { lastSeenAt: serverTimestamp(), userAgent: 'Chrome' }));
+    await assertSucceeds(getDoc(tokenRef(db)));
+    await assertSucceeds(deleteDoc(tokenRef(db)));
+  });
+  test('nobody else reads or writes a person\'s tokens, not even an admin', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(tokenRef(ctx.firestore()), tokenDoc({ createdAt: new Date(), lastSeenAt: new Date() })); });
+    await assertFails(getDoc(tokenRef(as(ADA))));
+    await assertFails(getDoc(tokenRef(as(ADMIN))));
+    await assertFails(setDoc(tokenRef(as(ADA), DAVID, 'other'), tokenDoc({ token: 'other' })));
+    await assertFails(deleteDoc(tokenRef(as(ADMIN))));
+    await assertFails(getDocs(collection(as(ADMIN), 'users', DAVID, 'tokens')));
+  });
+  test('the token document must match its id, with server times and known fields', async () => {
+    const db = as(DAVID);
+    await assertFails(setDoc(tokenRef(db), tokenDoc({ token: 'different' })));
+    await assertFails(setDoc(tokenRef(db), tokenDoc({ platform: 'ios' })));
+    await assertFails(setDoc(tokenRef(db), tokenDoc({ createdAt: new Date() })));
+    await assertFails(setDoc(tokenRef(db), tokenDoc({ admin: true })));
+    await assertFails(setDoc(tokenRef(db), tokenDoc({ userAgent: 'x'.repeat(301) })));
+  });
+  test('an update only moves lastSeenAt and userAgent', async () => {
+    const db = as(DAVID);
+    await assertSucceeds(setDoc(tokenRef(db), tokenDoc()));
+    await assertFails(updateDoc(tokenRef(db), { platform: 'android', lastSeenAt: serverTimestamp() }));
+    await assertFails(updateDoc(tokenRef(db), { lastSeenAt: new Date() }));
+  });
+  test('inactive or unverified people cannot save tokens', async () => {
+    await assertFails(setDoc(tokenRef(as(PAUSED), PAUSED), tokenDoc()));
+    await assertFails(setDoc(tokenRef(as(DAVID, false)), tokenDoc()));
+  });
+});

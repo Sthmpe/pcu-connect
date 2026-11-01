@@ -19,4 +19,21 @@ class AppConfig {
   static const String dataSource = String.fromEnvironment('DATA_SOURCE', defaultValue: 'api');
 
   static bool get useFirestore => dataSource == 'firestore' && !useSampleData;
+
+  /// Public VAPID key for Firebase Cloud Messaging web push (project
+  /// pcu-workflow). Public by design; a build can override it with
+  /// `--dart-define=FCM_VAPID_KEY=...`.
+  static const String fcmVapidKey = String.fromEnvironment(
+    'FCM_VAPID_KEY',
+    defaultValue:
+        'BOP_wULolCBYKMhK7ibxnGTX6kxXnrOkbUjBsvpwLK8K5rOQwjjZ0fgXHq9RC40aq4eo0NP1NjCJMJEg5E-FZTo',
+  );
+
+  /// Short browser description saved with a push token, so a person can tell
+  /// their devices apart. Empty off the web.
+  static String get userAgent => _userAgent();
+  static String Function() _userAgent = () => '';
+
+  /// Set once at startup on the web (see main.dart).
+  static set userAgentSource(String Function() source) => _userAgent = source;
 }

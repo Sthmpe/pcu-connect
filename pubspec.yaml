@@ -32,6 +32,7 @@ dependencies:
   cloud_firestore: ^7.1.0
   # Browser APIs for the notification sound and web push (lib/core/web).
   web: ^1.1.1
+  firebase_messaging: ^17.0.1
 
 dev_dependencies:
   flutter_test:

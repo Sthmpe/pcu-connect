@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -12,10 +14,14 @@ import 'core/network/api_client.dart';
 import 'core/routing/app_routes.dart';
 import 'core/storage/local_cache.dart';
 import 'core/theme/app_theme.dart';
+import 'core/web/browser_info.dart';
 import 'core/web/bundled_firebase.dart';
+import 'core/web/notification_sound.dart';
+import 'core/widgets/app_feedback.dart';
 import 'core/widgets/responsive_web_shell.dart';
 import 'data/firestore/firestore_guest_repository.dart';
 import 'data/firestore/firestore_profile_source.dart';
+import 'data/firestore/push_service.dart';
 import 'data/firestore/sheet_sync_repository.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/repositories/guest_repository_impl.dart';
@@ -28,10 +34,12 @@ import 'domain/repositories/i_team_repository.dart';
 import 'presentation/auth/bloc/auth_bloc.dart';
 import 'presentation/auth/bloc/auth_event.dart';
 import 'presentation/common/insights_cubits.dart';
+import 'presentation/common/push_cubit.dart';
 import 'presentation/guests/bloc/guests_bloc.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  AppConfig.userAgentSource = browserUserAgent;
   await waitForBundledFirebase();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
@@ -86,11 +94,21 @@ void main() async {
         )
       : null;
 
+  // Web push (Firestore mode, web only): token saved after the person agrees.
+  final IPushService? pushService = AppConfig.useFirestore && kIsWeb
+      ? PushService(
+          messaging: FirebaseMessaging.instance,
+          db: FirebaseFirestore.instance,
+          authRepository: authRepository,
+        )
+      : null;
+
   runApp(PCUConnectApp(
     authRepository: authRepository,
     guestRepository: guestRepository,
     teamRepository: teamRepository,
     sheetSyncRepository: sheetSyncRepository,
+    pushService: pushService,
     localCache: localCache,
   ));
 }
@@ -102,6 +120,9 @@ class PCUConnectApp extends StatelessWidget {
 
   /// Firestore mode only: the HOD's sheet sync.
   final ISheetSyncRepository? sheetSyncRepository;
+
+  /// Firestore mode on the web only: notifications.
+  final IPushService? pushService;
   final LocalCache localCache;
 
   const PCUConnectApp({
@@ -110,6 +131,7 @@ class PCUConnectApp extends StatelessWidget {
     required this.guestRepository,
     required this.teamRepository,
     this.sheetSyncRepository,
+    this.pushService,
     required this.localCache,
   });
 
@@ -137,6 +159,16 @@ class PCUConnectApp extends StatelessWidget {
           BlocProvider<RankingCubit>(create: (ctx) => RankingCubit(teamRepository)),
           BlocProvider<DashboardCubit>(create: (ctx) => DashboardCubit(teamRepository)),
           BlocProvider<TeamCubit>(create: (ctx) => TeamCubit(teamRepository)),
+          BlocProvider<PushCubit>(
+            create: (ctx) => PushCubit(
+              pushService,
+              cache: localCache,
+              onForeground: (push) {
+                playNotificationSound();
+                AppFeedback.success(push.title, push.body);
+              },
+            ),
+          ),
         ],
         child: ScreenUtilInit(
           // Design resolution from PCU_Worker_App.html (390 x 844). The
