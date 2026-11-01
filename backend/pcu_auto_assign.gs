@@ -137,12 +137,21 @@ function notifyOn_() { return PropertiesService.getScriptProperties().getPropert
 /** Skips fake/test addresses so test guests don't bounce. */
 function realEmail_(email) { return /@/.test(email) && !/@example\.(com|org)$/i.test(email); }
 
+/**
+ * Tells the worker about a new guest: a push to their phone first (when they
+ * turned notifications on in the app), the email only as the fallback.
+ */
 function notifyNewGuest_(worker, sheet, row, h) {
+  let v;
+  try { v = sheet.getRange(row, 1, 1, h.length).getValues()[0]; } catch (err) { return; }
+  const get = n => (h.indexOf(n) >= 0 ? String(v[h.indexOf(n)]).trim() : '');
+  const name = get('FULL NAME') || 'A new guest';
+  if (typeof pcuNotify_ === 'function' &&
+      pcuNotify_(worker.email, { title: 'New guest for you', body: name + '. Please call within 3 days.', tag: 'guest-' + get('GUEST ID') })) {
+    return;
+  }
   if (!notifyOn_() || !realEmail_(worker.email)) return;
   try {
-    const v = sheet.getRange(row, 1, 1, h.length).getValues()[0];
-    const get = n => (h.indexOf(n) >= 0 ? String(v[h.indexOf(n)]).trim() : '');
-    const name = get('FULL NAME') || 'A new guest';
     const phone = get('PHONE NUMBER');
     const digits = phone.replace(/\D/g, '').slice(-10);
     const wa = digits ? 'https://wa.me/234' + digits : '';
@@ -180,7 +189,7 @@ function dailyReminder() {
   const goLive = new Date(GO_LIVE + 'T00:00:00');
   const now = new Date();
   let sent = 0;
-  activeWorkers_().filter(w => realEmail_(w.email)).forEach(w => {
+  activeWorkers_().forEach(w => {
     const overdue = [], due = [];
     data.forEach(r => {
       if (String(r[c('ASSIGNED TO')]).trim().toLowerCase() !== w.email) return;
@@ -193,6 +202,14 @@ function dailyReminder() {
       (days > 3 ? overdue : due).push(line);
     });
     if (!overdue.length && !due.length) return;
+    const waiting = overdue.length + due.length;
+    // Push first; the email is the fallback for people without notifications on.
+    if (typeof pcuNotify_ === 'function' && pcuNotify_(w.email, {
+      title: waiting + (waiting === 1 ? ' guest is' : ' guests are') + ' waiting for your call',
+      body: overdue.length ? overdue.length + ' of them over 3 days. Open the app to call.' : 'Open the app to call them.',
+      tag: 'daily-reminder'
+    })) { sent++; return; }
+    if (!realEmail_(w.email)) return;
     MailApp.sendEmail({
       to: w.email,
       subject: 'PCU reminder: ' + (overdue.length + due.length) + ' guest(s) not called yet',

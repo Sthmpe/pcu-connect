@@ -179,7 +179,13 @@ UI checklist:
 
 ## Notifications
 - Web push through Firebase Cloud Messaging (FCM). Each device's token is saved at users/{email}/tokens/{token}.
-- Apps Script sends pushes with the FCM HTTP v1 API and the service account; the existing email stays as the fallback.
+- Apps Script sends pushes with the FCM HTTP v1 API and the service account (scope firebase.messaging): a new guest
+  assigned (to the worker), the 6pm "guests waiting for your call" reminder (to each worker, when NOTIFY is ON), and a
+  nightly or weekly sheet sync that did not finish (to every HOD). The existing email is the fallback: it goes out only
+  when no device of that person got the push. Tokens FCM reports as gone are deleted.
+- Permission needed: the service account must have the role "Firebase Cloud Messaging API Admin"
+  (roles/firebasecloudmessaging.admin), in addition to Cloud Datastore User. The admin-only API action pushCheck
+  checks it without sending anything (FCM validate_only).
 - In the app: a bell with an unread count and a list stored at users/{email}/notifications.
 - Sound: the app plays its own short chime (assets/sounds/notify.wav, made by tool/sound/make_chime.py) when a
   notification arrives while the app is open. Web push cannot use a custom sound when the app is closed or in the

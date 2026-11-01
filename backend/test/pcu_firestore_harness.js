@@ -79,6 +79,7 @@ function setup(opts = {}) {
   const BASE = 'projects/demo-pcu/databases/(default)/documents/';
   const asDoc = key => ({ name: BASE + key, fields: Object.fromEntries(Object.entries(store[key]).map(([k, v]) => [k, encode(v)])) });
   const reads = { queries: 0, batchGets: 0 };
+  const pushes = [];
   const triggers = [];
   const ctx = {
     console: { log() {}, warn() {}, error: console.error },
@@ -111,7 +112,18 @@ function setup(opts = {}) {
       setProperty: (k, v) => { props[k] = v; },
       deleteProperty: k => { delete props[k]; },
     }) },
-    UrlFetchApp: { fetch: (url, o) => {
+    UrlFetchApp: { fetchAll: reqs => reqs.map(r => ctx.UrlFetchApp.fetch(r.url, r)), fetch: (url, o = {}) => {
+      if (url.includes('/tokens?pageSize')) {
+        const email = decodeURIComponent(url.split('/users/')[1].split('/tokens')[0]);
+        const keys = Object.keys(store).filter(k => k.startsWith(`users/${email}/tokens/`));
+        return { getResponseCode: () => 200, getContentText: () => JSON.stringify(keys.length ? { documents: keys.map(asDoc) } : {}) };
+      }
+      if (url.startsWith('https://fcm.googleapis.com/v1/projects/demo-pcu/messages:send')) {
+        const body = JSON.parse(o.payload);
+        pushes.push(body);
+        if (body.message.token === 'dead-token') return { getResponseCode: () => 404, getContentText: () => '{"error":{"status":"NOT_FOUND","details":[{"errorCode":"UNREGISTERED"}]}}' };
+        return { getResponseCode: () => 200, getContentText: () => '{"name":"projects/demo-pcu/messages/1"}' };
+      }
       if (url === 'https://oauth2.googleapis.com/token') {
         tokenRequests++;
         const ok = o.payload.grant_type === 'urn:ietf:params:oauth:grant-type:jwt-bearer' && o.payload.assertion.split('.').length === 3;
@@ -123,6 +135,7 @@ function setup(opts = {}) {
         if (!authed || writes.length > 500) return { getResponseCode: () => 400, getContentText: () => 'rejected' };
         commits.push(writes.length);
         writes.forEach(w => {
+          if (w.delete) { delete store[w.delete.split('/documents/')[1]]; return; }
           const p = w.update.name.split('/documents/')[1];
           const fields = Object.fromEntries(Object.entries(w.update.fields).map(([k, v]) => [k, decode(v)]));
           store[p] = Object.assign(store[p] || {}, fields);
@@ -130,6 +143,7 @@ function setup(opts = {}) {
         return { getResponseCode: () => 200, getContentText: () => '{}' };
       }
       if (url.endsWith(':runQuery')) {
+        if (ctx.UrlFetchApp.failQueries) return { getResponseCode: () => 503, getContentText: () => 'unavailable' };
         reads.queries++;
         const q = JSON.parse(o.payload).structuredQuery;
         const col = q.from[0].collectionId;
@@ -158,7 +172,7 @@ function setup(opts = {}) {
   const dir = path.join(__dirname, '..');
   vm.runInContext(fs.readFileSync(path.join(dir, 'Api.gs'), 'utf8') + '\n' + fs.readFileSync(path.join(dir, 'Firestore.gs'), 'utf8'), ctx);
   const call = body => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(body) } }).text);
-  return { ctx, sheets, props, store, commits, call, reads, triggers, tokenRequests: () => tokenRequests };
+  return { ctx, sheets, props, store, commits, call, reads, triggers, pushes, tokenRequests: () => tokenRequests };
 }
 
 let fails = 0;
@@ -375,6 +389,38 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
   const { call } = setup({ firestore: false });
   const r = call({ action: 'syncNow', idToken: 'tokAdmin' });
   check('no key: syncNow explains it is not set up', !r.ok && /not set up/.test(r.error), r);
+}
+
+// --- Web push through FCM HTTP v1
+{
+  const { ctx, store, call, pushes } = setup();
+  ctx.pcuMigrate();
+  store['users/david@x.com/tokens/good-token'] = { token: 'good-token', platform: 'web' };
+  store['users/david@x.com/tokens/dead-token'] = { token: 'dead-token', platform: 'web' };
+  const r = ctx.pcuSendPush_('David@X.com ', { title: 'New guest for you', body: 'Ada Obi. Please call within 3 days.', tag: 'guest-G1' });
+  check('push sent to the live device, dead token removed', r.tokens === 2 && r.sent === 1 && r.removed === 1 && !store['users/david@x.com/tokens/dead-token'] && !!store['users/david@x.com/tokens/good-token'], r);
+  const m = pushes.find(p => p.message.token === 'good-token').message;
+  check('push has title, body, icon, badge and an https link to the app', m.notification.title === 'New guest for you' && m.webpush.notification.icon === 'icons/notification-icon-192.png'
+    && m.webpush.notification.badge === 'icons/notification-badge-96.png' && m.webpush.fcm_options.link === 'https://pcu-workflow.web.app/' && m.data.tag === 'guest-G1', m);
+  check('pcuNotify_ is false when a person has no devices (so email is the fallback)', ctx.pcuNotify_('worker.a@x.com', { title: 'x' }) === false);
+  check('pcuNotify_ is true when a device got it', ctx.pcuNotify_('david@x.com', { title: 'x' }) === true);
+
+  const denied = call({ action: 'pushCheck', idToken: 'tokDavid' });
+  check('pushCheck is admin only', !denied.ok && denied.code === 'FORBIDDEN', denied);
+  const ok = call({ action: 'pushCheck', idToken: 'tokAdmin' });
+  const last = pushes[pushes.length - 1];
+  check('pushCheck validates without sending', ok.ok && ok.data.ok === true && last.validate_only === true && last.message.topic === 'pcu-check', [ok, last]);
+
+  // A scheduled sync that fails tells the HOD.
+  store['users/boss@x.com/tokens/boss-phone'] = { token: 'boss-phone', platform: 'web' };
+  const before = pushes.length;
+  ctx.UrlFetchApp.failQueries = true;
+  let threw = false;
+  try { ctx.pcuNightlySync(); } catch (e) { threw = true; }
+  ctx.UrlFetchApp.failQueries = false;
+  const sent = pushes.slice(before);
+  check('a failed nightly sync pushes a notice to the HOD', threw && sent.some(p => p.message.token === 'boss-phone' && /did not finish/.test(p.message.notification.title))
+    && store['meta/sync'].lastResult.ok === false, sent);
 }
 
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');

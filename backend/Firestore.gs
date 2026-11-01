@@ -20,7 +20,8 @@
 
 var PCU_FS = {
   KEY_PROPERTY: 'FIRESTORE_SA_KEY',
-  SCOPE: 'https://www.googleapis.com/auth/datastore',
+  // Firestore, plus Cloud Messaging for web push (Firebase Cloud Messaging API).
+  SCOPE: 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/firebase.messaging',
   TOKEN_URL: 'https://oauth2.googleapis.com/token',
   API: 'https://firestore.googleapis.com/v1',
   BATCH_SIZE: 500,
@@ -84,7 +85,7 @@ function pcuB64_(value) {
 
 function pcuFsToken_() {
   var cache = CacheService.getScriptCache();
-  var cached = cache.get('pcu.fs.token');
+  var cached = cache.get('pcu.fs.token.v2');
   if (cached) return cached;
 
   var key = pcuFsKey_();
@@ -112,7 +113,7 @@ function pcuFsToken_() {
     throw pcuError_('SERVER', 'Firestore sign-in failed (' + res.getResponseCode() + ').');
   }
   var token = JSON.parse(res.getContentText()).access_token;
-  cache.put('pcu.fs.token', token, 3300);
+  cache.put('pcu.fs.token.v2', token, 3300);
   return token;
 }
 
@@ -851,6 +852,14 @@ function pcuSheetSync_(by) {
     } catch (ignored) {
       // The error below is the one that matters.
     }
+    // The HOD hears about a scheduled sync that failed (a button press shows it on screen).
+    if (by === 'nightly' || by === 'weekly') {
+      pcuNotifyAdmins_({
+        title: 'Sheet sync did not finish',
+        body: 'Open the dashboard and tap Sync to sheet.',
+        tag: 'sync-failed'
+      });
+    }
     throw err;
   } finally {
     lock.releaseLock();
@@ -1059,4 +1068,146 @@ function pcuSyncNow_(user) {
     result.triggersAdded = [];
   }
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Web push (Firebase Cloud Messaging HTTP v1)
+// ---------------------------------------------------------------------------
+
+var PCU_PUSH = {
+  API: 'https://fcm.googleapis.com/v1/projects/',
+  ICON: 'icons/notification-icon-192.png',
+  BADGE: 'icons/notification-badge-96.png',
+  DEFAULT_LINK: 'https://pcu-workflow.web.app'
+};
+
+/** The app's address for links in pushes (APP_LINK from pcu_auto_assign.gs when present). */
+function pcuAppLink_() {
+  var link = typeof APP_LINK === 'string' && /^https:\/\//.test(APP_LINK) ? APP_LINK : PCU_PUSH.DEFAULT_LINK;
+  return link.replace(/\/+$/, '');
+}
+
+/** Push tokens saved by the app at users/{email}/tokens. */
+function pcuUserTokens_(email) {
+  var url = PCU_FS.API + '/' + pcuFsDocsBase_() + '/users/' + encodeURIComponent(pcuEmail_(email)) + '/tokens?pageSize=100';
+  var res = UrlFetchApp.fetch(url, {
+    headers: { Authorization: 'Bearer ' + pcuFsToken_() },
+    muteHttpExceptions: true
+  });
+  if (res.getResponseCode() !== 200) return [];
+  return (JSON.parse(res.getContentText()).documents || []).map(function (doc) {
+    return pcuFsDocument_(doc).id;
+  });
+}
+
+/** The FCM HTTP v1 message for one device. */
+function pcuPushMessage_(token, n) {
+  var link = n.link || pcuAppLink_() + '/';
+  var message = {
+    notification: { title: n.title, body: n.body || '' },
+    data: { title: n.title, body: n.body || '', link: link, tag: n.tag || '' },
+    webpush: {
+      notification: { icon: PCU_PUSH.ICON, badge: PCU_PUSH.BADGE },
+      fcm_options: { link: link }
+    }
+  };
+  if (n.tag) message.webpush.notification.tag = n.tag;
+  if (token) message.token = token;
+  return message;
+}
+
+/**
+ * Sends a push to every device of [email]. Tokens FCM says are gone are
+ * deleted. Returns { tokens, sent, removed, error } and never throws.
+ */
+function pcuSendPush_(email, n) {
+  var result = { tokens: 0, sent: 0, removed: 0, error: '' };
+  if (!pcuFsEnabled_() || !email) return result;
+  try {
+    var tokens = pcuUserTokens_(email);
+    result.tokens = tokens.length;
+    if (!tokens.length) return result;
+    var url = PCU_PUSH.API + pcuFsKey_().project_id + '/messages:send';
+    var auth = 'Bearer ' + pcuFsToken_();
+    var responses = UrlFetchApp.fetchAll(
+      tokens.map(function (token) {
+        return {
+          url: url,
+          method: 'post',
+          contentType: 'application/json',
+          headers: { Authorization: auth },
+          payload: JSON.stringify({ message: pcuPushMessage_(token, n) }),
+          muteHttpExceptions: true
+        };
+      })
+    );
+    var gone = [];
+    responses.forEach(function (res, i) {
+      var code = res.getResponseCode();
+      if (code === 200) {
+        result.sent++;
+        return;
+      }
+      var text = res.getContentText();
+      if (code === 404 || /UNREGISTERED|registration token is not a valid/i.test(text)) gone.push(tokens[i]);
+      else result.error = code + ': ' + text.substring(0, 200);
+    });
+    if (gone.length) {
+      pcuFsDeleteDocs_(
+        gone.map(function (t) {
+          return 'users/' + pcuEmail_(email) + '/tokens/' + t;
+        })
+      );
+      result.removed = gone.length;
+    }
+  } catch (err) {
+    result.error = String((err && err.message) || err).substring(0, 200);
+  }
+  if (result.error) console.warn('Push to ' + email + ' failed: ' + result.error);
+  return result;
+}
+
+/** Deletes documents by path (batches of 500). */
+function pcuFsDeleteDocs_(paths) {
+  var base = pcuFsDocsBase_();
+  return pcuFsCommit_(
+    paths.map(function (p) {
+      return { delete: base + '/' + p };
+    })
+  );
+}
+
+/**
+ * Tells a person about something: a push to their devices. Returns true when
+ * at least one device got it, so the caller can fall back to email.
+ */
+function pcuNotify_(email, n) {
+  return pcuSendPush_(email, n).sent > 0;
+}
+
+/** Every active admin, for HOD notices. */
+function pcuNotifyAdmins_(n) {
+  pcuWorkers_().list.forEach(function (w) {
+    if (w.isAdmin && w.active) pcuNotify_(w.email, n);
+  });
+}
+
+/**
+ * Admin only: checks that the service account may send pushes, without
+ * sending anything (FCM validate_only). Returns { ok, status, error }.
+ */
+function pcuPushCheck_(user) {
+  pcuRequireAdmin_(user);
+  if (!pcuFsEnabled_()) throw pcuError_('NOT_READY', 'Notifications are not set up yet.');
+  var message = pcuPushMessage_(null, { title: 'PCU Connect check', body: 'Not sent', tag: 'check' });
+  message.topic = 'pcu-check';
+  var res = UrlFetchApp.fetch(PCU_PUSH.API + pcuFsKey_().project_id + '/messages:send', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + pcuFsToken_() },
+    payload: JSON.stringify({ validate_only: true, message: message }),
+    muteHttpExceptions: true
+  });
+  var code = res.getResponseCode();
+  return { ok: code === 200, status: code, error: code === 200 ? '' : res.getContentText().substring(0, 400) };
 }

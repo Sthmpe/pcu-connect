@@ -157,6 +157,11 @@ function pcuHandlers_() {
     syncNow: function (user) {
       if (typeof pcuSyncNow_ !== 'function') throw pcuError_('NOT_READY', 'Sync to sheet is not set up yet.');
       return pcuSyncNow_(user);
+    },
+    // Firestore.gs: admin only, checks that pushes can be sent (sends nothing).
+    pushCheck: function (user) {
+      if (typeof pcuPushCheck_ !== 'function') throw pcuError_('NOT_READY', 'Notifications are not set up yet.');
+      return pcuPushCheck_(user);
     }
   };
 }
