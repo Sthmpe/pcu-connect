@@ -458,6 +458,35 @@ function pcuSyncUsers_() {
   );
 }
 
+/**
+ * Copies the Workers tab to users only when it changed since the last copy
+ * (fingerprint in the USERS_KEY Script Property). Never fails the caller.
+ * Returns the documents written.
+ */
+function pcuSyncUsersIfChanged_() {
+  try {
+    var workers = pcuWorkers_();
+    var key = pcuHex_(
+      Utilities.computeDigest(
+        Utilities.DigestAlgorithm.SHA_256,
+        JSON.stringify(
+          workers.list.map(function (w) {
+            return pcuUserDoc_(w);
+          })
+        )
+      )
+    ).substring(0, 16);
+    var props = PropertiesService.getScriptProperties();
+    if (props.getProperty('USERS_KEY') === key) return 0;
+    var written = pcuSyncUsers_();
+    props.setProperty('USERS_KEY', key);
+    return written;
+  } catch (err) {
+    console.warn('Could not send workers to Firestore: ' + (err && err.message));
+    return 0;
+  }
+}
+
 /** Trims and lowercases every email in the Workers tab. Returns rows changed. */
 function pcuNormaliseWorkerEmails_() {
   var t = pcuTable_(PCU.SHEETS.WORKERS, true);
@@ -614,6 +643,8 @@ function pcuPushPendingGuests() {
   // Every scheduled run checks that auto-assign is still on (pcu_auto_assign.gs).
   if (typeof ensureAssignTriggersQuietly_ === 'function') ensureAssignTriggersQuietly_();
   if (!pcuFsEnabled_()) return { skipped: 'not set up' };
+  // Workers added in the Workers tab or from the PCU menu reach the app within 5 minutes.
+  pcuSyncUsersIfChanged_();
   return pcuWithLock_(function () {
     pcuEnsureGuestIds_();
     var guests = pcuGuestRows_(true);

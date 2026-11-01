@@ -676,5 +676,26 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
   check('real guests stay', !!store['guests/G1'] || rows.some(x => x[20] === 'G1'));
 }
 
+// --- Workers added in the sheet reach Firestore users within 5 minutes
+{
+  const { ctx, sheets, store, call, commits, props } = setup();
+  ctx.pcuPushPendingGuests();
+  check('the 5-minute job copies the Workers tab to users', store['users/david@x.com'] && store['users/david@x.com'].role === 'worker');
+  sheets.Workers.rows.push(['W006', 'Roi Deals', ' RoiDealsInc@gmail.com ', '', 'Worker', 'Yes']);
+  ctx.pcuTable_('Workers', true);
+  ctx.pcuPushPendingGuests();
+  const u = store['users/roidealsinc@gmail.com'];
+  check('a worker typed into the Workers tab arrives with a clean email, the right role and active flag', u && u.role === 'worker' && u.active === true && u.id === 'W006' && u.email === 'roidealsinc@gmail.com', u);
+  check('nothing is written again while the Workers tab is unchanged', props.USERS_KEY && ctx.pcuSyncUsersIfChanged_() === 0);
+  sheets.Workers.rows[sheets.Workers.rows.length - 1][5] = 'No';
+  ctx.pcuTable_('Workers', true);
+  ctx.pcuPushPendingGuests();
+  check('switching a worker off in the sheet reaches the app', store['users/roidealsinc@gmail.com'].active === false);
+  const added = call({ action: 'saveWorker', idToken: 'tokAdmin', name: 'App Added', email: 'app.added@x.com', phone: '0800', role: 'Worker' });
+  const again = call({ action: 'saveWorker', idToken: 'tokAdmin', name: 'App Added', email: 'App.Added@x.com ', phone: '0800', role: 'Worker' });
+  check('a worker added in the app is one row, and adding the same email again is refused', added.ok && !again.ok && again.code === 'VALIDATION'
+    && sheets.Workers.rows.filter(r => String(r[2]).trim().toLowerCase() === 'app.added@x.com').length === 1 && store['users/app.added@x.com'], [added, again]);
+}
+
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
 process.exitCode = fails ? 1 : 0;
