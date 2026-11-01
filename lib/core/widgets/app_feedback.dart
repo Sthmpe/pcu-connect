@@ -117,13 +117,16 @@ abstract class AppFeedback {
 
   /// Shown after a follow-up is saved.
   /// [creditedTo] is set when an admin logged it for a worker.
+  /// [pendingSync] is set when it was saved offline and will sync later.
   static Future<void> pointsEarned({
     required int points,
     required String guestName,
     String? creditedTo,
+    bool pendingSync = false,
   }) {
     return Get.dialog<void>(
-      _PointsDialog(points: points, guestName: guestName, creditedTo: creditedTo),
+      _PointsDialog(
+          points: points, guestName: guestName, creditedTo: creditedTo, pendingSync: pendingSync),
       barrierColor: AppColors.scrim,
     );
   }
@@ -172,8 +175,14 @@ class _PointsDialog extends StatelessWidget {
   final int points;
   final String guestName;
   final String? creditedTo;
+  final bool pendingSync;
 
-  const _PointsDialog({required this.points, required this.guestName, this.creditedTo});
+  const _PointsDialog({
+    required this.points,
+    required this.guestName,
+    this.creditedTo,
+    this.pendingSync = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -218,6 +227,23 @@ class _PointsDialog extends StatelessWidget {
               style: AppTextStyles.bodyMuted,
               textAlign: TextAlign.center,
             ),
+            if (pendingSync) ...[
+              SizedBox(height: AppSizes.s8 + AppSizes.s4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(AppIcons.offline, size: AppSizes.iconSm, color: AppColors.inkSoft),
+                  SizedBox(width: AppSizes.s8),
+                  Flexible(
+                    child: Text(
+                      'Saved on this phone. It will sync when you are back online.',
+                      style: AppTextStyles.caption,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+            ],
             SizedBox(height: AppSizes.s24),
             AppButton(label: 'Done', onPressed: () => Get.back()),
           ],

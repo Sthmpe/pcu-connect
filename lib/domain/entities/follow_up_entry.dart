@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
-/// One saved follow-up, from the `history` of the Apps Script `guest` action.
+/// One saved follow-up, from the `history` of the Apps Script `guest` action
+/// or from the followUps collection in Firestore.
 class FollowUpEntry extends Equatable {
   final String id;
   final String date; // yyyy-MM-dd
@@ -15,6 +16,9 @@ class FollowUpEntry extends Equatable {
   /// True when an admin saved it on behalf of the assigned worker.
   final bool loggedByAdmin;
 
+  /// Saved on this device but not yet received by the server.
+  final bool pendingSync;
+
   const FollowUpEntry({
     required this.id,
     required this.date,
@@ -26,6 +30,7 @@ class FollowUpEntry extends Equatable {
     required this.workerName,
     required this.loggedByName,
     required this.loggedByAdmin,
+    this.pendingSync = false,
   });
 
   factory FollowUpEntry.fromJson(Map<String, dynamic> json) => FollowUpEntry(
@@ -44,6 +49,6 @@ class FollowUpEntry extends Equatable {
   @override
   List<Object?> get props => [
         id, date, outcome, note, attendedSunday, attendedWednesday, team,
-        workerName, loggedByName, loggedByAdmin,
+        workerName, loggedByName, loggedByAdmin, pendingSync,
       ];
 }

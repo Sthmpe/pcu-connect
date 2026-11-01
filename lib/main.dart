@@ -43,8 +43,12 @@ void main() async {
   );
 
   final apiClient = ApiClient(baseUrl: appsScriptUrl);
-  // Phase 1 switch (--dart-define=DATA_SOURCE=firestore): roles and guests
-  // come from Firestore, saving stays on the Apps Script API.
+  // Firestore switch (--dart-define=DATA_SOURCE=firestore): roles and guests
+  // come from Firestore and follow-ups are saved there. The device keeps a
+  // copy, so saves made offline survive a reload and sync when back online.
+  if (AppConfig.useFirestore) {
+    FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
+  }
   final profileSource = AppConfig.useFirestore
       ? FirestoreProfileSource(db: FirebaseFirestore.instance, auth: FirebaseAuth.instance)
       : null;
@@ -65,7 +69,6 @@ void main() async {
           ? FirestoreGuestRepository(
               db: FirebaseFirestore.instance,
               authRepository: authRepository,
-              writer: apiGuests,
             )
           : apiGuests;
   final ITeamRepository teamRepository = AppConfig.useSampleData

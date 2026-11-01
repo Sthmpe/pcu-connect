@@ -12,10 +12,10 @@ class AppConfig {
   /// the sample repositories are compiled out of it.
   static const bool useSampleData = bool.fromEnvironment('USE_SAMPLE_DATA');
 
-  /// Where guests are read from: 'api' (Apps Script, the default) or
-  /// 'firestore' (phase 1, --dart-define=DATA_SOURCE=firestore). Saving still
-  /// goes through the Apps Script API in both modes during phase 1, so the app
-  /// keeps working if Firestore is not ready.
+  /// Where guests are read and follow-ups saved: 'api' (Apps Script, the
+  /// default) or 'firestore' (--dart-define=DATA_SOURCE=firestore). In
+  /// Firestore mode follow-ups are saved straight to Firestore (phase 2) and
+  /// reach the sheet with the nightly sync or the HOD's "Sync to sheet".
   static const String dataSource = String.fromEnvironment('DATA_SOURCE', defaultValue: 'api');
 
   static bool get useFirestore => dataSource == 'firestore' && !useSampleData;

@@ -109,13 +109,14 @@ class _LogFollowUpScreenState extends State<LogFollowUpScreen> {
 
     if (result.isSuccess) {
       final points = (result.data?['pointsEarned'] as num?)?.toInt() ?? 0;
+      final pendingSync = result.data?['pendingSync'] == true;
       context.read<GuestsBloc>().add(const LoadGuestsEvent());
       if (ranking.state.data != null) ranking.load();
       if (dashboard.state.data != null) dashboard.load();
       if (team.state.data != null) team.load();
       Navigator.pop(context);
       AppFeedback.pointsEarned(
-          points: points, guestName: guestName, creditedTo: creditedTo);
+          points: points, guestName: guestName, creditedTo: creditedTo, pendingSync: pendingSync);
     } else {
       AppFeedback.error('Not saved', result.failure?.message ?? 'Please try again.');
     }

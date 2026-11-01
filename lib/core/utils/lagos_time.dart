@@ -25,6 +25,15 @@ abstract class LagosTime {
         .inDays;
   }
 
+  /// True when the Lagos day 'yyyy-MM-dd' is a Wednesday.
+  static bool isWednesday(String day) {
+    final d = DateTime.tryParse(day);
+    return d != null && DateTime.utc(d.year, d.month, d.day).weekday == DateTime.wednesday;
+  }
+
+  /// 'yyyy-MM-dd' of a date picked on the device (its calendar day, not an instant).
+  static String pickedDay(DateTime picked) => _ymd(picked);
+
   static String _ymd(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }

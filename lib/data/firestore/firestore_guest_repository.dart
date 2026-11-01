@@ -1,26 +1,34 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../../core/errors/failures.dart';
 import '../../core/network/api_result.dart';
+import '../../core/utils/lagos_time.dart';
 import '../../domain/entities/guest_entity.dart';
+import '../../domain/follow_up_rules.dart';
 import '../../domain/repositories/i_auth_repository.dart';
 import '../../domain/repositories/i_guest_repository.dart';
 import 'firestore_mappers.dart';
 
-/// Phase 1: guests are read from Firestore (live), while follow-ups are still
-/// saved through the Apps Script API ([writer]), which sends the change on to
-/// Firestore. Workers only ever query their own guests, as the rules require.
+/// Guests are read from Firestore (live) and, from phase 2, follow-ups are
+/// saved straight to Firestore as one batch: the follow-up plus the guest's
+/// work fields. A batch is queued on the device while offline and sent when
+/// it reconnects. Workers only ever query their own guests, as the rules require.
 class FirestoreGuestRepository implements IGuestRepository {
   final FirebaseFirestore _db;
   final IAuthRepository _auth;
-  final IGuestRepository _writer;
+
+  /// How long a save waits for the server before it counts as "saved on this
+  /// phone" (it is still sent once the device is back online).
+  final Duration confirmWait;
 
   FirestoreGuestRepository({
     required FirebaseFirestore db,
     required IAuthRepository authRepository,
-    required IGuestRepository writer,
+    this.confirmWait = const Duration(seconds: 4),
   })  : _db = db,
-        _auth = authRepository,
-        _writer = writer;
+        _auth = authRepository;
 
   String get _email => (_auth.currentUser?.email ?? '').trim().toLowerCase();
 
@@ -88,8 +96,17 @@ class FirestoreGuestRepository implements IGuestRepository {
           data['assignedTo'].toString(): (data['assignedName'] ?? '').toString(),
         if (_auth.currentUser != null) _email: _auth.currentUser!.name,
       };
-      final history = snap.docs
-          .map((d) => FirestoreMappers.followUp(d.id, d.data(), workerNames: names))
+      // Saves still waiting for the server have no createdAt yet; show them first.
+      final docs = snap.docs.toList()
+        ..sort((a, b) {
+          final ta = a.data()['createdAt'];
+          final tb = b.data()['createdAt'];
+          if (ta == null || tb == null) return ta == null ? (tb == null ? 0 : -1) : 1;
+          return (tb as Timestamp).compareTo(ta as Timestamp);
+        });
+      final history = docs
+          .map((d) => FirestoreMappers.followUp(d.id, d.data(),
+              workerNames: names, pendingSync: d.metadata.hasPendingWrites))
           .toList();
 
       return ApiResult.success(GuestEntity(
@@ -114,7 +131,12 @@ class FirestoreGuestRepository implements IGuestRepository {
     }
   }
 
-  /// Phase 1 saves through the Apps Script API.
+  /// Saves a follow-up as one batch: followUps/{new id} plus the guest's work
+  /// fields, with points from [FollowUpRules]. An admin saves on behalf of the
+  /// assigned worker: the worker gets the credit, loggedBy is the admin, and
+  /// the guest stays assigned. Returns pointsEarned, and pendingSync when the
+  /// server has not confirmed yet (offline): the save is kept on the device
+  /// and sent later.
   @override
   Future<ApiResult<Map<String, dynamic>>> logFollowUp({
     required String guestId,
@@ -125,15 +147,108 @@ class FirestoreGuestRepository implements IGuestRepository {
     required bool attendedWednesday,
     DateTime? wednesdayDate,
     required String team,
-  }) =>
-      _writer.logFollowUp(
-        guestId: guestId,
-        outcome: outcome,
-        note: note,
-        attendedSunday: attendedSunday,
-        sundayDate: sundayDate,
-        attendedWednesday: attendedWednesday,
-        wednesdayDate: wednesdayDate,
-        team: team,
-      );
+  }) async {
+    final today = LagosTime.today();
+    final input = FollowUpInput(
+      outcome: outcome,
+      note: note,
+      attendedSunday: attendedSunday,
+      sundayDate: attendedSunday && sundayDate != null ? LagosTime.pickedDay(sundayDate) : '',
+      attendedWednesday: attendedWednesday,
+      wednesdayDate: attendedWednesday && wednesdayDate != null ? LagosTime.pickedDay(wednesdayDate) : '',
+      team: team,
+    );
+    final invalid = FollowUpRules.validate(input, today: today);
+    if (invalid != null) return ApiResult.failure(ValidationFailure(invalid));
+
+    try {
+      final guestRef = _db.collection('guests').doc(guestId);
+      final data = (await _readGuest(guestRef)).data();
+      if (data == null) {
+        return const ApiResult.failure(ServerFailure('We could not find this guest.'));
+      }
+      final worker = (data['assignedTo'] ?? '').toString().trim().toLowerCase();
+      if (worker.isEmpty) {
+        return const ApiResult.failure(
+            ValidationFailure('Assign this guest to a worker before logging a follow-up.'));
+      }
+      if (!_isAdmin && worker != _email) {
+        return const ApiResult.failure(
+            AuthFailure('This guest is assigned to someone else.', 'FORBIDDEN'));
+      }
+
+      final result = FollowUpRules.apply(FirestoreMappers.workState(data), input, today: today);
+      final followUpRef = _db.collection('followUps').doc();
+      final batch = _db.batch()
+        ..set(followUpRef, {
+          'guestId': guestId,
+          'worker': worker,
+          'loggedBy': _email,
+          'callDate': today,
+          'month': today.substring(0, 7),
+          'outcome': outcome,
+          'note': note,
+          'attendedSunday': input.attendedSunday,
+          'sundayDate': input.sundayDate,
+          'attendedWednesday': input.attendedWednesday,
+          'wednesdayDate': input.wednesdayDate,
+          'team': team,
+          'points': result.points,
+          'syncedToSheet': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        })
+        ..update(guestRef, {
+          'callStatus': outcome,
+          'membershipStatus': result.status,
+          'followUpCount': FieldValue.increment(1),
+          if (result.isFirstCall) 'firstCallAt': FieldValue.serverTimestamp(),
+          if (note.isNotEmpty) 'lastFeedback': note,
+          if (note.isNotEmpty) 'lastFeedbackDate': FieldValue.serverTimestamp(),
+          'teamJoined': result.teamJoined,
+          if (result.becameMember && data['memberSince'] == null) 'memberSince': FieldValue.serverTimestamp(),
+          'sundayDates': result.sundayDates,
+          'wednesdayDates': result.wednesdayDates,
+          'lastFollowUpId': followUpRef.id,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+      // The batch is applied on the device straight away. Offline, the server
+      // answer never comes in time, so the save waits on the device to sync.
+      final commit = batch.commit();
+      var pendingSync = false;
+      try {
+        await commit.timeout(confirmWait);
+      } on TimeoutException {
+        pendingSync = true;
+        unawaited(commit.catchError((Object e) => debugPrint('Follow-up $guestId not synced: $e')));
+      }
+      return ApiResult.success({
+        'pointsEarned': result.points,
+        'pendingSync': pendingSync,
+        'status': result.status,
+        'followUpId': followUpRef.id,
+      });
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        return const ApiResult.failure(
+            AuthFailure('You cannot log a follow-up for this guest.', 'FORBIDDEN'));
+      }
+      return ApiResult.failure(_failure(e));
+    } catch (e) {
+      return const ApiResult.failure(ServerFailure('We could not save this follow-up. Try again.'));
+    }
+  }
+
+  /// The guest from the device cache when it is there (works offline),
+  /// otherwise from the server.
+  Future<DocumentSnapshot<Map<String, dynamic>>> _readGuest(
+      DocumentReference<Map<String, dynamic>> ref) async {
+    try {
+      final cached = await ref.get(const GetOptions(source: Source.cache));
+      if (cached.exists) return cached;
+    } catch (_) {
+      // Not cached yet.
+    }
+    return ref.get();
+  }
 }

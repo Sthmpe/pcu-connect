@@ -463,6 +463,27 @@ class _HistoryCard extends StatelessWidget {
                                         .copyWith(color: AppColors.navy)),
                               ),
                             ),
+                          if (e.pendingSync)
+                            Tooltip(
+                              message: 'Saved on this phone. It will sync when you are back online.',
+                              child: Container(
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: AppSizes.s8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.sunken,
+                                  borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(AppIcons.offline, size: 12, color: AppColors.inkSoft),
+                                    SizedBox(width: AppSizes.s4),
+                                    Text('Waiting to sync',
+                                        style: AppTextStyles.centered(AppTextStyles.caption)),
+                                  ],
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                       if (e.note.isNotEmpty) ...[

@@ -3,6 +3,7 @@ import '../../core/utils/lagos_time.dart';
 import '../../domain/entities/follow_up_entry.dart';
 import '../../domain/entities/guest_entity.dart';
 import '../../domain/entities/worker_user.dart';
+import '../../domain/follow_up_rules.dart';
 
 /// Converts Firestore documents (docs/BACKEND_PLAN.md data model) into the
 /// app's entities. Pure functions: timestamps arrive as DateTime, so they can
@@ -61,7 +62,7 @@ abstract class FirestoreMappers {
   /// A follow-up as shown in the guest history. [workerNames] maps emails to
   /// names when known (the guest's assigned worker at least).
   static FollowUpEntry followUp(String id, Map<String, dynamic> d,
-      {Map<String, String> workerNames = const {}}) {
+      {Map<String, String> workerNames = const {}, bool pendingSync = false}) {
     final worker = _str(d['worker']);
     final loggedBy = _str(d['loggedBy']).isEmpty ? worker : _str(d['loggedBy']);
     return FollowUpEntry(
@@ -75,8 +76,21 @@ abstract class FirestoreMappers {
       workerName: workerNames[worker] ?? worker,
       loggedByName: workerNames[loggedBy] ?? '',
       loggedByAdmin: loggedBy != worker,
+      pendingSync: pendingSync,
     );
   }
+
+  /// The guest's work fields as the follow-up rules need them.
+  static GuestWorkState workState(Map<String, dynamic> d) => GuestWorkState(
+        serviceDate: _str(d['serviceDate']),
+        status: _str(d['membershipStatus']),
+        followUpCount: _int(d['followUpCount']),
+        hasFollowUps: d['firstCallAt'] != null,
+        teamJoined: _str(d['teamJoined']),
+        sundayDates: _days(d['sundayDates']),
+        wednesdayDates: _days(d['wednesdayDates']),
+        hasMemberSince: d['memberSince'] != null,
+      );
 
   static WorkerUser user(String email, Map<String, dynamic> d) => WorkerUser(
         id: email,
