@@ -78,6 +78,11 @@ class AdminDashboardTab extends StatelessWidget {
           // Only when the sheet is a day or more behind; otherwise nothing.
           if (AppConfig.useFirestore) const SheetBehindBanner(),
           const PushPromptCard(reason: 'when guests come in and when the sheet sync needs you'),
+          if (data.guests == 0 && MonthUtils.isCurrent(data.month))
+            EmptyMonthCard(
+              month: data.month,
+              onPrevious: () => context.read<DashboardCubit>().load(MonthUtils.previous(data.month)),
+            ),
           _CalledHero(data: data, onSeeWaiting: () => onOpenGuests('call')),
           SizedBox(height: AppSizes.s16),
           StatGrid(items: [
@@ -164,6 +169,33 @@ class SheetBehindBanner extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Early in a month: "No guests yet in November" with last month one tap away.
+class EmptyMonthCard extends StatelessWidget {
+  final String month;
+  final VoidCallback onPrevious;
+
+  const EmptyMonthCard({super.key, required this.month, required this.onPrevious});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: AppSizes.s16),
+      child: AppCard(
+        child: Row(
+          children: [
+            Expanded(child: Text('No guests yet in ${MonthUtils.name(month)}.', style: AppTextStyles.bodyMuted)),
+            TextButton(
+              onPressed: onPrevious,
+              child: Text('See ${MonthUtils.name(MonthUtils.previous(month))}',
+                  style: AppTextStyles.captionStrong.copyWith(color: AppColors.navy)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -84,6 +84,15 @@ class _RankingTabState extends State<RankingTab> {
     final isPast = !MonthUtils.isCurrent(state.month);
     final monthName = MonthUtils.name(state.month);
 
+    final anyPoints0 = ranking.entries.isNotEmpty && ranking.entries.first.points > 0;
+    // Early in a month the board is empty: offer last month instead of a blank page.
+    if (!isPast && !anyPoints0) {
+      return NoPointsYet(
+        previousMonth: MonthUtils.previous(state.month),
+        onPrevious: () => context.read<RankingCubit>().load(MonthUtils.previous(state.month)),
+      );
+    }
+
     if (ranking.entries.isEmpty) {
       return Center(
         child: EmptyState(
@@ -352,6 +361,26 @@ class _Movement extends StatelessWidget {
             Text('${p.abs()}', style: AppTextStyles.caption.copyWith(color: color)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// "No points yet this month" with a button to last month's board.
+class NoPointsYet extends StatelessWidget {
+  final String previousMonth;
+  final VoidCallback onPrevious;
+
+  const NoPointsYet({super.key, required this.previousMonth, required this.onPrevious});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: EmptyState(
+        icon: AppIcons.ranking,
+        message: 'No points yet this month. The first follow-up starts the board.',
+        actionLabel: 'See ${MonthUtils.name(previousMonth)}',
+        onAction: onPrevious,
       ),
     );
   }

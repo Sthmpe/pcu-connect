@@ -131,7 +131,15 @@ class _AdminGuestsTabState extends State<AdminGuestsTab> {
     return PageList(
       children: [
         if (state.fromCacheIn([filter.month])) OfflineBanner(isRefreshing: state.refreshingIn([filter.month])),
-        if (list.isEmpty)
+        if (list.isEmpty && _query.isEmpty && filter.chip == 'all' && MonthUtils.isCurrent(filter.month))
+          // Early in a month: say so, and offer last month in one tap.
+          EmptyState(
+            icon: AppIcons.empty,
+            message: 'No guests yet in ${MonthUtils.name(filter.month)}.',
+            actionLabel: 'See ${MonthUtils.name(MonthUtils.previous(filter.month))}',
+            onAction: () => context.read<GuestsFilterCubit>().selectMonth(MonthUtils.previous(filter.month)),
+          )
+        else if (list.isEmpty)
           EmptyState(
             icon: AppIcons.search,
             message: _query.isNotEmpty
