@@ -30,6 +30,8 @@ dependencies:
   firebase_auth: ^7.0.1
   lucide_icons_flutter: ^4.0.1
   cloud_firestore: ^7.1.0
+  # Browser APIs for the notification sound and web push (lib/core/web).
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:
@@ -42,6 +44,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/sounds/
   # Rubik (SIL Open Font License, assets/fonts/OFL.txt), bundled so the app
   # never fetches fonts from Google at startup. Build with tool/build_web.sh.
   fonts:
