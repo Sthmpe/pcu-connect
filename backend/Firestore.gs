@@ -1038,8 +1038,9 @@ function pcuAddDays_(day, n) {
 }
 
 /**
- * Makes sure the nightly (00:05) and weekly (Monday 01:00) Africa/Lagos
- * triggers exist, adding only the missing ones. Called by syncNow, so the
+ * Makes sure the nightly sync (00:05), nightly leaderboard rebuild (00:35)
+ * and weekly (Monday 01:00) Africa/Lagos triggers exist, adding only the
+ * missing ones. Called by syncNow, so the
  * first "Sync to sheet" sets them up. Returns the handlers it added.
  */
 function pcuEnsureSyncTriggers_() {
@@ -1051,6 +1052,11 @@ function pcuEnsureSyncTriggers_() {
   if (!have.pcuNightlySync) {
     ScriptApp.newTrigger('pcuNightlySync').timeBased().everyDays(1).atHour(0).nearMinute(5).inTimezone(PCU.TZ).create();
     added.push('pcuNightlySync');
+  }
+  if (!have.pcuNightlyRecalc) {
+    // Half an hour after the sync, so the leaderboard is rebuilt from the day's saves.
+    ScriptApp.newTrigger('pcuNightlyRecalc').timeBased().everyDays(1).atHour(0).nearMinute(35).inTimezone(PCU.TZ).create();
+    added.push('pcuNightlyRecalc');
   }
   if (!have.pcuWeeklySync) {
     ScriptApp.newTrigger('pcuWeeklySync').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(1).inTimezone(PCU.TZ).create();
@@ -1235,4 +1241,163 @@ function pcuPushCheck_(user) {
   });
   var code = res.getResponseCode();
   return { ok: code === 200, status: code, error: code === 200 ? '' : res.getContentText().substring(0, 400) };
+}
+
+// ---------------------------------------------------------------------------
+// Nightly recalculation of points and the leaderboard (phase 3)
+// ---------------------------------------------------------------------------
+
+var PCU_RECALC = { MONTHS: 2 };
+
+/**
+ * Nightly at 00:35 Africa/Lagos, after the sheet sync: rebuilds the
+ * leaderboard (rankings/{month}/entries) for this month and last month from
+ * followUps and guests with the same rules as the API (pcuPoints_), which
+ * corrects any drift from saves made offline or at the same time. Every
+ * active worker gets an entry (0 included); admins and paused workers never
+ * do. Safe to run any number of times.
+ */
+function pcuNightlyRecalc() {
+  if (!pcuFsEnabled_()) return { skipped: 'not set up' };
+  return pcuWithLock_(function () {
+    return pcuRecalcRankings_(new Date());
+  });
+}
+
+function pcuRecalcRankings_(now) {
+  var months = [pcuMonth_(now)];
+  while (months.length < PCU_RECALC.MONTHS) {
+    var p = months[months.length - 1].split('-');
+    var y = +p[0];
+    var m = +p[1] - 1;
+    if (m < 1) {
+      m = 12;
+      y--;
+    }
+    months.push(y + '-' + pcuPad2_(m));
+  }
+
+  // Every follow-up, grouped by guest, oldest first, in the API's shape.
+  var byGuest = {};
+  pcuFsQueryAll_('followUps').forEach(function (doc) {
+    var f = doc.data;
+    var guestId = pcuStr_(f.guestId);
+    if (!guestId) return;
+    (byGuest[guestId] = byGuest[guestId] || []).push({
+      id: doc.id,
+      guestId: guestId,
+      workerEmail: pcuEmail_(f.worker),
+      date: f.createdAt instanceof Date ? f.createdAt : pcuDate_(f.callDate),
+      sunday: f.attendedSunday === true,
+      wednesday: f.attendedWednesday === true,
+      team: pcuStr_(f.team)
+    });
+  });
+  Object.keys(byGuest).forEach(function (id) {
+    byGuest[id].sort(function (a, b) {
+      return (a.date ? a.date.getTime() : 0) - (b.date ? b.date.getTime() : 0);
+    });
+  });
+
+  // Guests with a follow-up in these months, and every member.
+  var want = {};
+  Object.keys(byGuest).forEach(function (id) {
+    if (byGuest[id].some(function (f) {
+      return f.date && months.indexOf(pcuMonth_(f.date)) >= 0;
+    })) want['guests/' + id] = true;
+  });
+  var docs = pcuFsGetDocs_(Object.keys(want));
+  pcuFsQueryEqual_('guests', 'membershipStatus', PCU.STATUS.MEMBER).forEach(function (doc) {
+    docs['guests/' + doc.id] = doc.data;
+  });
+  var guests = {
+    list: Object.keys(docs).map(function (path) {
+      var g = docs[path];
+      return {
+        id: path.substring('guests/'.length),
+        serviceDay: pcuStr_(g.serviceDate),
+        status: pcuStr_(g.membershipStatus),
+        membershipDate: g.memberSince instanceof Date ? g.memberSince : null,
+        assignedTo: pcuEmail_(g.assignedTo)
+      };
+    })
+  };
+
+  var workers = pcuWorkers_().list.filter(function (w) {
+    return w.active && !w.isAdmin;
+  });
+  var result = { months: months, workers: workers.length, corrected: 0, removed: 0 };
+  var writes = [];
+  months.forEach(function (month) {
+    var points = pcuPoints_(month, guests, { byGuest: byGuest });
+    var existing = {};
+    pcuFsList_('rankings/' + month + '/entries').forEach(function (doc) {
+      existing[doc.id] = doc.data;
+    });
+    var keep = {};
+    workers.forEach(function (w) {
+      var email = pcuEmail_(w.email);
+      var value = (points[email] && points[email].points) || 0;
+      keep[email] = true;
+      var old = existing[email];
+      if (old && old.points === value && old.name === w.name) return;
+      if (old) result.corrected++;
+      // Only fields the security rules allow, so later saves from the app still pass.
+      writes.push(pcuFsSet_('rankings/' + month + '/entries/' + email, {
+        email: email,
+        name: w.name,
+        points: value,
+        updatedAt: now
+      }));
+    });
+    Object.keys(existing).forEach(function (email) {
+      if (keep[email]) return;
+      writes.push({ delete: pcuFsDocsBase_() + '/rankings/' + month + '/entries/' + email });
+      result.removed++;
+    });
+  });
+  result.written = pcuFsCommit_(writes);
+  console.log('Leaderboard recalculated: ' + JSON.stringify(result));
+  return result;
+}
+
+/** Every document of a collection, read in pages of 500. */
+function pcuFsQueryAll_(collection) {
+  var docs = [];
+  var last = null;
+  for (;;) {
+    var query = {
+      from: [{ collectionId: collection }],
+      orderBy: [{ field: { fieldPath: '__name__' }, direction: 'ASCENDING' }],
+      limit: PCU_SYNC.PAGE
+    };
+    if (last) query.startAt = { values: [{ referenceValue: last }], before: false };
+    var page = pcuFsPost_(':runQuery', { structuredQuery: query }).filter(function (r) {
+      return !!r.document;
+    });
+    page.forEach(function (r) {
+      docs.push(pcuFsDocument_(r.document));
+    });
+    if (page.length < PCU_SYNC.PAGE) return docs;
+    last = page[page.length - 1].document.name;
+  }
+}
+
+/** The documents of one (sub)collection path, for example 'rankings/2026-11/entries'. */
+function pcuFsList_(path) {
+  var docs = [];
+  var pageToken = '';
+  do {
+    var url = PCU_FS.API + '/' + pcuFsDocsBase_() + '/' + path + '?pageSize=300' + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : '');
+    var res = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + pcuFsToken_() }, muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) {
+      throw pcuError_('SERVER', 'Firestore read failed (' + res.getResponseCode() + '): ' + res.getContentText().substring(0, 200));
+    }
+    var body = JSON.parse(res.getContentText());
+    (body.documents || []).forEach(function (doc) {
+      docs.push(pcuFsDocument_(doc));
+    });
+    pageToken = body.nextPageToken || '';
+  } while (pageToken);
+  return docs;
 }

@@ -113,9 +113,10 @@ function setup(opts = {}) {
       deleteProperty: k => { delete props[k]; },
     }) },
     UrlFetchApp: { fetchAll: reqs => reqs.map(r => ctx.UrlFetchApp.fetch(r.url, r)), fetch: (url, o = {}) => {
-      if (url.includes('/tokens?pageSize')) {
-        const email = decodeURIComponent(url.split('/users/')[1].split('/tokens')[0]);
-        const keys = Object.keys(store).filter(k => k.startsWith(`users/${email}/tokens/`));
+      if (url.includes('?pageSize')) {
+        const path = decodeURIComponent(url.split('/documents/')[1].split('?')[0]);
+        const depth = path.split('/').length + 1;
+        const keys = Object.keys(store).filter(k => k.startsWith(path + '/') && k.split('/').length === depth);
         return { getResponseCode: () => 200, getContentText: () => JSON.stringify(keys.length ? { documents: keys.map(asDoc) } : {}) };
       }
       if (url.startsWith('https://fcm.googleapis.com/v1/projects/demo-pcu/messages:send')) {
@@ -147,9 +148,9 @@ function setup(opts = {}) {
         reads.queries++;
         const q = JSON.parse(o.payload).structuredQuery;
         const col = q.from[0].collectionId;
-        const f = q.where.fieldFilter;
-        const want = decode(f.value);
-        let keys = Object.keys(store).filter(k => k.startsWith(col + '/') && k.split('/').length === 2 && store[k][f.field.fieldPath] === want).sort();
+        const f = q.where && q.where.fieldFilter;
+        const want = f ? decode(f.value) : undefined;
+        let keys = Object.keys(store).filter(k => k.startsWith(col + '/') && k.split('/').length === 2 && (!f || store[k][f.field.fieldPath] === want)).sort();
         if (q.startAt) keys = keys.filter(k => BASE + k > q.startAt.values[0].referenceValue);
         keys = keys.slice(0, q.limit);
         const out = keys.map(k => ({ document: asDoc(k), readTime: 'now' }));
@@ -331,7 +332,8 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
   check('follow-ups marked as synced in Firestore', ['app1', 'app2', 'app3'].every(id => store['followUps/' + id].syncedToSheet === true));
   check('meta/sync records the run', store['meta/sync'].running === false && store['meta/sync'].lastSheetSyncAt instanceof Date
     && store['meta/sync'].lastResult.ok === true && store['meta/sync'].lastResult.followUps === 3, store['meta/sync']);
-  check('first syncNow sets up the nightly and weekly triggers', JSON.stringify(r.data.triggersAdded) === '["pcuNightlySync","pcuWeeklySync"]'
+  check('first syncNow sets up the nightly sync, nightly recalc and weekly triggers', JSON.stringify(r.data.triggersAdded) === '["pcuNightlySync","pcuNightlyRecalc","pcuWeeklySync"]'
+    && triggers.find(t => t.fn === 'pcuNightlyRecalc').hour === 0 && triggers.find(t => t.fn === 'pcuNightlyRecalc').minute === 35
     && triggers.find(t => t.fn === 'pcuNightlySync').hour === 0 && triggers.find(t => t.fn === 'pcuNightlySync').minute === 5
     && triggers.find(t => t.fn === 'pcuNightlySync').tz === 'Africa/Lagos' && triggers.find(t => t.fn === 'pcuWeeklySync').weekDay === 'MONDAY', triggers);
 
@@ -424,6 +426,39 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
   const sent = pushes.slice(before);
   check('a failed nightly sync pushes a notice to the HOD', threw && sent.some(p => p.message.token === 'boss-phone' && /did not finish/.test(p.message.notification.title))
     && store['meta/sync'].lastResult.ok === false, sent);
+}
+
+// --- Nightly leaderboard rebuild (pcuNightlyRecalc)
+{
+  const { ctx, store } = setup();
+  ctx.pcuMigrate();
+  const today = ymd(now);
+  const month = today.slice(0, 7);
+  // An on-time first call with a Sunday (10 + 10) and a later team join (5 + 20) for David,
+  // and a save by the admin for their own guest (never ranked).
+  Object.assign(store['guests/G1'], { serviceDate: ymd(daysAgo(1)), membershipStatus: 'Returning' });
+  store['followUps/r1'] = { guestId: 'G1', worker: 'david@x.com', loggedBy: 'david@x.com', callDate: today, month, outcome: 'Reached',
+    attendedSunday: true, sundayDate: today, attendedWednesday: false, team: '', points: 20, syncedToSheet: false, createdAt: new Date(now.getTime() - 5000) };
+  store['followUps/r2'] = { guestId: 'G1', worker: 'david@x.com', loggedBy: 'boss@x.com', callDate: today, month, outcome: 'Reached',
+    attendedSunday: false, attendedWednesday: false, team: 'Workforce', points: 25, syncedToSheet: false, createdAt: new Date(now.getTime() - 1000) };
+  store['guests/GA'] = { name: 'Admin guest', serviceDate: today, month, assignedTo: 'boss@x.com', membershipStatus: 'New guest' };
+  store['followUps/r3'] = { guestId: 'GA', worker: 'boss@x.com', loggedBy: 'boss@x.com', callDate: today, month, outcome: 'Reached', points: 10, createdAt: new Date(now.getTime()) };
+  // Drift left by the app: wrong points for David, an entry for the admin.
+  store[`rankings/${month}/entries/david@x.com`] = { email: 'david@x.com', name: 'David Olanite', points: 999, lastFollowUpId: 'r2' };
+  store[`rankings/${month}/entries/boss@x.com`] = { email: 'boss@x.com', name: 'Boss', points: 10 };
+
+  const r = ctx.pcuNightlyRecalc();
+  const david = store[`rankings/${month}/entries/david@x.com`];
+  const fromApi = 10 + 10 + 5 + 20; // first call on time, Sunday, then a follow-up with the first team join
+  check('recalc corrects drifted points with the API rules', david.points === fromApi && david.lastFollowUpId === 'r2' && r.corrected >= 1, [david, r]);
+  check('recalc removes entries for admins and gives every active worker an entry', !store[`rankings/${month}/entries/boss@x.com`]
+    && store[`rankings/${month}/entries/worker.a@x.com`].points === 0 && !store[`rankings/${month}/entries/worker.c@x.com`], Object.keys(store).filter(k => k.startsWith('rankings/')));
+  check('recalc writes only fields the rules allow', Object.keys(store[`rankings/${month}/entries/worker.a@x.com`]).sort().join() === 'email,name,points,updatedAt');
+  const snapshot = JSON.stringify(Object.keys(store).filter(k => k.startsWith('rankings/')).map(k => [k, store[k].points]));
+  const r2 = ctx.pcuNightlyRecalc();
+  check('a second run changes nothing', r2.corrected === 0 && r2.removed === 0 && r2.written === 0
+    && snapshot === JSON.stringify(Object.keys(store).filter(k => k.startsWith('rankings/')).map(k => [k, store[k].points])), r2);
+  check('previous month is rebuilt too', r.months.length === 2 && r.months[0] === month, r.months);
 }
 
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
