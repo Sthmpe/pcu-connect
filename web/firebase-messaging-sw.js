@@ -13,8 +13,8 @@ firebase.initializeApp({
   storageBucket: 'pcu-workflow.firebasestorage.app',
 });
 
-const ICON = 'icons/notification-icon-192.png';
-const BADGE = 'icons/notification-badge-96.png';
+const ICON = 'icons/notification-icon-192-v2.png';
+const BADGE = 'icons/notification-badge-96-v2.png';
 
 const messaging = firebase.messaging();
 

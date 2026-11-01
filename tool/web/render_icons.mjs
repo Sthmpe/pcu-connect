@@ -28,16 +28,20 @@ const svgs = {
   badge: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72">${mark('#FFFFFF', 0.86)}</svg>`,
 };
 
+// Web files carry a version suffix (-v2) because browsers cache icons hard;
+// bump it (and every reference) when the logo changes.
+const V = 'v2';
 const outputs = [
-  ['tile', 32, 'web/favicon-32.png'],
-  ['tile', 48, 'web/favicon.png'],
-  ['tile', 192, 'web/icons/Icon-192.png'],
-  ['tile', 512, 'web/icons/Icon-512.png'],
-  ['square', 192, 'web/icons/Icon-maskable-192.png'],
-  ['square', 512, 'web/icons/Icon-maskable-512.png'],
-  ['square', 180, 'web/icons/apple-touch-icon.png'],
-  ['tile', 192, 'web/icons/notification-icon-192.png'],
-  ['badge', 96, 'web/icons/notification-badge-96.png'],
+  ['tile', 16, `web/favicon-16-${V}.png`],
+  ['tile', 32, `web/favicon-32-${V}.png`],
+  ['tile', 48, `web/favicon-${V}.png`],
+  ['tile', 192, `web/icons/Icon-192-${V}.png`],
+  ['tile', 512, `web/icons/Icon-512-${V}.png`],
+  ['square', 192, `web/icons/Icon-maskable-192-${V}.png`],
+  ['square', 512, `web/icons/Icon-maskable-512-${V}.png`],
+  ['square', 180, `web/icons/apple-touch-icon-${V}.png`],
+  ['tile', 192, `web/icons/notification-icon-192-${V}.png`],
+  ['badge', 96, `web/icons/notification-badge-96-${V}.png`],
 ];
 
 // Android launcher icons (legacy mipmaps).
@@ -68,4 +72,41 @@ for (const [kind, size, file] of outputs) {
   await page.screenshot({ path: file, omitBackground: kind !== 'square', clip: { x: 0, y: 0, width: size, height: size } });
   console.log(`${String(size).padStart(4)} px  ${kind.padEnd(6)}  ${file}`);
 }
+// Share image for links (Open Graph): navy, the logo, the name in Rubik.
+const font = (file) => fs.readFileSync(path.join(root, 'assets/fonts', file)).toString('base64');
+await page.setViewportSize({ width: 1200, height: 630 });
+await page.setContent(`<html><head><style>
+  @font-face { font-family: Rubik; font-weight: 400; src: url(data:font/ttf;base64,${font('Rubik-Regular.ttf')}); }
+  @font-face { font-family: Rubik; font-weight: 600; src: url(data:font/ttf;base64,${font('Rubik-SemiBold.ttf')}); }
+  body { margin: 0; width: 1200px; height: 630px; display: flex; align-items: center; gap: 56px; padding: 0 110px;
+    box-sizing: border-box; background: linear-gradient(135deg, ${NAVY_TOP}, ${NAVY}); font-family: Rubik; color: #fff; }
+  h1 { margin: 0; font-size: 84px; font-weight: 600; letter-spacing: -1px; }
+  p { margin: 18px 0 0; font-size: 34px; color: ${GOLD}; }
+</style></head><body>${svgs.tile.replace('<svg ', '<svg width="240" height="240" style="filter:drop-shadow(0 18px 40px rgba(0,0,0,.35))" ')}
+  <div><h1>PCU Connect</h1><p>Follow up every guest with care.</p></div></body></html>`);
+await page.evaluate(() => document.fonts.ready);
+const share = `web/icons/share-${V}.png`;
+await page.screenshot({ path: share, clip: { x: 0, y: 0, width: 1200, height: 630 } });
+console.log('1200x630 share   ' + share);
 await browser.close();
+
+// favicon.ico with the 16, 32 and 48 px PNGs inside (browsers ask for it by default).
+const sizes = [16, 32, 48];
+const pngs = sizes.map((s) => fs.readFileSync(s === 48 ? `web/favicon-${V}.png` : `web/favicon-${s}-${V}.png`));
+const header = Buffer.alloc(6 + 16 * pngs.length);
+header.writeUInt16LE(0, 0);
+header.writeUInt16LE(1, 2);
+header.writeUInt16LE(pngs.length, 4);
+let offset = header.length;
+pngs.forEach((png, i) => {
+  const e = 6 + 16 * i;
+  header.writeUInt8(sizes[i], e);
+  header.writeUInt8(sizes[i], e + 1);
+  header.writeUInt16LE(1, e + 4);
+  header.writeUInt16LE(32, e + 6);
+  header.writeUInt32LE(png.length, e + 8);
+  header.writeUInt32LE(offset, e + 12);
+  offset += png.length;
+});
+fs.writeFileSync('web/favicon.ico', Buffer.concat([header, ...pngs]));
+console.log('16/32/48 ico     web/favicon.ico');

@@ -1098,8 +1098,9 @@ function pcuSyncNow_(user) {
 
 var PCU_PUSH = {
   API: 'https://fcm.googleapis.com/v1/projects/',
-  ICON: 'icons/notification-icon-192.png',
-  BADGE: 'icons/notification-badge-96.png',
+  // Paths on the app's site; sent as full https URLs (see pcuPushMessage_).
+  ICON: 'icons/notification-icon-192-v2.png',
+  BADGE: 'icons/notification-badge-96-v2.png',
   DEFAULT_LINK: 'https://pcu-workflow.web.app'
 };
 
@@ -1129,7 +1130,7 @@ function pcuPushMessage_(token, n) {
     notification: { title: n.title, body: n.body || '' },
     data: { title: n.title, body: n.body || '', link: link, tag: n.tag || '' },
     webpush: {
-      notification: { icon: PCU_PUSH.ICON, badge: PCU_PUSH.BADGE },
+      notification: { icon: pcuAppLink_() + '/' + PCU_PUSH.ICON, badge: pcuAppLink_() + '/' + PCU_PUSH.BADGE },
       fcm_options: { link: link }
     }
   };

@@ -221,7 +221,9 @@ UI checklist:
 - Sound: the app plays its own short chime (assets/sounds/notify.wav, made by tool/sound/make_chime.py) when a
   notification arrives while the app is open. Web push cannot use a custom sound when the app is closed or in the
   background; the phone then plays its normal notification sound.
-- Icons: notification icon icons/notification-icon-192.png and the white status bar badge icons/notification-badge-96.png.
+- Icons: notification icon icons/notification-icon-192-v2.png and the white status bar badge
+  icons/notification-badge-96-v2.png (sent as full https URLs). Icon files carry a version suffix; bump it in
+  tool/web/render_icons.mjs and every reference when the logo changes.
 
 ## Testing
 Node harness for Apps Script with mocked Firestore REST and mocked Sheets: field ownership (sync never writes ASSIGNED TO, name or phone), reassignment, stable GUEST ID generation, batches of 500, resume from a progress marker, Africa/Lagos day boundaries. Firebase emulator tests for the rules, including email case and email_verified. Flutter tests for the rules engine and repositories. Every sync must be safe to run twice.

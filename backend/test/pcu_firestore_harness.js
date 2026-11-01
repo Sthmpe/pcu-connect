@@ -402,8 +402,8 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
   const r = ctx.pcuSendPush_('David@X.com ', { title: 'New guest for you', body: 'Ada Obi. Please call within 3 days.', tag: 'guest-G1' });
   check('push sent to the live device, dead token removed', r.tokens === 2 && r.sent === 1 && r.removed === 1 && !store['users/david@x.com/tokens/dead-token'] && !!store['users/david@x.com/tokens/good-token'], r);
   const m = pushes.find(p => p.message.token === 'good-token').message;
-  check('push has title, body, icon, badge and an https link to the app', m.notification.title === 'New guest for you' && m.webpush.notification.icon === 'icons/notification-icon-192.png'
-    && m.webpush.notification.badge === 'icons/notification-badge-96.png' && m.webpush.fcm_options.link === 'https://pcu-workflow.web.app/' && m.data.tag === 'guest-G1', m);
+  check('push has title, body, icon, badge and an https link to the app', m.notification.title === 'New guest for you' && m.webpush.notification.icon === 'https://pcu-workflow.web.app/icons/notification-icon-192-v2.png'
+    && m.webpush.notification.badge === 'https://pcu-workflow.web.app/icons/notification-badge-96-v2.png' && m.webpush.fcm_options.link === 'https://pcu-workflow.web.app/' && m.data.tag === 'guest-G1', m);
   check('pcuNotify_ is false when a person has no devices (so email is the fallback)', ctx.pcuNotify_('worker.a@x.com', { title: 'x' }) === false);
   check('pcuNotify_ is true when a device got it', ctx.pcuNotify_('david@x.com', { title: 'x' }) === true);
   const items = Object.keys(store).filter(k => k.startsWith('users/worker.a@x.com/notifications/')).map(k => store[k]);
