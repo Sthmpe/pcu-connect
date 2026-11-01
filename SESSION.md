@@ -652,3 +652,19 @@ firebase deploy --only hosting --project pcu-workflow
 
 or copy the verified preview to live: `firebase hosting:clone pcu-workflow:firestore-test pcu-workflow:live --project pcu-workflow`.
 Then check with `node tool/web/render_check.mjs https://pcu-workflow.web.app`.
+
+## 2026-11-01 Live deploy done (with the owner's permission)
+
+- Live site https://pcu-workflow.web.app now runs the Firestore-mode app with the PCU logo everywhere:
+  live version **67e0f6f810be26ff**, released 2026-11-01 15:28:03 UTC, exec URL `AKfycby0H6Sk...` (@13).
+- The same build is on the preview channel firestore-test (version 7b034f4c48175935).
+- Verified on live: `node tool/web/render_check.mjs https://pcu-workflow.web.app` (first frame 1.7 s, splash gone, no
+  page errors) and `node tool/web/icon_check.mjs https://pcu-workflow.web.app` (15 icon URLs, all real PCU images,
+  none of the 23 Flutter template images). Rules confirmed up to date.
+- Apps Script @13: push icon and badge are now full https URLs of the -v2 files.
+
+**Rollback** to the build that was live before (API mode, version 876dfe9dc93285cf):
+
+```
+firebase hosting:clone pcu-workflow:@876dfe9dc93285cf pcu-workflow:live --project pcu-workflow
+```
