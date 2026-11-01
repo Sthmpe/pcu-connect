@@ -23,6 +23,7 @@ import '../../guests/widgets/watch_months.dart';
 import '../bloc/sheet_sync_cubit.dart';
 import '../../common/notification_bell.dart';
 import '../widgets/needs_attention_card.dart';
+import '../widgets/trend_card.dart';
 import '../../common/push_prompt_card.dart';
 
 class AdminDashboardTab extends StatelessWidget {
@@ -89,6 +90,7 @@ class AdminDashboardTab extends StatelessWidget {
           ]),
           const NeedsAttentionCard(),
           _Journey(month: data.month),
+          const TrendCard(),
           SectionLabel('Top workers', actionLabel: 'See team', onAction: onOpenTeam),
           if (data.topWorkers.isEmpty)
             AppCard(

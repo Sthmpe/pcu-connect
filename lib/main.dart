@@ -32,6 +32,7 @@ import 'core/sync/sync_signals.dart';
 import 'core/sync/sync_status_cubit.dart';
 import 'data/firestore/message_templates_repository.dart';
 import 'data/firestore/nudge_repository.dart';
+import 'data/firestore/trend_repository.dart';
 import 'data/firestore/worker_calls_repository.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/repositories/guest_repository_impl.dart';
@@ -209,6 +210,9 @@ class PCUConnectApp extends StatelessWidget {
         ),
         if (celebrations != null) RepositoryProvider<MemberCelebrations>.value(value: celebrations!),
         if (nudgeRepository != null) RepositoryProvider<INudgeRepository>.value(value: nudgeRepository!),
+        // The Dashboard's twelve-month trend (Firestore mode).
+        if (AppConfig.useFirestore)
+          RepositoryProvider<ITrendRepository>(create: (_) => FirestoreTrendRepository(FirebaseFirestore.instance)),
         if (sheetSyncRepository != null)
           RepositoryProvider<ISheetSyncRepository>.value(value: sheetSyncRepository!),
       ],
