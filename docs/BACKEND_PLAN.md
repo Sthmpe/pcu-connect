@@ -168,6 +168,20 @@ UI checklist:
 - [ ] Points or counts corrected overnight show the new values without a confusing jump (no overnight correction yet)
 - [x] Workers never see sync status
 
+### Old Apps Script API actions (deprecated, not removed)
+The live site still runs the API build, so every action stays until it moves to the Firestore build.
+
+| Action | Firestore build | Replaced by |
+| --- | --- | --- |
+| me | not used (only debug mock logins) | users/{email} |
+| guests, guest | not used | guests, followUps (live) |
+| logFollowUp | not used | one Firestore batch from the app |
+| ranking | not used | rankings/{month}/entries (each save, rebuilt nightly) |
+| dashboard, team | not used | worked out in the app from guests, followUps, users |
+| saveWorker, setWorkerActive | still used | (Apps Script owns the Workers tab and users) |
+| syncNow | still used | (HOD "Sync to sheet") |
+| pushCheck | diagnostic | (checks that pushes can be sent) |
+
 ### 4. Tidy up and go live
 Backend: retire the old API actions, tests everywhere, security review (including editors and the key), then go live on the church sheet only with the owner's approval.
 

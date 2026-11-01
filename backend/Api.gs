@@ -142,8 +142,17 @@ function doPost(e) {
   }
 }
 
+/**
+ * API actions. The live site (API mode) uses all of them, so none is removed.
+ * The Firestore build (DATA_SOURCE=firestore) reads and saves through
+ * Firestore and only still needs saveWorker, setWorkerActive, syncNow and
+ * pushCheck. The others are deprecated: keep them until the live site moves
+ * to the Firestore build, then retire them (docs/BACKEND_PLAN.md, phase 4).
+ */
 function pcuHandlers_() {
   return {
+    // Deprecated for the Firestore build: me (except debug mock logins), guests,
+    // guest, logFollowUp, ranking, dashboard, team.
     me: pcuMe_,
     guests: pcuGuests_,
     guest: pcuGuest_,
@@ -1005,12 +1014,16 @@ function pcuWorkerJson_(worker, stats) {
 // Handlers
 // ---------------------------------------------------------------------------
 
+/** @deprecated Firestore build reads users/{email}. Still used by the live site. */
 function pcuMe_(user) {
   var w = user.worker;
   return { id: w.id, name: w.name, email: w.email, phone: w.phone, role: w.role, active: w.active };
 }
 
-/** Guests whose first visit was in req.month. Workers get their own only. */
+/**
+ * Guests whose first visit was in req.month. Workers get their own only.
+ * @deprecated Firestore build reads guests. Still used by the live site.
+ */
 function pcuGuests_(user, req) {
   var month = pcuMonthParam_(req.month);
   var scope = user.isAdmin ? pcuStr_(req.workerEmail).toLowerCase() : user.email;
@@ -1028,6 +1041,7 @@ function pcuGuests_(user, req) {
   return { month: month, guests: list };
 }
 
+/** @deprecated Firestore build reads guests and followUps. Still used by the live site. */
 function pcuGuest_(user, req) {
   var id = pcuStr_(req.id);
   var guest = pcuGuestById_(id).guest;
@@ -1039,6 +1053,8 @@ function pcuGuest_(user, req) {
 }
 
 /**
+ * @deprecated Firestore build saves straight to Firestore (one batch). Still
+ *   used by the live site.
  * Saves a follow-up, then updates the guest row: call status, feedback,
  * team, follow-up count and membership status. Runs under a script lock so
  * two people saving at once cannot overwrite each other.
@@ -1259,6 +1275,7 @@ function pcuPoints_(month, guests, followUps) {
   return byWorker;
 }
 
+/** @deprecated Firestore build reads rankings/{month}/entries. Still used by the live site. */
 function pcuRanking_(user, req) {
   var month = pcuMonthParam_(req.month);
   var entries = pcuStatsCached_('ranking_' + month, function () {
@@ -1354,6 +1371,7 @@ function pcuWorkerStats_(month, guests, followUps) {
   return stats;
 }
 
+/** @deprecated Firestore build works it out from Firestore. Still used by the live site. */
 function pcuDashboard_(user, req) {
   pcuRequireAdmin_(user);
   var month = pcuMonthParam_(req.month);
@@ -1414,6 +1432,7 @@ function pcuDashboardData_(month) {
   };
 }
 
+/** @deprecated Firestore build works it out from Firestore. Still used by the live site. */
 function pcuTeam_(user, req) {
   pcuRequireAdmin_(user);
   var month = pcuMonthParam_(req.month);
