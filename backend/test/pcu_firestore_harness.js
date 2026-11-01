@@ -497,6 +497,20 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
     && ctx.pcuCallMoment_({ callDate: '2026-10-31', createdAt: sameDay }) === sameDay, [ymd(moment)]);
 }
 
+// --- Health report (admin only, read only)
+{
+  const { ctx, store, call } = setup();
+  ctx.pcuMigrate();
+  delete store['users/worker.a@x.com'];
+  delete store['guests/G2'];
+  const denied = call({ action: 'health', idToken: 'tokDavid' });
+  check('health is admin only', !denied.ok && denied.code === 'FORBIDDEN', denied);
+  const r = call({ action: 'health', idToken: 'tokAdmin' });
+  check('health counts assigned guests in the sheet and in Firestore', r.ok && r.data.sheet.assigned === 5 && r.data.sheet.assignedByWorker['david@x.com'] === 4 && r.data.firestore.assigned === 3, r.data && r.data.sheet);
+  check('health lists the gaps', r.data.gaps.assignedMissingInFirestore.join() === 'G2,G4' && r.data.gaps.workersMissingInUsers.join() === 'worker.a@x.com'
+    && r.data.sheet.followUpsWithoutGuestInFirestore.join() === 'G2,G2', r.data.gaps);
+}
+
 // --- Nudge (admin only, at most one per worker per 24 hours)
 {
   const { ctx, store, call, pushes, mails } = setup();

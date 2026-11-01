@@ -1269,6 +1269,135 @@ function pcuSaveNotification_(email, n) {
 }
 
 // ---------------------------------------------------------------------------
+// Health (admin only, read only): the sheet against Firestore
+// ---------------------------------------------------------------------------
+
+/**
+ * Counts that show whether the sheet and Firestore agree: assigned guests per
+ * worker in each, assigned guests missing or assigned differently in
+ * Firestore, follow-ups (sheet tab and Firestore) whose guest is missing,
+ * Workers tab rows missing from users, and the installed triggers.
+ */
+function pcuHealth_(user) {
+  pcuRequireAdmin_(user);
+  if (!pcuFsEnabled_()) throw pcuError_('NOT_READY', 'Firestore is not set up yet.');
+  var guests = pcuGuestRows_(true);
+  var workers = pcuWorkers_();
+  var sheetFollowUps = pcuFollowUps_(true);
+  var sheetIds = {};
+  var assigned = guests.list.filter(function (g) {
+    sheetIds[g.id] = true;
+    return !!g.assignedTo;
+  });
+  var count = function (list, key) {
+    var out = {};
+    list.forEach(function (x) {
+      var k = key(x);
+      out[k] = (out[k] || 0) + 1;
+    });
+    return out;
+  };
+
+  var fsGuests = {};
+  pcuFsQueryAll_('guests').forEach(function (d) {
+    fsGuests[d.id] = d.data;
+  });
+  var fsAssigned = Object.keys(fsGuests).filter(function (id) {
+    return !!fsGuests[id].assignedTo;
+  });
+  var missingInFs = assigned.filter(function (g) {
+    return !fsGuests[g.id];
+  });
+  var assignedDifferently = assigned.filter(function (g) {
+    return fsGuests[g.id] && pcuEmail_(fsGuests[g.id].assignedTo || '') !== pcuEmail_(g.assignedTo);
+  });
+
+  var sheetFuList = [];
+  Object.keys(sheetFollowUps.byGuest).forEach(function (id) {
+    sheetFuList = sheetFuList.concat(sheetFollowUps.byGuest[id]);
+  });
+  var fsFollowUps = pcuFsQueryAll_('followUps');
+  var users = {};
+  pcuFsQueryAll_('users').forEach(function (d) {
+    users[d.id] = d.data;
+  });
+  var admins = {};
+  workers.list.forEach(function (w) {
+    if (w.isAdmin) admins[w.email] = true;
+  });
+
+  return {
+    sheet: {
+      guests: guests.list.length,
+      assigned: assigned.length,
+      assignedByWorker: count(assigned, function (g) {
+        return pcuEmail_(g.assignedTo);
+      }),
+      assignedToAdmins: assigned.filter(function (g) {
+        return admins[pcuEmail_(g.assignedTo)];
+      }).map(function (g) {
+        return g.id;
+      }),
+      unassignedSinceGoLive: guests.list.filter(function (g) {
+        return !g.assignedTo && g.serviceDay && g.serviceDay >= PCU_FS_GO_LIVE_();
+      }).length,
+      followUps: sheetFuList.length,
+      followUpsWithoutGuestInSheet: sheetFuList.filter(function (f) {
+        return !sheetIds[f.guestId];
+      }).length,
+      followUpsWithoutGuestInFirestore: sheetFuList.filter(function (f) {
+        return !fsGuests[f.guestId];
+      }).map(function (f) {
+        return f.guestId;
+      })
+    },
+    firestore: {
+      guests: Object.keys(fsGuests).length,
+      assigned: fsAssigned.length,
+      assignedByWorker: count(fsAssigned, function (id) {
+        return pcuEmail_(fsGuests[id].assignedTo);
+      }),
+      followUps: fsFollowUps.length,
+      followUpsWithoutGuest: fsFollowUps.filter(function (f) {
+        return !fsGuests[f.data.guestId];
+      }).map(function (f) {
+        return f.id;
+      }),
+      followUpsNotYetInSheet: fsFollowUps.filter(function (f) {
+        return f.data.syncedToSheet === false;
+      }).length
+    },
+    gaps: {
+      assignedMissingInFirestore: missingInFs.map(function (g) {
+        return g.id;
+      }),
+      assignedDifferently: assignedDifferently.map(function (g) {
+        return g.id;
+      }),
+      workersMissingInUsers: workers.list.filter(function (w) {
+        return !users[pcuEmail_(w.email)];
+      }).map(function (w) {
+        return w.email;
+      }),
+      usersDifferentFromWorkersTab: workers.list.filter(function (w) {
+        var u = users[pcuEmail_(w.email)];
+        return u && (u.active !== !!w.active || u.role !== (w.isAdmin ? 'admin' : 'worker'));
+      }).map(function (w) {
+        return w.email;
+      })
+    },
+    triggers: ScriptApp.getProjectTriggers().map(function (t) {
+      return t.getHandlerFunction();
+    })
+  };
+}
+
+/** Go-live day ('yyyy-MM-dd'): GO_LIVE from pcu_auto_assign.gs when present. */
+function PCU_FS_GO_LIVE_() {
+  return typeof GO_LIVE === 'string' ? GO_LIVE : '2026-10-28';
+}
+
+// ---------------------------------------------------------------------------
 // Nudge (admin only): a friendly reminder to a worker with guests waiting
 // ---------------------------------------------------------------------------
 
