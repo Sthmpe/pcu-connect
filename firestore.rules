@@ -102,7 +102,9 @@ service cloud.firestore {
       return p is int && p >= 5 && p <= 80 && p % 5 == 0;
     }
 
-    function validFollowUp(d) {
+    // A new follow-up must be saved together with its guest's work fields
+    // (the guest's lastFollowUpId is this follow-up after the batch).
+    function validFollowUp(d, followUpId) {
       return d.keys().hasAll(['guestId', 'worker', 'loggedBy', 'callDate', 'month',
           'outcome', 'points', 'createdAt'])
         && d.keys().hasOnly(['guestId', 'worker', 'loggedBy', 'callDate', 'month',
@@ -121,7 +123,28 @@ service cloud.firestore {
         && d.createdAt == request.time
         && d.worker is string && d.worker.size() > 0
         && d.worker == get(guestPath(d.guestId)).data.assignedTo
+        && getAfter(guestPath(d.guestId)).data.get('lastFollowUpId', '') == followUpId
         && d.loggedBy == myEmail();
+    }
+
+    // Status moves only the way the business rules allow: Member and Not
+    // interested stay; becoming a Member needs at least 3 Sundays on record
+    // (both member rules need 3) and the server time as memberSince.
+    function validStatusChange(before, after) {
+      let was = before.get('membershipStatus', 'New guest');
+      let now = after.get('membershipStatus', 'New guest');
+      return now in statuses()
+        && (was != 'Member' || now == 'Member')
+        && (was != 'Not interested' || now in ['Not interested', 'Member'])
+        && (now != 'Member' || was == 'Member'
+          || (after.get('sundayDates', []).size() >= 3
+            && (before.get('memberSince', null) != null || after.get('memberSince', null) == request.time)));
+    }
+
+    // Attendance dates only ever grow, and stay a sensible size.
+    function validDates(before, after, field) {
+      let list = after.get(field, []);
+      return list is list && list.size() <= 366 && list.hasAll(before.get(field, []));
     }
 
     // A guest's work fields change only together with a new follow-up for
@@ -138,11 +161,16 @@ service cloud.firestore {
         && !exists(/databases/$(database)/documents/followUps/$(after.lastFollowUpId))
         && getAfter(/databases/$(database)/documents/followUps/$(after.lastFollowUpId)).data.guestId == guestId
         && (!('callStatus' in changed) || after.callStatus in outcomes())
-        && (!('membershipStatus' in changed) || after.membershipStatus in statuses())
+        && validStatusChange(resource.data, after)
         && (!('teamJoined' in changed) || after.teamJoined in teams())
         && (!('lastFeedback' in changed) || (after.lastFeedback is string && after.lastFeedback.size() <= 2000))
-        && (!('sundayDates' in changed) || after.sundayDates is list)
-        && (!('wednesdayDates' in changed) || after.wednesdayDates is list);
+        && (!('lastFeedbackDate' in changed) || after.lastFeedbackDate == request.time)
+        && (!('firstCallAt' in changed)
+          || (resource.data.get('firstCallAt', null) == null && after.firstCallAt == request.time))
+        && (!('memberSince' in changed)
+          || (resource.data.get('memberSince', null) == null && after.memberSince == request.time))
+        && validDates(resource.data, after, 'sundayDates')
+        && validDates(resource.data, after, 'wednesdayDates');
     }
 
     // A push token document for one of the signed-in person's devices.
@@ -186,8 +214,6 @@ service cloud.firestore {
       allow read: if isMember() && (email == myEmail() || isAdmin());
       allow write: if false;
 
-      // Web push tokens: only the person themselves, never anyone else (Apps
-      // Script reads them with the service account).
       // The bell list. Apps Script writes them; the person only marks them read.
       match /notifications/{id} {
         allow read: if isMember() && email == myEmail();
@@ -198,6 +224,8 @@ service cloud.firestore {
         allow create, delete: if false;
       }
 
+      // Web push tokens: only the person themselves, never anyone else (Apps
+      // Script reads them with the service account).
       match /tokens/{token} {
         allow read, delete: if isMember() && email == myEmail();
         allow create: if isMember() && email == myEmail() && validToken(token, request.resource.data);
@@ -224,9 +252,11 @@ service cloud.firestore {
       // Workers see follow-ups credited to them (including ones an admin logged).
       allow read: if isAdmin() || (isWorker() && resource.data.worker == myEmail());
       // Workers log for their own guests; admins log on behalf of the assigned worker.
-      allow create: if validFollowUp(request.resource.data)
+      allow create: if validFollowUp(request.resource.data, followUpId)
         && (isAdmin() || (isWorker() && request.resource.data.worker == myEmail()));
       allow update, delete: if false;
     }
+
+    // Anything not matched above (any other collection) is denied.
   }
 }

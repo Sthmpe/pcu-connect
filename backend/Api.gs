@@ -237,7 +237,8 @@ function pcuVerifyUser_(idToken) {
     }
     var users = JSON.parse(response.getContentText()).users || [];
     var account = users[0];
-    if (!account || !account.email || account.emailVerified === false) {
+    // Google sign-in always reports a verified email; anything else is refused.
+    if (!account || !account.email || account.emailVerified !== true) {
       throw pcuError_('UNAUTHENTICATED', 'Your Google account could not be verified.');
     }
     email = String(account.email).trim().toLowerCase();

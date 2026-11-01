@@ -67,6 +67,23 @@ Admin can log a follow-up for a guest. worker = the assigned worker (gets points
 - users and meta: no client writes.
 - Write rules tests with the Firebase emulator (rules-unit-testing).
 
+### Security review (2026-11-01)
+Checked: admin-only actions, workers limited to their own guests and follow-ups, users, meta, tokens, notifications,
+rankings, verified email, email case. Found and fixed:
+1. A follow-up could be created without its guest update, so its client-set points (5 to 80) reached the leaderboard
+   until the nightly rebuild. Now a new follow-up must be its guest's lastFollowUpId in the same batch.
+2. Guest status could be set to anything with any follow-up. Now Member and Not interested stay, and becoming a Member
+   needs at least 3 Sundays on record and memberSince set to the server time.
+3. Attendance dates could shrink; firstCallAt, memberSince and lastFeedbackDate could be any value. Now the date
+   lists only grow (366 at most), firstCallAt and memberSince are set once at the server time, lastFeedbackDate is
+   the server time.
+4. Apps Script accepted a sign-in whose verified-email flag was missing (only false was refused). Now it must be true.
+Already sound: every admin-only Apps Script action calls pcuRequireAdmin_ (dashboard, team, saveWorker,
+setWorkerActive, syncNow, pushCheck); users and meta have no client writes; tokens and notifications are owner only
+(not even admins); rankings move only with a new follow-up by exactly its points and never for admins; anything else
+is denied. Points inside the allowed range are still set by the app; the nightly rebuild recalculates the leaderboard
+from followUps with the server's rules. ALLOW_MOCK_TOKENS stays on the TEST sheet only; remove it before go-live.
+
 ## Business rules
 Member = 4 distinct Sundays, or 3 Sundays and 2 Wednesdays, in one calendar month. Points: +10 first call within 3 days (else +5), +5 per follow-up, +10 per attendance, +20 team join, +30 member. Attendance on any past date, never future. Services: Sunday and Wednesday. Status order: Member > Not interested > Returning > Contacted > Unreachable > unchanged.
 The app applies these when it builds the batch. The nightly job recalculates guest totals and points from followUps and corrects any drift. Ranking = sum of points by worker for the month, computed from followUps.

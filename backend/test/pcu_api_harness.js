@@ -54,6 +54,7 @@ const ctx = {
   CacheService: { getScriptCache: () => cache },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : null) }) },
   UrlFetchApp: { fetch: (url, opts) => { const t = JSON.parse(opts.payload).idToken; const email = tokens[t];
+    if (t === 'tokNoVerify') return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ users: [{ email: 'david@x.com' }] }) };
     return { getResponseCode: () => email ? 200 : 400, getContentText: () => JSON.stringify(email ? { users: [{ email, emailVerified: true }] } : { error: {} }) }; } },
   LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
   ContentService: { createTextOutput: s => ({ text: s, setMimeType() { return this; } }), MimeType: { JSON: 'json' } },
@@ -69,6 +70,7 @@ r = call({ action: 'me', idToken: 'tokAdmin' }); check('me admin', r.ok && r.dat
 r = call({ action: 'me', idToken: 'tokC' }); check('inactive denied', !r.ok && r.code === 'ACCESS_DENIED', r);
 r = call({ action: 'me', idToken: 'tokStranger' }); check('stranger denied', !r.ok && r.code === 'ACCESS_DENIED', r);
 r = call({ action: 'me', idToken: 'bad' }); check('bad token', !r.ok && r.code === 'UNAUTHENTICATED', r);
+r = call({ action: 'me', idToken: 'tokNoVerify' }); check('email not reported as verified is refused', !r.ok && r.code === 'UNAUTHENTICATED', r);
 // Mock tokens: rejected unless ALLOW_MOCK_TOKENS is exactly "true".
 r = call({ action: 'me', idToken: 'mock_token_david@x.com' }); check('mock token rejected when property unset', !r.ok && r.code === 'UNAUTHENTICATED', r);
 for (const v of ['false', 'TRUE', 'True', ' true', '1', '']) {

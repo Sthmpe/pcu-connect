@@ -165,7 +165,11 @@ describe('guests', () => {
 
 describe('follow-ups', () => {
   test('a worker logs for their own guest', async () => {
-    await assertSucceeds(setDoc(doc(as(DAVID), 'followUps', 'F2'), followUp()));
+    await assertSucceeds(save(as(DAVID), 'F2'));
+  });
+  test('a follow-up on its own (without its guest update) is refused', async () => {
+    await assertFails(setDoc(doc(as(DAVID), 'followUps', 'F2'), followUp()));
+    await assertFails(setDoc(doc(as(ADMIN), 'followUps', 'F3'), followUp({ loggedBy: ADMIN })));
   });
   test('a worker cannot log for another worker\'s guest', async () => {
     await assertFails(setDoc(doc(as(DAVID), 'followUps', 'F2'), followUp({ guestId: 'G2', worker: ADA })));
@@ -175,7 +179,7 @@ describe('follow-ups', () => {
     await assertFails(setDoc(doc(as(DAVID), 'followUps', 'F2'), followUp({ loggedBy: ADMIN })));
   });
   test('admin logs on behalf of the assigned worker', async () => {
-    await assertSucceeds(setDoc(doc(as(ADMIN), 'followUps', 'F2'), followUp({ loggedBy: ADMIN })));
+    await assertSucceeds(save(as(ADMIN), 'F2', { loggedBy: ADMIN }));
   });
   test('admin cannot credit themselves or the wrong worker', async () => {
     await assertFails(setDoc(doc(as(ADMIN), 'followUps', 'F2'), followUp({ worker: ADMIN, loggedBy: ADMIN })));
@@ -186,7 +190,7 @@ describe('follow-ups', () => {
       await assertFails(setDoc(doc(as(DAVID), 'followUps', 'F2'), followUp({ points })));
     }
     for (const points of [5, 15, 40, 80]) {
-      await assertSucceeds(setDoc(doc(as(DAVID), 'followUps', `F-${points}`), followUp({ points })));
+      await assertSucceeds(save(as(DAVID), `F-${points}`, { points }));
     }
   });
   test('outcome and team must be known values', async () => {
@@ -391,5 +395,31 @@ describe('leaderboard entries (rankings/{month}/entries/{email})', () => {
     await assertSucceeds(saveRanked(as(DAVID), 'F2', { points: 10 }));
     await assertFails(deleteDoc(entry(as(DAVID))));
     await assertFails(deleteDoc(entry(as(ADMIN))));
+  });
+});
+
+describe('security review: guest status and dates follow the business rules', () => {
+  const sundays = [lagosDay(-21), lagosDay(-14), lagosDay(-7)];
+  test('Member needs at least 3 Sundays on record and the server time as memberSince', async () => {
+    await assertFails(save(as(DAVID), 'F2', {}, 'G1', { membershipStatus: 'Member', memberSince: serverTimestamp() }));
+    await assertFails(save(as(DAVID), 'F3', {}, 'G1', { membershipStatus: 'Member', sundayDates: sundays }));
+    await assertFails(save(as(DAVID), 'F4', {}, 'G1', { membershipStatus: 'Member', sundayDates: sundays, memberSince: new Date() }));
+    await assertSucceeds(save(as(DAVID), 'F5', { points: 45 }, 'G1', { membershipStatus: 'Member', sundayDates: sundays, memberSince: serverTimestamp() }));
+  });
+  test('Member and Not interested stay', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), 'guests', 'G1'), { membershipStatus: 'Member', memberSince: new Date() });
+      await updateDoc(doc(ctx.firestore(), 'guests', 'G2'), { membershipStatus: 'Not interested' });
+    });
+    await assertFails(save(as(DAVID), 'F2', {}, 'G1', { membershipStatus: 'Contacted' }));
+    await assertSucceeds(save(as(DAVID), 'F3', {}, 'G1', { membershipStatus: 'Member' }));
+    await assertFails(save(as(ADA), 'F4', { worker: ADA, loggedBy: ADA, guestId: 'G2' }, 'G2', { membershipStatus: 'Returning' }));
+  });
+  test('attendance dates only grow; first call and feedback times are the server time, set once', async () => {
+    await assertSucceeds(save(as(DAVID), 'F2', {}, 'G1', { sundayDates: [lagosDay(-7)], firstCallAt: serverTimestamp() }));
+    await assertFails(save(as(DAVID), 'F3', {}, 'G1', { sundayDates: [] }));
+    await assertFails(save(as(DAVID), 'F4', {}, 'G1', { firstCallAt: serverTimestamp() }));
+    await assertFails(save(as(DAVID), 'F5', {}, 'G1', { lastFeedbackDate: new Date() }));
+    await assertFails(save(as(DAVID), 'F6', {}, 'G1', { sundayDates: Array.from({ length: 400 }, (_, i) => String(i)) }));
   });
 });
