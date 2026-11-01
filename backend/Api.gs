@@ -100,14 +100,29 @@ var PCU = {
 // ---------------------------------------------------------------------------
 
 function doPost(e) {
+  pcuProf_ = null;
   try {
     var body = (e && e.postData && e.postData.contents) || '{}';
     var req = JSON.parse(body);
+    if (req.profile === true && pcuMockAllowed_()) pcuProf_ = { start: Date.now(), marks: [], formatCalls: 0 };
+    var started = Date.now();
     var user = pcuVerifyUser_(req.idToken);
+    pcuMark_('auth (total)', started);
     var handlers = pcuHandlers_();
     var handler = handlers[req.action];
     if (!handler) throw pcuError_('VALIDATION', 'Unknown action: ' + req.action);
-    return pcuJson_({ ok: true, data: handler(user, req) });
+    started = Date.now();
+    var payload = { ok: true, data: handler(user, req) };
+    pcuMark_('handler (total)', started);
+    if (pcuProf_) {
+      if (req.experiments === true) pcuProf_.experiments = pcuProfileExperiments_();
+      started = Date.now();
+      JSON.stringify(payload);
+      pcuMark_('json', started);
+      payload.profile = pcuProf_;
+      pcuProf_.totalMs = Date.now() - pcuProf_.start;
+    }
+    return pcuJson_(payload);
   } catch (err) {
     var code = err && err.code ? err.code : 'SERVER';
     if (code === 'SERVER') console.error(err && err.stack ? err.stack : err);
@@ -155,8 +170,7 @@ function pcuVerifyUser_(idToken) {
   // Dev mock tokens are only honoured when the Script Property
   // ALLOW_MOCK_TOKENS is exactly "true". Set it on the TEST sheet only.
   if (idToken.indexOf('mock_token_') === 0 || idToken === 'mock_token') {
-    var allowMock = PropertiesService.getScriptProperties().getProperty('ALLOW_MOCK_TOKENS');
-    if (allowMock !== 'true') {
+    if (!pcuMockAllowed_()) {
       throw pcuError_('UNAUTHENTICATED', 'Please sign in.');
     }
     var mockEmail = idToken === 'mock_token' ? 'davidolanite0@gmail.com' : idToken.replace('mock_token_', '').trim().toLowerCase();
@@ -210,6 +224,10 @@ function pcuVerifyUser_(idToken) {
   return { email: email, worker: worker, isAdmin: worker.isAdmin };
 }
 
+function pcuMockAllowed_() {
+  return PropertiesService.getScriptProperties().getProperty('ALLOW_MOCK_TOKENS') === 'true';
+}
+
 function pcuRequireAdmin_(user) {
   if (!user.isAdmin) throw pcuError_('FORBIDDEN', 'Only the HOD can do this.');
 }
@@ -223,9 +241,11 @@ var pcuTableCache_ = {};
 /** Reads a tab once per request and indexes its headers. */
 function pcuTable_(name, fresh) {
   if (!fresh && pcuTableCache_[name]) return pcuTableCache_[name];
+  var started = Date.now();
   var sheet = SpreadsheetApp.getActive().getSheetByName(name);
   if (!sheet) throw pcuError_('SERVER', 'Missing tab: ' + name);
   var values = sheet.getDataRange().getValues();
+  pcuMark_('read ' + name + ' (' + values.length + ' rows x ' + (values[0] || []).length + ' cols)', started);
   var headers = values.length ? values[0] : [];
   var index = {};
   for (var c = 0; c < headers.length; c++) {
@@ -314,10 +334,12 @@ function pcuDate_(value) {
 }
 
 function pcuDay_(date) {
+  if (pcuProf_ && date) pcuProf_.formatCalls++;
   return date ? Utilities.formatDate(date, PCU.TZ, 'yyyy-MM-dd') : '';
 }
 
 function pcuMonth_(date) {
+  if (pcuProf_ && date) pcuProf_.formatCalls++;
   return date ? Utilities.formatDate(date, PCU.TZ, 'yyyy-MM') : '';
 }
 
@@ -336,6 +358,7 @@ function pcuDaysBetween_(a, b) {
 }
 
 function pcuIsWednesday_(date) {
+  if (pcuProf_) pcuProf_.formatCalls++;
   return Utilities.formatDate(date, PCU.TZ, 'u') === '3';
 }
 
@@ -377,6 +400,7 @@ function pcuRecentMonths_(count) {
 
 function pcuWorkers_() {
   var t = pcuTable_(PCU.SHEETS.WORKERS);
+  var started = Date.now();
   var byEmail = {};
   var byId = {};
   var list = [];
@@ -399,12 +423,14 @@ function pcuWorkers_() {
     if (worker.id) byId[worker.id] = worker;
     list.push(worker);
   });
+  pcuMark_('parse workers', started);
   return { table: t, byEmail: byEmail, byId: byId, list: list };
 }
 
 /** Follow-ups grouped by guest id, oldest first. */
 function pcuFollowUps_(fresh) {
   var t = pcuTable_(PCU.SHEETS.FOLLOW_UPS, fresh);
+  var started = Date.now();
   var byGuest = {};
   t.rows.forEach(function (row, i) {
     var guestId = pcuStr_(pcuCell_(t, row, PCU.F.GUEST));
@@ -432,12 +458,15 @@ function pcuFollowUps_(fresh) {
       return (a.date ? a.date.getTime() : 0) - (b.date ? b.date.getTime() : 0);
     });
   });
+  pcuMark_('parse follow-ups', started);
   return { table: t, byGuest: byGuest };
 }
 
 /** Every guest row with an id, as plain objects. */
 function pcuGuestRows_(fresh) {
   var t = pcuTable_(PCU.SHEETS.GUESTS, fresh);
+  var started = Date.now();
+  var formatBefore = pcuProf_ ? pcuProf_.formatCalls : 0;
   var list = [];
   t.rows.forEach(function (row, i) {
     var id = pcuStr_(pcuCell_(t, row, PCU.G.ID));
@@ -466,6 +495,7 @@ function pcuGuestRows_(fresh) {
       lastFeedbackDate: pcuDate_(pcuCell_(t, row, PCU.G.LAST_FEEDBACK_DATE))
     });
   });
+  pcuMark_('parse guests (' + list.length + ' guests, ' + (pcuProf_ ? pcuProf_.formatCalls - formatBefore : 0) + ' formatDate calls)', started);
   return { table: t, list: list };
 }
 
@@ -1115,6 +1145,91 @@ function pcuSetWorkerActive_(user, req) {
   var month = pcuMonth_(new Date());
   var stats = pcuWorkerStats_(month, pcuGuestRows_(), pcuFollowUps_());
   return pcuWorkerJson_(worker, stats[worker.email]);
+}
+
+// ---------------------------------------------------------------------------
+// Profiling (test sheet only: needs "profile": true and ALLOW_MOCK_TOKENS=true)
+// ---------------------------------------------------------------------------
+
+var pcuProf_ = null;
+
+/** Records how long a step took when profiling is on. */
+function pcuMark_(label, started) {
+  if (pcuProf_) pcuProf_.marks.push([label, Date.now() - started]);
+}
+
+/** Times other ways of reading the Guests tab, to choose the fastest. */
+function pcuProfileExperiments_() {
+  var out = {};
+  function time(label, fn) {
+    var t = Date.now();
+    var result = fn();
+    out[label] = { ms: Date.now() - t, result: result };
+  }
+  var sheet = SpreadsheetApp.getActive().getSheetByName(PCU.SHEETS.GUESTS);
+  var lastRow = 0;
+  var lastCol = 0;
+  time('getLastRow+getLastColumn', function () {
+    lastRow = sheet.getLastRow();
+    lastCol = sheet.getLastColumn();
+    return lastRow + 'x' + lastCol;
+  });
+  var headers = [];
+  time('header row', function () {
+    headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    return headers.length;
+  });
+  var idCol = -1;
+  for (var c = 0; c < headers.length; c++) if (pcuHeaderKey_(headers[c]) === PCU.G.ID) idCol = c + 1;
+  time('ID column, all rows', function () {
+    return sheet.getRange(2, idCol, lastRow - 1, 1).getValues().length;
+  });
+  time('TextFinder on ID column', function () {
+    var found = sheet.getRange(2, idCol, lastRow - 1, 1).createTextFinder('G09201').matchEntireCell(true).findNext();
+    return found ? found.getRow() : null;
+  });
+  time('one full row', function () {
+    return sheet.getRange(lastRow, 1, 1, lastCol).getValues()[0].length;
+  });
+  time('last 1500 rows, all columns', function () {
+    return sheet.getRange(Math.max(2, lastRow - 1499), 1, Math.min(1500, lastRow - 1), lastCol).getValues().length;
+  });
+  time('all rows, 6 columns (one range each)', function () {
+    var n = 0;
+    ['GUEST ID', 'SERVICE DATE', 'TIMESTAMP', 'ASSIGNED TO', 'MEMBERSHIP STATUS', 'MEMBERSHIP DATE'].forEach(function (h) {
+      for (var i = 0; i < headers.length; i++) {
+        if (pcuHeaderKey_(headers[i]) === h) n += sheet.getRange(2, i + 1, lastRow - 1, 1).getValues().length;
+      }
+    });
+    return n;
+  });
+  var dates = [];
+  time('all rows, SERVICE DATE column', function () {
+    for (var i = 0; i < headers.length; i++) {
+      if (pcuHeaderKey_(headers[i]) === 'SERVICE DATE') dates = sheet.getRange(2, i + 1, lastRow - 1, 1).getValues();
+    }
+    return dates.length;
+  });
+  time('2000 x Utilities.formatDate', function () {
+    var d = new Date();
+    for (var i = 0; i < 2000; i++) Utilities.formatDate(d, PCU.TZ, 'yyyy-MM-dd');
+    return 2000;
+  });
+  time('format every SERVICE DATE in plain JS (UTC+1)', function () {
+    var n = 0;
+    dates.forEach(function (r) {
+      var v = r[0];
+      if (v instanceof Date) {
+        var x = new Date(v.getTime() + 3600000);
+        n += (x.getUTCFullYear() + '-' + (x.getUTCMonth() + 1) + '-' + x.getUTCDate()).length > 0 ? 1 : 0;
+      }
+    });
+    return n;
+  });
+  time('CacheService get', function () {
+    return CacheService.getScriptCache().get('pcu_profile_probe');
+  });
+  return out;
 }
 
 // ---------------------------------------------------------------------------
