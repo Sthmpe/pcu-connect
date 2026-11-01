@@ -19,6 +19,7 @@ import '../../../domain/entities/follow_up_entry.dart';
 import '../../../domain/entities/guest_entity.dart';
 import '../../../domain/repositories/i_guest_repository.dart';
 import '../../guests/bloc/guests_bloc.dart';
+import '../../common/whatsapp_sheet.dart';
 import '../../guests/bloc/guests_state.dart';
 
 /// Call outcomes, exactly as the Apps Script API accepts them.
@@ -232,7 +233,7 @@ class _ContactActions extends StatelessWidget {
             () => ContactLauncher.call(guest)),
         SizedBox(width: AppSizes.s16),
         action('WhatsApp', AppIcons.whatsapp, AppColors.surface, AppColors.greenInk,
-            () => ContactLauncher.whatsApp(guest)),
+            () => showWhatsAppSheet(context, guest)),
       ],
     );
   }

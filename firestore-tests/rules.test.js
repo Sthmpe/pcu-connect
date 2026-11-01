@@ -431,3 +431,54 @@ describe('security review: guest status and dates follow the business rules', ()
     await assertFails(save(as(DAVID), 'F6', {}, 'G1', { sundayDates: Array.from({ length: 400 }, (_, i) => String(i)) }));
   });
 });
+
+describe('message templates (config/messageTemplates)', () => {
+  const PAUSED_ADMIN = 'old.boss@x.com';
+  const ref = (db) => doc(db, 'config', 'messageTemplates');
+  const templates = (over = {}) => ({
+    thanks: 'Dear {title} {name}, thank you. {worker}, COZA Ilorin',
+    missedCall: 'Dear {title} {name}, I tried calling you.',
+    checkIn: 'Dear {title} {name}, since {service}.',
+    updatedAt: serverTimestamp(),
+    updatedBy: ADMIN,
+    ...over,
+  });
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', PAUSED_ADMIN), { name: 'Old Boss', email: PAUSED_ADMIN, role: 'admin', active: false });
+    });
+  });
+
+  test('every active user reads them; signed-out and inactive people do not', async () => {
+    await assertSucceeds(getDoc(ref(as(DAVID))));
+    await assertSucceeds(getDoc(ref(as(ADMIN))));
+    await assertFails(getDoc(ref(as(PAUSED))));
+    await assertFails(getDoc(ref(env.unauthenticatedContext().firestore())));
+  });
+  test('an active admin saves all three, then edits them', async () => {
+    await assertSucceeds(setDoc(ref(as(ADMIN)), templates()));
+    await assertSucceeds(setDoc(ref(as(ADMIN)), templates({ thanks: 'New words' })));
+    const snap = await getDoc(ref(as(DAVID)));
+    assert.equal(snap.data().thanks, 'New words');
+  });
+  test('workers and inactive admins cannot write', async () => {
+    await assertFails(setDoc(ref(as(DAVID)), templates({ updatedBy: DAVID })));
+    await assertFails(setDoc(ref(as(PAUSED_ADMIN)), templates({ updatedBy: PAUSED_ADMIN })));
+  });
+  test('the shape is checked: all three, words in each, at most 1000 characters, server time, own email', async () => {
+    const db = as(ADMIN);
+    const missing = templates(); delete missing.checkIn;
+    await assertFails(setDoc(ref(db), missing));
+    await assertFails(setDoc(ref(db), templates({ thanks: '' })));
+    await assertFails(setDoc(ref(db), templates({ thanks: 'x'.repeat(1001) })));
+    await assertSucceeds(setDoc(ref(db), templates({ thanks: 'x'.repeat(1000) })));
+    await assertFails(setDoc(ref(db), templates({ extra: 'no' })));
+    await assertFails(setDoc(ref(db), templates({ updatedAt: new Date() })));
+    await assertFails(setDoc(ref(db), templates({ updatedBy: DAVID })));
+  });
+  test('nobody deletes them', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(ref(ctx.firestore()), templates({ updatedAt: new Date() })); });
+    await assertFails(deleteDoc(ref(as(ADMIN))));
+  });
+});

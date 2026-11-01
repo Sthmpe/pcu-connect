@@ -4,12 +4,14 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_icons.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/routing/app_routes.dart';
 import '../../../core/utils/month_utils.dart';
 import '../../../core/widgets/app_display.dart';
 import '../../../core/widgets/app_feedback.dart';
 import '../../../core/widgets/app_page.dart';
 import '../../../core/widgets/app_surfaces.dart';
 import '../../../core/widgets/status_tone.dart';
+import '../../../data/firestore/message_templates_repository.dart';
 import '../../../domain/entities/worker_user.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../auth/bloc/auth_event.dart';
@@ -86,6 +88,13 @@ class MeTab extends StatelessWidget {
                   label: 'How points work',
                   trailing: Icon(AppIcons.chevronRight, size: AppSizes.iconMd, color: AppColors.subtle),
                   onTap: () => showPointsSheet(context),
+                ),
+              if (isAdmin && context.read<IMessageTemplatesRepository>().canEdit)
+                InfoTile(
+                  icon: AppIcons.whatsapp,
+                  label: 'WhatsApp messages',
+                  trailing: Icon(AppIcons.chevronRight, size: AppSizes.iconMd, color: AppColors.subtle),
+                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.messageTemplates),
                 ),
               InfoTile(
                 icon: AppIcons.signOut,

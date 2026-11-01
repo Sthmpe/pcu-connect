@@ -242,6 +242,28 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // WhatsApp message templates: every active user reads them, only an
+    // active admin writes them, always all three, each 1 to 1000 characters.
+    function templateText(d, key) {
+      return d[key] is string && d[key].size() > 0 && d[key].size() <= 1000;
+    }
+
+    function validTemplates(d) {
+      return d.keys().hasOnly(['thanks', 'missedCall', 'checkIn', 'updatedAt', 'updatedBy'])
+        && d.keys().hasAll(['thanks', 'missedCall', 'checkIn', 'updatedAt', 'updatedBy'])
+        && templateText(d, 'thanks')
+        && templateText(d, 'missedCall')
+        && templateText(d, 'checkIn')
+        && d.updatedAt == request.time
+        && d.updatedBy == myEmail();
+    }
+
+    match /config/messageTemplates {
+      allow read: if isMember();
+      allow create, update: if isAdmin() && validTemplates(request.resource.data);
+      allow delete: if false;
+    }
+
     match /guests/{guestId} {
       allow read: if canSeeGuest(resource.data);
       allow create, delete: if false;

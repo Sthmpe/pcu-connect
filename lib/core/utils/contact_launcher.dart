@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../domain/entities/guest_entity.dart';
+import '../../domain/message_templates.dart';
 import '../widgets/app_feedback.dart';
 import 'call_return_watcher.dart';
 
@@ -14,7 +15,7 @@ abstract class ContactLauncher {
 
   /// WhatsApp with a message already typed.
   static Future<void> whatsAppMessage(GuestEntity guest, String text) => _open(
-      '${guest.whatsAppUrl}?text=${Uri.encodeComponent(text)}', 'Could not open WhatsApp for ${guest.phone}.',
+      MessageTemplates.whatsAppLink(guest, text), 'Could not open WhatsApp for ${guest.phone}.',
       guestId: guest.id);
 
   /// Long-press on a number: copy it and say so.

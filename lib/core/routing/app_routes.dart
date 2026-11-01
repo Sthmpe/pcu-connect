@@ -5,6 +5,7 @@ import '../../presentation/common/notifications_screen.dart';
 import '../../presentation/admin/screens/add_worker_screen.dart';
 import '../../presentation/admin/screens/admin_guests_tab.dart';
 import '../../presentation/admin/screens/admin_shell_screen.dart';
+import '../../presentation/admin/screens/message_templates_screen.dart';
 import '../../presentation/admin/screens/worker_detail_screen.dart';
 import '../../presentation/auth/screens/login_screen.dart';
 import '../../presentation/worker/screens/guest_detail_screen.dart';
@@ -22,6 +23,7 @@ abstract class AppRoutes {
   static const String addWorker = '/admin/worker/new';
   static const String workerGuests = '/admin/worker/guests';
   static const String notifications = '/notifications';
+  static const String messageTemplates = '/admin/messages';
 
   /// The app always starts on the sign-in screen, which restores the session
   /// and routes by role. A refreshed deep link therefore cannot open a screen
@@ -65,6 +67,9 @@ abstract class AppRoutes {
         break;
       case notifications:
         page = const NotificationsScreen();
+        break;
+      case messageTemplates:
+        page = const MessageTemplatesScreen();
         break;
       default:
         page = const LoginScreen();

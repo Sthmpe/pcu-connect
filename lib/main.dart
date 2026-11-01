@@ -25,6 +25,7 @@ import 'data/firestore/firestore_team_repository.dart';
 import 'data/firestore/notifications_repository.dart';
 import 'data/firestore/push_service.dart';
 import 'data/firestore/sheet_sync_repository.dart';
+import 'data/firestore/message_templates_repository.dart';
 import 'data/firestore/worker_calls_repository.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/repositories/guest_repository_impl.dart';
@@ -163,6 +164,12 @@ class PCUConnectApp extends StatelessWidget {
           create: (_) => AppConfig.useFirestore
               ? FirestoreWorkerCallsRepository(db: FirebaseFirestore.instance, authRepository: authRepository)
               : const NoWorkerCallsRepository(),
+        ),
+        // WhatsApp messages (editable by the HOD in Firestore mode).
+        RepositoryProvider<IMessageTemplatesRepository>(
+          create: (_) => AppConfig.useFirestore
+              ? FirestoreMessageTemplatesRepository(db: FirebaseFirestore.instance, authRepository: authRepository)
+              : const DefaultMessageTemplatesRepository(),
         ),
         if (sheetSyncRepository != null)
           RepositoryProvider<ISheetSyncRepository>.value(value: sheetSyncRepository!),
