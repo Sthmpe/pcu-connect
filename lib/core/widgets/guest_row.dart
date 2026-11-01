@@ -18,20 +18,31 @@ class GuestRow extends StatelessWidget {
   /// Admin lists show who the guest is assigned to and no contact buttons.
   final bool adminView;
 
+  /// Replaces the progress line (Today: "No answer 1 day ago, call 2 of 3").
+  final String? line;
+
+  /// A small pill after the line, for example the red "Outstanding".
+  final String? pill;
+  final StatusTone? pillTone;
+
   const GuestRow({
     super.key,
     required this.guest,
     required this.onTap,
     this.adminView = false,
+    this.line,
+    this.pill,
+    this.pillTone,
   });
 
   @override
   Widget build(BuildContext context) {
     final tone = StatusTone.forUrgency(guest.urgency);
     final assignee = guest.assignedWorkerName ?? '';
-    final line = adminView
-        ? (assignee.isEmpty ? 'Not assigned' : 'With ${firstNameOf(assignee)}')
-        : guestProgressLine(guest);
+    final line = this.line ??
+        (adminView
+            ? (assignee.isEmpty ? 'Not assigned' : 'With ${firstNameOf(assignee)}')
+            : guestProgressLine(guest));
 
     return InkWell(
       onTap: onTap,
@@ -63,6 +74,10 @@ class GuestRow extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      if (pill != null) ...[
+                        SizedBox(width: AppSizes.s8),
+                        AppPill(label: pill!, tone: pillTone ?? StatusTone.neutral),
+                      ],
                     ],
                   ),
                 ],

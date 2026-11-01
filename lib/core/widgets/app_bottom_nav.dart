@@ -7,7 +7,10 @@ class AppNavItem {
   final IconData icon;
   final String label;
 
-  const AppNavItem(this.icon, this.label);
+  /// A small gold count on the icon (0 hides it), for example guests to call.
+  final int badge;
+
+  const AppNavItem(this.icon, this.label, {this.badge = 0});
 }
 
 /// Bottom navigation: navy for the active tab, a small gold marker under it.
@@ -67,14 +70,37 @@ class _NavButton extends StatelessWidget {
     return Semantics(
       selected: selected,
       button: true,
-      label: item.label,
+      label: item.badge > 0 ? '${item.label}, ${item.badge} to do' : item.label,
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(item.icon, size: AppSizes.iconLg, color: color),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(item.icon, size: AppSizes.iconLg, color: color),
+                if (item.badge > 0)
+                  Positioned(
+                    right: -10,
+                    top: -6,
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.gold,
+                        borderRadius: BorderRadius.circular(9),
+                        border: Border.all(color: AppColors.surface, width: 2),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(item.badge > 99 ? '99+' : '${item.badge}',
+                          style: AppTextStyles.centered(AppTextStyles.captionStrong)
+                              .copyWith(color: AppColors.navy, fontSize: 10)),
+                    ),
+                  ),
+              ],
+            ),
             SizedBox(height: AppSizes.s4),
             Text(
               item.label,

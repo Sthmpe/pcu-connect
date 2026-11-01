@@ -88,10 +88,18 @@ class _WorkerShellScreenState extends State<WorkerShellScreen> {
             const MeTab(),
           ],
         ),
-        bottomNavigationBar: AppBottomNav(
-          items: _items,
-          currentIndex: _index,
-          onTap: (i) => setState(() => _index = i),
+        // The Today tab shows how many guests need action, live.
+        bottomNavigationBar: BlocBuilder<TodayCubit, TodayState>(
+          bloc: _today,
+          buildWhen: (a, b) => a.view.total != b.view.total,
+          builder: (context, today) => AppBottomNav(
+            items: [
+              AppNavItem(_items[0].icon, _items[0].label, badge: today.loading ? 0 : today.view.total),
+              ..._items.skip(1),
+            ],
+            currentIndex: _index,
+            onTap: (i) => setState(() => _index = i),
+          ),
         ),
       ),
       ),

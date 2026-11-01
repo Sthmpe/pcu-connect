@@ -123,7 +123,16 @@ class TodayTab extends StatelessWidget {
         ),
         GroupedCard(
           dividerIndent: AppSizes.s16 * 2 + AppSizes.avatarMd,
-          children: [for (final i in items) GuestRow(guest: i.guest, onTap: () => _open(context, i))],
+          children: [
+            for (final i in items)
+              GuestRow(
+                guest: i.guest,
+                line: todayLine(i),
+                pill: todayPill(i.section),
+                pillTone: i.section == TodaySection.outstanding ? StatusTone.red : StatusTone.neutral,
+                onTap: () => _open(context, i),
+              ),
+          ],
         ),
       ],
     );
@@ -133,6 +142,24 @@ class TodayTab extends StatelessWidget {
     Navigator.of(context).pushNamed(AppRoutes.guestDetail, arguments: GuestDetailArgs(i.guest.id));
   }
 }
+
+String _days(int n) => '$n ${n == 1 ? 'day' : 'days'}';
+
+/// The line under a guest's name on Today.
+String todayLine(TodayItem i) => switch (i.section) {
+      TodaySection.fresh => i.days <= 0 ? 'Visited today, call soon' : 'Visited ${_days(i.days)} ago',
+      TodaySection.outstanding => 'Waiting ${_days(i.days)} for a call',
+      TodaySection.retry => 'No answer ${_days(i.days)} ago, call ${i.calls + 1} of ${WorkRules.MAX_RETRIES}',
+      TodaySection.followUpDue => 'Last call ${_days(i.days)} ago',
+    };
+
+/// The pill on a Today row: red for Outstanding, quiet for Retry and Follow-up due.
+String? todayPill(TodaySection s) => switch (s) {
+      TodaySection.fresh => null,
+      TodaySection.outstanding => 'Outstanding',
+      TodaySection.retry => 'Retry',
+      TodaySection.followUpDue => 'Follow-up due',
+    };
 
 /// Navy summary card: how many need action today, and the next call.
 class TodayHero extends StatelessWidget {
