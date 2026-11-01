@@ -181,6 +181,8 @@ function pcuFsCommit_(writes) {
 
 function pcuUserDoc_(w) {
   return {
+    // The Workers tab ID (W001), used by the app's Team screen to turn a worker on or off.
+    id: w.id || '',
     name: w.name,
     email: pcuEmail_(w.email),
     phone: w.phone || '',
@@ -1060,6 +1062,8 @@ function pcuEnsureSyncTriggers_() {
 /** The sheet sync for the HOD's "Sync to sheet" button (admin only). */
 function pcuSyncNow_(user) {
   pcuRequireAdmin_(user);
+  // Cheap, and keeps users (names, roles, IDs) current for the app.
+  pcuSyncUsersQuietly_();
   var result = pcuSheetSync_('syncNow ' + user.email);
   try {
     result.triggersAdded = pcuEnsureSyncTriggers_();

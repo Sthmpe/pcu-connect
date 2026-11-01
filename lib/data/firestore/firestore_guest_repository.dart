@@ -179,6 +179,9 @@ class FirestoreGuestRepository implements IGuestRepository {
 
       final result = FollowUpRules.apply(FirestoreMappers.workState(data), input, today: today);
       final followUpRef = _db.collection('followUps').doc();
+      // The leaderboard entry moves with the save, for workers only (admins
+      // are never ranked). Apps Script rebuilds it nightly from followUps.
+      final rankWorker = worker == _email ? !_isAdmin : await _isWorker(worker);
       final batch = _db.batch()
         ..set(followUpRef, {
           'guestId': guestId,
@@ -211,6 +214,21 @@ class FirestoreGuestRepository implements IGuestRepository {
           'lastFollowUpId': followUpRef.id,
           'updatedAt': FieldValue.serverTimestamp(),
         });
+      if (rankWorker) {
+        batch.set(
+          _db.collection('rankings').doc(today.substring(0, 7)).collection('entries').doc(worker),
+          {
+            'email': worker,
+            'name': worker == _email
+                ? (_auth.currentUser?.name ?? worker)
+                : ((data['assignedName'] ?? '').toString().isEmpty ? worker : data['assignedName'].toString()),
+            'points': FieldValue.increment(result.points),
+            'lastFollowUpId': followUpRef.id,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
 
       // The batch is applied on the device straight away. Offline, the server
       // answer never comes in time, so the save waits on the device to sync.
@@ -236,6 +254,24 @@ class FirestoreGuestRepository implements IGuestRepository {
       return ApiResult.failure(_failure(e));
     } catch (e) {
       return const ApiResult.failure(ServerFailure('We could not save this follow-up. Try again.'));
+    }
+  }
+
+  /// True when [email] is a worker (admins can read users). Unknown: false,
+  /// so the save never fails over the leaderboard; the nightly rebuild adds it.
+  Future<bool> _isWorker(String email) async {
+    try {
+      final ref = _db.collection('users').doc(email);
+      DocumentSnapshot<Map<String, dynamic>> snap;
+      try {
+        snap = await ref.get(const GetOptions(source: Source.cache));
+        if (!snap.exists) snap = await ref.get();
+      } catch (_) {
+        snap = await ref.get();
+      }
+      return snap.data()?['role'] == 'worker';
+    } catch (_) {
+      return false;
     }
   }
 

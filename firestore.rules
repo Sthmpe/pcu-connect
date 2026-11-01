@@ -157,6 +157,31 @@ service cloud.firestore {
         && d.lastSeenAt == request.time;
     }
 
+    // A leaderboard entry moves only with a brand-new follow-up for that
+    // worker in that month, by exactly its points. Admins are never ranked.
+    // Apps Script rebuilds every entry nightly from followUps.
+    function validRankingWrite(month, email) {
+      let after = request.resource.data;
+      let before = resource == null ? 0 : resource.data.get('points', 0);
+      let fu = /databases/$(database)/documents/followUps/$(after.lastFollowUpId);
+      return after.keys().hasOnly(['email', 'name', 'points', 'lastFollowUpId', 'updatedAt'])
+        && after.email == email
+        && after.name is string && after.name.size() <= 100
+        && after.updatedAt == request.time
+        && after.lastFollowUpId is string
+        && existsAfter(fu) && !exists(fu)
+        && getAfter(fu).data.worker == email
+        && getAfter(fu).data.month == month
+        && after.points == before + getAfter(fu).data.points
+        && exists(userPath(email)) && get(userPath(email)).data.role == 'worker';
+    }
+
+    match /rankings/{month}/entries/{email} {
+      allow read: if isMember();
+      allow create, update: if isMember() && validRankingWrite(month, email);
+      allow delete: if false;
+    }
+
     match /users/{email} {
       allow read: if isMember() && (email == myEmail() || isAdmin());
       allow write: if false;

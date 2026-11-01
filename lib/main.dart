@@ -21,6 +21,7 @@ import 'core/widgets/app_feedback.dart';
 import 'core/widgets/responsive_web_shell.dart';
 import 'data/firestore/firestore_guest_repository.dart';
 import 'data/firestore/firestore_profile_source.dart';
+import 'data/firestore/firestore_team_repository.dart';
 import 'data/firestore/notifications_repository.dart';
 import 'data/firestore/push_service.dart';
 import 'data/firestore/sheet_sync_repository.dart';
@@ -84,9 +85,14 @@ void main() async {
               authRepository: authRepository,
             )
           : apiGuests;
+  final apiTeam = TeamRepositoryImpl(apiClient: apiClient, authRepository: authRepository);
+  // Firestore mode: ranking, team and dashboard read Firestore, so saves show
+  // at once; adding or pausing a worker still goes through Apps Script.
   final ITeamRepository teamRepository = AppConfig.useSampleData
       ? SampleTeamRepository()
-      : TeamRepositoryImpl(apiClient: apiClient, authRepository: authRepository);
+      : AppConfig.useFirestore
+          ? FirestoreTeamRepository(db: FirebaseFirestore.instance, authRepository: authRepository, accounts: apiTeam)
+          : apiTeam;
 
   final ISheetSyncRepository? sheetSyncRepository = AppConfig.useFirestore
       ? SheetSyncRepository(

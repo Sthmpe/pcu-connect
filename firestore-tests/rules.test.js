@@ -348,3 +348,48 @@ describe('notifications (users/{email}/notifications)', () => {
     await assertFails(setDoc(ref(as(ADMIN), DAVID, 'N3'), { title: 'Fake', read: false }));
   });
 });
+
+describe('leaderboard entries (rankings/{month}/entries/{email})', () => {
+  const MONTH = TODAY.slice(0, 7);
+  const entry = (db, email = DAVID, month = MONTH) => doc(db, 'rankings', month, 'entries', email);
+  // One save with the leaderboard move, as the app does it.
+  function saveRanked(db, id, fu = {}, rank = {}, guestId = 'G1') {
+    const batch = writeBatch(db);
+    const f = followUp({ guestId, ...fu });
+    batch.set(doc(db, 'followUps', id), f);
+    batch.update(doc(db, 'guests', guestId), work(id));
+    batch.set(entry(db, rank.email || f.worker, rank.month || MONTH), {
+      email: rank.email || f.worker, name: rank.name ?? 'David', points: increment(rank.points ?? f.points),
+      lastFollowUpId: rank.lastFollowUpId || id, updatedAt: serverTimestamp(), ...(rank.extra || {}),
+    }, { merge: true });
+    return batch.commit();
+  }
+
+  test('a save moves the worker\'s entry by exactly the follow-up\'s points; everyone can read it', async () => {
+    await assertSucceeds(saveRanked(as(DAVID), 'F2', { points: 15 }));
+    await assertSucceeds(saveRanked(as(DAVID), 'F3', { points: 5 }));
+    const e = (await getDoc(entry(as(ADA)))).data();
+    if (e.points !== 20) throw new Error('points ' + e.points);
+  });
+  test('admin on behalf moves the worker\'s entry', async () => {
+    await assertSucceeds(saveRanked(as(ADMIN), 'F2', { worker: DAVID, loggedBy: ADMIN, points: 10 }, { name: 'David' }));
+  });
+  test('wrong points, another worker, another month or a replayed follow-up are refused', async () => {
+    await assertFails(saveRanked(as(DAVID), 'F2', { points: 10 }, { points: 50 }));
+    await assertFails(saveRanked(as(DAVID), 'F3', { points: 10 }, { email: ADA }));
+    await assertFails(saveRanked(as(DAVID), 'F4', { points: 10 }, { month: '2020-01' }));
+    await assertFails(setDoc(entry(as(DAVID)), { email: DAVID, name: 'David', points: 999, lastFollowUpId: 'F1', updatedAt: serverTimestamp() }));
+    await assertFails(saveRanked(as(DAVID), 'F5', { points: 10 }, { extra: { hacked: true } }));
+  });
+  test('admins are never ranked', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'guests', 'G9'), { name: 'Admin guest', assignedTo: ADMIN, followUpCount: 0 });
+    });
+    await assertFails(saveRanked(as(ADMIN), 'F2', { guestId: 'G9', worker: ADMIN, loggedBy: ADMIN, points: 10 }, { name: 'Boss' }, 'G9'));
+  });
+  test('entries are never deleted from the app', async () => {
+    await assertSucceeds(saveRanked(as(DAVID), 'F2', { points: 10 }));
+    await assertFails(deleteDoc(entry(as(DAVID))));
+    await assertFails(deleteDoc(entry(as(ADMIN))));
+  });
+});
