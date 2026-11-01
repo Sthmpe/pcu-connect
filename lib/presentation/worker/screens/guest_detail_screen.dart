@@ -20,6 +20,7 @@ import '../../../domain/entities/guest_entity.dart';
 import '../../../domain/membership_progress.dart';
 import '../../../domain/repositories/i_guest_repository.dart';
 import '../../guests/bloc/guests_bloc.dart';
+import '../../guests/bloc/guests_event.dart';
 import '../../common/whatsapp_sheet.dart';
 import '../../guests/bloc/guests_state.dart';
 
@@ -59,6 +60,10 @@ class _GuestDetailScreenState extends State<GuestDetailScreen> {
   List<FollowUpEntry>? _history;
   bool _historyFailed = false;
 
+  /// The guest loaded by ID, for when their month is not in the cache
+  /// (opened from a notification).
+  GuestEntity? _fetched;
+
   @override
   void initState() {
     super.initState();
@@ -68,9 +73,18 @@ class _GuestDetailScreenState extends State<GuestDetailScreen> {
   Future<void> _loadHistory() async {
     final result = await context.read<IGuestRepository>().fetchGuestDetail(widget.guestId);
     if (!mounted) return;
+    final guests = context.read<GuestsBloc>();
+    final fetched = result.data;
+    // Not on screen yet: watch their month so the guest stays live.
+    if (fetched != null && guests.state.find(widget.guestId) == null && RegExp(r'^\d{4}-\d{2}$').hasMatch(fetched.month)) {
+      guests.add(WatchMonthsEvent([fetched.month]));
+    }
     setState(() {
       _historyFailed = result.isFailure;
-      if (result.isSuccess) _history = result.data!.history;
+      if (result.isSuccess) {
+        _history = fetched!.history;
+        _fetched = fetched;
+      }
     });
   }
 
@@ -88,14 +102,15 @@ class _GuestDetailScreenState extends State<GuestDetailScreen> {
       body: BlocBuilder<GuestsBloc, GuestsState>(
         builder: (context, state) {
           // From whichever month it was opened in (the cache holds every loaded month).
-          final GuestEntity? guest = state.find(widget.guestId);
+          // Otherwise the one loaded by ID.
+          final GuestEntity? guest = state.find(widget.guestId) ?? _fetched;
 
           if (guest == null) {
             return Column(
               children: [
                 const AppTopBar(),
                 Expanded(
-                  child: state.months.values.every((m) => m.status != MonthStatus.loading)
+                  child: _historyFailed
                       ? const Center(
                           child: EmptyState(
                               icon: AppIcons.search, message: 'We could not find this guest.'),

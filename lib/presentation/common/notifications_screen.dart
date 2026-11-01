@@ -9,7 +9,10 @@ import '../../core/utils/lagos_time.dart';
 import '../../core/widgets/app_page.dart';
 import '../../core/widgets/app_surfaces.dart';
 import '../../core/widgets/state_views.dart';
+import '../../core/routing/app_routes.dart';
 import '../../domain/entities/app_notification.dart';
+import '../auth/bloc/auth_bloc.dart';
+import '../auth/bloc/auth_state.dart';
 import 'notifications_cubit.dart';
 
 /// The notification list. Opening it marks everything as read.
@@ -44,12 +47,28 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     child: EmptyState(icon: AppIcons.bell, message: 'No notifications yet.'),
                   );
                 }
-                return PageList(
+                final (today, earlier) = groupNotifications(state.items);
+                final auth = context.read<AuthBloc>().state;
+                final asAdmin = auth is AuthAuthenticatedState && auth.user.isAdmin;
+                void open(AppNotification n) => Navigator.of(
+                  context,
+                ).pushNamed(AppRoutes.guestDetail, arguments: GuestDetailArgs(n.guestId!, asAdmin: asAdmin));
+                Widget group(String label, List<AppNotification> items) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    SectionLabel(label),
                     GroupedCard(
                       dividerIndent: AppSizes.s16 * 2 + AppSizes.iconMd,
-                      children: [for (final n in state.items) _NotificationRow(n)],
+                      children: [
+                        for (final n in items) _NotificationRow(n, onTap: n.guestId == null ? null : () => open(n)),
+                      ],
                     ),
+                  ],
+                );
+                return PageList(
+                  children: [
+                    if (today.isNotEmpty) group('Today', today),
+                    if (earlier.isNotEmpty) group('Earlier', earlier),
                   ],
                 );
               },
@@ -61,9 +80,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 }
 
+/// Splits notifications (newest first) into Today and Earlier, by the Lagos
+/// day. One still waiting for its server time counts as today.
+(List<AppNotification>, List<AppNotification>) groupNotifications(List<AppNotification> items, [DateTime? clock]) {
+  final today = LagosTime.today(clock);
+  bool isToday(AppNotification n) => n.createdAt == null || LagosTime.day(n.createdAt!) == today;
+  return (items.where(isToday).toList(), items.where((n) => !isToday(n)).toList());
+}
+
 class _NotificationRow extends StatelessWidget {
   final AppNotification n;
-  const _NotificationRow(this.n);
+
+  /// Opens the guest the notice is about.
+  final VoidCallback? onTap;
+  const _NotificationRow(this.n, {this.onTap});
 
   IconData get _icon {
     if (n.guestId != null) return AppIcons.guests;
@@ -74,44 +104,45 @@ class _NotificationRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.all(AppSizes.s16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(_icon, size: AppSizes.iconMd, color: AppColors.inkSoft),
-          SizedBox(width: AppSizes.s16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(n.title, style: n.read ? AppTextStyles.body : AppTextStyles.bodyStrong),
-                    ),
-                    Text(timeAgo(n.createdAt), style: AppTextStyles.caption),
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.all(AppSizes.s16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(_icon, size: AppSizes.iconMd, color: AppColors.inkSoft),
+            SizedBox(width: AppSizes.s16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: Text(n.title, style: n.read ? AppTextStyles.body : AppTextStyles.bodyStrong)),
+                      Text(timeAgo(n.createdAt), style: AppTextStyles.caption),
+                    ],
+                  ),
+                  if (n.body.isNotEmpty) ...[
+                    SizedBox(height: AppSizes.s4),
+                    Text(n.body, style: AppTextStyles.bodyMuted),
                   ],
-                ),
-                if (n.body.isNotEmpty) ...[
-                  SizedBox(height: AppSizes.s4),
-                  Text(n.body, style: AppTextStyles.bodyMuted),
                 ],
-              ],
-            ),
-          ),
-          if (!n.read) ...[
-            SizedBox(width: AppSizes.s8),
-            Padding(
-              padding: EdgeInsets.only(top: AppSizes.s8),
-              child: Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(color: AppColors.gold, shape: BoxShape.circle),
               ),
             ),
+            if (!n.read) ...[
+              SizedBox(width: AppSizes.s8),
+              Padding(
+                padding: EdgeInsets.only(top: AppSizes.s8),
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(color: AppColors.gold, shape: BoxShape.circle),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
