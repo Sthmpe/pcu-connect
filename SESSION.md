@@ -581,3 +581,44 @@ Tests: 55 emulator rules tests (needs Java 21), 71 Flutter tests, Firestore harn
 equivalence harness pass. ALLOW_MOCK_TOKENS is still on (TEST sheet only).
 
 **Test data:** syncNow and pushCheck were called on the TEST project (no app saves existed, so nothing was synced).
+
+## 2026-11-01 Update: Part D audit and fixes
+
+Branch `phase-1-firestore`. Commits: 2c34e42 (months per screen, Today rule), ecace70 (services review), d15b6d4
+(admin review), 0711289 (backend contract), 96c3f38 (render check). Apps Script pushed with clasp to the existing
+deployment `AKfycby0H6Sk...` (@12), exec URL unchanged; rules unchanged this round (not redeployed). Preview rebuilt:
+https://pcu-workflow--firestore-test-3a07ufkq.web.app (login screen renders, no page errors). Live site untouched.
+
+Suspected bugs and verdicts:
+- (a) Guests month changed Today: REAL. One app-wide GuestsBloc held a single selectedMonth that Today filtered by.
+- (b) Dashboard month changed the admin Guests month: REAL. The Dashboard sent SelectMonthEvent to that same bloc.
+- (c) Found while fixing: a second person on the same device could see the first person's guests (Firestore listener
+  kept on sign-in, left running after sign-out). REAL.
+- Today showed every guest of the selected month (called or not, members too) with no outstanding label: REAL.
+- F1 "this month" used the device time zone: REAL (wrong around month ends outside Lagos).
+- F2 log screen date picker used the device's today: REAL. F3 API mode future-date check used the device date: REAL.
+- F4 raw FormatException/Timeout text shown to people: REAL. F5 raw sign-in error text: REAL.
+- F6 a device's push token stayed under the previous person after sign-out (shared phones): REAL.
+- A1 Team keyed by an empty users.id for older users: LIKELY/LATENT, fixed with an email fallback (backend accepts it).
+- A2 Dashboard/Team first month fixed at app start: REAL (minor).
+- M1 offline save near midnight counted in the next month by the nightly rebuild and the sheet's CALL DATE: REAL.
+- Checked and fine: duplicate listeners (one per month/screen/cubit), worker/admin data mixing in queries, Sync to
+  sheet and Last synced, add worker, log on behalf, every Apps Script action's parameters and responses, Firestore
+  batch fields against the rules, ranking entries, tokens, notifications, meta/sync.
+
+How it works now:
+- GuestsBloc is a cache by month (WatchMonthsEvent, RefreshMonthsEvent, ResetGuestsEvent), one live listener per month,
+  no selected month. Each Guests screen has its own GuestsFilterCubit (worker tab, HOD tab, one worker's guests screen).
+  The Dashboard keeps its own month (DashboardCubit) and its journey reads that month. Me shows the calendar month.
+  A Dashboard tile opens Guests on that tile's month and chip only when tapped.
+- Today (TodayRules) follows no filter: the worker's guests not yet called, first visit on or after go-live
+  (AppConfig.chaseFrom 2026-10-28, same as GO_LIVE for the 6pm reminder), split into Outstanding (over 3 days) and New.
+- resetSessionState on sign-in and sign-out; AuthBloc.beforeSignOut removes this device's push token first.
+
+Tests: 91 Flutter tests (screen independence a/b/c, Today rule, month boundaries, API client messages, sign-out hook,
+push reset, team id fallback), API harness (setWorkerActive by email), Firestore harness 79 checks (offline month
+boundary), emulator rules unchanged (55).
+
+Still open: Guest detail and the log screen find the guest in the loaded months only (opened from a list, so it is
+there); an admin cannot log for a guest whose ASSIGNED TO is not in the Workers tab (no assignee name); a paused worker
+still shows on the worker leaderboard until the nightly rebuild; FCM permission for the service account (see above).
