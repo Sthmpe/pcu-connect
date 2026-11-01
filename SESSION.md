@@ -622,3 +622,19 @@ boundary), emulator rules unchanged (55).
 Still open: Guest detail and the log screen find the guest in the loaded months only (opened from a list, so it is
 there); an admin cannot log for a guest whose ASSIGNED TO is not in the Workers tab (no assignee name); a paused worker
 still shows on the worker leaderboard until the nightly rebuild; FCM permission for the service account (see above).
+
+## 2026-11-01 Live deploy: before state and rollback
+
+Recorded before deploying the Firestore-mode app to the live site (https://pcu-workflow.web.app):
+- Live channel release: `projects/pcu-workflow/sites/pcu-workflow/channels/live/releases/1793478488113000`
+- Live version ID: **876dfe9dc93285cf** (released 2026-10-31 20:28:08 UTC)
+- That build: API mode (Apps Script data source), exec URL
+  `https://script.google.com/macros/s/AKfycbwemH_w7TbGcuN2X_LkRkeGnrRvd6E-rbdbp7DKUaxSsnbpEhCCI8KlEHUeA5KnBlM/exec`
+
+**Rollback** (puts that exact version back on the live site; the Firestore data and rules are not touched):
+
+```
+firebase hosting:clone pcu-workflow:@876dfe9dc93285cf pcu-workflow:live --project pcu-workflow
+```
+
+The Firebase console can do the same: Hosting, Release history, the 2026-10-31 20:28 release, Roll back.
