@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/widgets/app_feedback.dart';
@@ -6,6 +7,7 @@ import '../../domain/repositories/i_guest_repository.dart';
 import '../auth/bloc/auth_bloc.dart';
 import '../auth/bloc/auth_state.dart';
 import '../common/insights_cubits.dart';
+import '../common/install_prompt_cubit.dart';
 import '../guests/bloc/guests_bloc.dart';
 import '../guests/bloc/guests_event.dart';
 
@@ -36,6 +38,12 @@ Future<bool> saveFollowUp(
   final ranking = context.read<RankingCubit>();
   final dashboard = context.read<DashboardCubit>();
   final team0 = context.read<TeamCubit>();
+  InstallPromptCubit? install;
+  try {
+    install = context.read<InstallPromptCubit>();
+  } on ProviderNotFoundException {
+    // Not provided (tests).
+  }
 
   final result = await context.read<IGuestRepository>().logFollowUp(
         guestId: guestId,
@@ -59,6 +67,8 @@ Future<bool> saveFollowUp(
   if (ranking.state.data != null) ranking.load();
   if (dashboard.state.data != null) dashboard.load();
   if (team0.state.data != null) team0.load();
+  // The first save on this device may offer "Add to Home Screen".
+  if (install != null) unawaited(install.saved());
   close?.call();
   AppFeedback.pointsEarned(points: points, guestName: guestName, creditedTo: creditedTo, pendingSync: pendingSync);
   return true;

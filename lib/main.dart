@@ -25,6 +25,7 @@ import 'data/firestore/firestore_team_repository.dart';
 import 'data/firestore/notifications_repository.dart';
 import 'data/firestore/push_service.dart';
 import 'data/firestore/sheet_sync_repository.dart';
+import 'core/install/install_support.dart';
 import 'core/sync/connectivity.dart';
 import 'core/sync/sync_signals.dart';
 import 'core/sync/sync_status_cubit.dart';
@@ -41,6 +42,7 @@ import 'domain/repositories/i_team_repository.dart';
 import 'presentation/auth/bloc/auth_bloc.dart';
 import 'presentation/auth/bloc/auth_event.dart';
 import 'presentation/common/insights_cubits.dart';
+import 'presentation/common/install_prompt_cubit.dart';
 import 'presentation/common/notifications_cubit.dart';
 import 'presentation/common/push_cubit.dart';
 import 'presentation/guests/bloc/guests_bloc.dart';
@@ -132,6 +134,8 @@ void main() async {
         : null,
     localCache: localCache,
     syncSignals: syncSignals,
+    // "Add to Home Screen" (web only; the flags live on this device).
+    installPrompt: InstallPromptCubit(prefs: prefs, support: InstallSupport()),
   ));
 }
 
@@ -153,6 +157,8 @@ class PCUConnectApp extends StatelessWidget {
   /// Firestore mode only: the sync chip.
   final SyncSignals? syncSignals;
 
+  final InstallPromptCubit? installPrompt;
+
   const PCUConnectApp({
     super.key,
     required this.authRepository,
@@ -163,6 +169,7 @@ class PCUConnectApp extends StatelessWidget {
     this.notificationsRepository,
     required this.localCache,
     this.syncSignals,
+    this.installPrompt,
   });
 
   @override
@@ -202,6 +209,7 @@ class PCUConnectApp extends StatelessWidget {
           BlocProvider<RankingCubit>(create: (ctx) => RankingCubit(teamRepository)),
           BlocProvider<DashboardCubit>(create: (ctx) => DashboardCubit(teamRepository)),
           BlocProvider<TeamCubit>(create: (ctx) => TeamCubit(teamRepository)),
+          if (installPrompt != null) BlocProvider<InstallPromptCubit>.value(value: installPrompt!),
           if (syncSignals != null)
             BlocProvider<SyncStatusCubit>(
               create: (ctx) {

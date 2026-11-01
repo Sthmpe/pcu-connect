@@ -84,6 +84,17 @@
       window.__pcuFirebaseDone = resolve;
       window.__pcuFirebaseFailed = reject;
     });
+    // "Add to Home Screen": keep the browser's install offer for the app's
+    // own card (Chrome on Android), and note when the app gets installed.
+    window.__pcuInstall = { prompt: null, installed: false };
+    window.addEventListener('beforeinstallprompt', function (e) {
+      window.__pcuInstall.prompt = e;
+    });
+    window.addEventListener('appinstalled', function () {
+      window.__pcuInstall.installed = true;
+      window.__pcuInstall.prompt = null;
+      window.dispatchEvent(new Event('pcu-installed'));
+    });
     // The splash stays until Flutter has drawn its first frame.
     window.addEventListener('flutter-first-frame', function () {
       var splash = document.getElementById('splash');

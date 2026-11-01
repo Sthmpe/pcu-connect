@@ -19,6 +19,7 @@ import '../../../core/widgets/status_tone.dart';
 import '../../../domain/today_rules.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../auth/bloc/auth_state.dart';
+import '../../common/install_prompt_card.dart';
 import '../../common/notification_bell.dart';
 import '../../common/push_prompt_card.dart';
 import '../../guests/bloc/guests_bloc.dart';
@@ -82,6 +83,7 @@ class TodayTab extends StatelessWidget {
                     children: [
                       if (state.fromCache) OfflineBanner(isRefreshing: state.refreshing),
                       const PushPromptCard(reason: 'when a new guest is assigned to you'),
+                      const InstallPromptCard(),
                       TodayHero(view: view),
                       if (view.total == 0) ...[
                         SizedBox(height: AppSizes.s24),
