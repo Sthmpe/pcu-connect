@@ -43,7 +43,8 @@ void main() {
 
     test('a saved template replaces its default; a missing or blank one keeps it', () {
       final list = MessageTemplates.from({'thanks': 'Hello {name}', 'missedCall': '   '});
-      expect(list.map((t) => t.id), ['thanks', 'missedCall', 'checkIn']);
+      expect(list.map((t) => t.id), ['thanks', 'missedCall', 'checkIn', 'nudge']);
+      expect(MessageTemplates.forGuests(list).map((t) => t.id), ['thanks', 'missedCall', 'checkIn']);
       expect(list[0].text, 'Hello {name}');
       expect(list[1].text, MessageTemplates.defaults['missedCall']);
       expect(list[2].text, MessageTemplates.defaults['checkIn']);

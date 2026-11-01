@@ -11,6 +11,8 @@ import 'package:workflow/domain/attention_rules.dart';
 import 'package:workflow/domain/nudge.dart';
 import 'package:workflow/presentation/admin/widgets/needs_attention_card.dart';
 import 'package:workflow/presentation/admin/widgets/nudge_sheet.dart';
+import 'package:workflow/core/utils/phone_intl.dart';
+import 'package:workflow/domain/message_templates.dart';
 
 class FakeNudges implements INudgeRepository {
   final sent = <(String, int, String)>[];
@@ -23,8 +25,15 @@ class FakeNudges implements INudgeRepository {
     return answer;
   }
 
+  NudgeHistory past = NudgeHistory.empty;
+  final whatsApp = <(String, int)>[];
+
   @override
-  Stream<Map<String, DateTime>> recent() => Stream.value(const {});
+  Stream<NudgeHistory> history() => Stream.value(past);
+
+  @override
+  Future<void> logWhatsApp({required String workerEmail, required String workerName, required int outstanding}) async =>
+      whatsApp.add((workerEmail, outstanding));
 }
 
 const david = WorkerAttention(workerName: 'David Olanite', workerEmail: 'david@x.com', outstanding: 4, oldestDays: 9, oldestMonth: '2026-10');
@@ -54,15 +63,20 @@ void main() {
       expect(nudgedLine(DateTime.utc(2026, 11, 1, 9, 42)), 'Nudged at 10:42. You can nudge again at 10:42 on Monday.');
     });
 
-    test('the latest nudge per worker', () {
-      final m = NudgeRepository.fromDocs([
-        {'worker': 'david@x.com', 'sentAt': Timestamp.fromDate(DateTime.utc(2026, 11, 1, 8))},
-        {'worker': 'david@x.com', 'sentAt': Timestamp.fromDate(DateTime.utc(2026, 11, 1, 9))},
-        {'worker': 'ada@x.com', 'sentAt': DateTime.utc(2026, 11, 1, 7)},
+    test('history: last nudge on any channel; the 24 hours count only the friendly nudge', () {
+      final h = NudgeRepository.fromDocs([
+        {'worker': 'david@x.com', 'sentAt': Timestamp.fromDate(DateTime.utc(2026, 11, 1, 8)), 'channel': 'app'},
+        {'worker': 'david@x.com', 'sentAt': Timestamp.fromDate(DateTime.utc(2026, 11, 1, 9)), 'channel': 'whatsapp'},
+        {'worker': 'ada@x.com', 'sentAt': DateTime.utc(2026, 11, 1, 7), 'channel': 'whatsapp'},
         {'worker': '', 'sentAt': DateTime.utc(2026, 11, 1, 7)},
       ]);
-      expect(m.keys.toSet(), {'david@x.com', 'ada@x.com'});
-      expect(m['david@x.com']!.isAtSameMomentAs(DateTime.utc(2026, 11, 1, 9)), isTrue);
+      final now = DateTime.utc(2026, 11, 1, 12);
+      expect(h.last('david@x.com')!.isWhatsApp, isTrue);
+      expect(h.last('david@x.com')!.at.isAtSameMomentAs(DateTime.utc(2026, 11, 1, 9)), isTrue);
+      expect(h.friendlyWithin24h('david@x.com', now)!.isAtSameMomentAs(DateTime.utc(2026, 11, 1, 8)), isTrue);
+      expect(h.friendlyWithin24h('ada@x.com', now), isNull, reason: 'a WhatsApp nudge does not use up the 24 hours');
+      expect(h.friendlyWithin24h('david@x.com', DateTime.utc(2026, 11, 2, 9)), isNull);
+      expect(lastNudgedLine(h.last('ada@x.com')!, now), 'Last nudged 5 h ago on WhatsApp');
     });
   });
 
@@ -100,14 +114,62 @@ void main() {
   });
 
   group('The row', () {
-    testWidgets('a Nudge button until nudged, then when they can be nudged again', (tester) async {
+    testWidgets('a Nudge button, and when they were last nudged', (tester) async {
       var taps = 0;
       await tester.pumpWidget(app(NeedsAttentionRow(worker: david, onNudge: () => taps++)));
       await tester.tap(find.text('Nudge'));
       expect(taps, 1);
-      await tester.pumpWidget(app(NeedsAttentionRow(worker: david, nudgedAt: DateTime.utc(2026, 11, 1, 9, 42), onNudge: () => taps++)));
-      expect(find.text('Nudge'), findsNothing);
-      expect(find.textContaining('Nudged at 10:42'), findsOneWidget);
+      await tester.pumpWidget(app(NeedsAttentionRow(
+          worker: david,
+          lastNudge: NudgeLog(worker: 'david@x.com', at: DateTime.now().subtract(const Duration(minutes: 20)), channel: 'whatsapp'),
+          onNudge: () => taps++)));
+      expect(find.text('Last nudged 20 min ago on WhatsApp'), findsOneWidget);
+      expect(find.text('Nudge'), findsOneWidget, reason: 'WhatsApp is always possible; the sheet handles the 24 hours');
+    });
+  });
+
+  group('Nudge on WhatsApp', () {
+    test('Nigerian numbers in international form', () {
+      expect(nigerianInternational('0803 123-4567'), '2348031234567');
+      expect(nigerianInternational('+234 803 123 4567'), '2348031234567');
+      expect(nigerianInternational('(0803) 123 4567'), '2348031234567');
+      expect(nigerianInternational('8031234567'), '2348031234567');
+      expect(nigerianInternational('002348031234567'), '2348031234567');
+      expect(nigerianInternational(''), isNull);
+      expect(nigerianInternational('12345'), isNull);
+    });
+
+    test('the nudge message: default wording and placeholders', () {
+      final text = MessageTemplates.defaults[MessageTemplates.nudgeId]!;
+      expect(text, 'Hello {worker}, you have {n} guests waiting for a call. A quick call today makes a big difference. We are cheering you on.');
+      expect(MessageTemplates.fillNudge(text, workerName: 'David Olanite', waiting: 4, oldestDays: 9),
+          'Hello David, you have 4 guests waiting for a call. A quick call today makes a big difference. We are cheering you on.');
+      expect(MessageTemplates.fillNudge('{worker}: {n} waiting, oldest {oldest}', workerName: 'TEST Worker A', waiting: 2, oldestDays: 1),
+          'Worker: 2 waiting, oldest 1 day');
+    });
+
+    testWidgets('no phone: said plainly, and the WhatsApp button is off', (tester) async {
+      final repo = FakeNudges();
+      await tester.pumpWidget(app(NudgeSheet(worker: david, repo: repo, onSent: () {})));
+      await tester.pump();
+      expect(find.text('No phone saved for David. Add one in the Workers tab.'), findsOneWidget);
+      await tester.ensureVisible(find.text('Nudge on WhatsApp'));
+      await tester.tap(find.text('Nudge on WhatsApp'), warnIfMissed: false);
+      expect(repo.whatsApp, isEmpty);
+    });
+
+    testWidgets('within 24 hours of a friendly nudge only WhatsApp is offered', (tester) async {
+      final repo = FakeNudges()
+        ..past = NudgeHistory([NudgeLog(worker: 'david@x.com', at: DateTime.utc(2026, 11, 1, 9, 42), channel: 'app')]);
+      await tester.pumpWidget(app(NudgeSheet(
+          worker: david, repo: repo, phone: '0803 123 4567', onSent: () {}, clock: () => DateTime.utc(2026, 11, 1, 12))));
+      await tester.pump();
+      expect(find.text('Nudged at 10:42. You can nudge again at 10:42 on Monday.'), findsOneWidget);
+      expect(find.byType(TextField), findsNothing);
+      await tester.ensureVisible(find.text('Send nudge'));
+      await tester.tap(find.text('Send nudge'), warnIfMissed: false);
+      expect(repo.sent, isEmpty);
+      expect(find.textContaining('Hello David, you have 4 guests'), findsOneWidget);
     });
   });
 }

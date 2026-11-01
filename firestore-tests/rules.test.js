@@ -439,6 +439,7 @@ describe('message templates (config/messageTemplates)', () => {
     thanks: 'Dear {title} {name}, thank you. {worker}, COZA Ilorin',
     missedCall: 'Dear {title} {name}, I tried calling you.',
     checkIn: 'Dear {title} {name}, since {service}.',
+    nudge: 'Hello {worker}, you have {n} guests waiting.',
     updatedAt: serverTimestamp(),
     updatedBy: ADMIN,
     ...over,
@@ -470,6 +471,8 @@ describe('message templates (config/messageTemplates)', () => {
     const db = as(ADMIN);
     const missing = templates(); delete missing.checkIn;
     await assertFails(setDoc(ref(db), missing));
+    const noNudge = templates(); delete noNudge.nudge;
+    await assertFails(setDoc(ref(db), noNudge));
     await assertFails(setDoc(ref(db), templates({ thanks: '' })));
     await assertFails(setDoc(ref(db), templates({ thanks: 'x'.repeat(1001) })));
     await assertSucceeds(setDoc(ref(db), templates({ thanks: 'x'.repeat(1000) })));
@@ -495,7 +498,18 @@ describe('nudges', () => {
     await assertFails(getDoc(doc(as(DAVID), 'nudges', 'N1')));
     await assertFails(getDocs(collection(as(ADA), 'nudges')));
   });
-  test('nobody writes a nudge from the app, not even an admin (only Apps Script)', async () => {
+  test('an admin logs a WhatsApp nudge, in exactly that shape', async () => {
+    const wa = (over = {}) => ({ worker: DAVID, workerName: 'David', sentBy: ADMIN, sentAt: serverTimestamp(), channel: 'whatsapp', outstanding: 4, ...over });
+    await assertSucceeds(setDoc(doc(as(ADMIN), 'nudges', 'W1'), wa()));
+    await assertFails(setDoc(doc(as(DAVID), 'nudges', 'W2'), wa({ sentBy: DAVID })));
+    await assertFails(setDoc(doc(as(ADMIN), 'nudges', 'W3'), wa({ channel: 'app' })));
+    await assertFails(setDoc(doc(as(ADMIN), 'nudges', 'W4'), wa({ sentBy: DAVID })));
+    await assertFails(setDoc(doc(as(ADMIN), 'nudges', 'W5'), wa({ sentAt: new Date() })));
+    await assertFails(setDoc(doc(as(ADMIN), 'nudges', 'W6'), wa({ worker: 'nobody@x.com' })));
+    await assertFails(setDoc(doc(as(ADMIN), 'nudges', 'W7'), wa({ title: 'extra' })));
+    await assertFails(setDoc(doc(as(ADMIN), 'nudges', 'W8'), wa({ outstanding: -1 })));
+  });
+  test('nobody writes a friendly nudge from the app, not even an admin (only Apps Script)', async () => {
     await assertFails(setDoc(doc(as(ADMIN), 'nudges', 'N2'), nudge({ sentAt: serverTimestamp() })));
     await assertFails(updateDoc(doc(as(ADMIN), 'nudges', 'N1'), { outstanding: 1 }));
     await assertFails(deleteDoc(doc(as(ADMIN), 'nudges', 'N1')));

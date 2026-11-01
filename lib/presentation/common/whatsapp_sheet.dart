@@ -58,7 +58,7 @@ class WhatsAppSheet extends StatelessWidget {
           stream: templates,
           initialData: MessageTemplates.defaultList,
           builder: (context, snap) {
-            final list = snap.data ?? MessageTemplates.defaultList;
+            final list = MessageTemplates.forGuests(snap.data ?? MessageTemplates.defaultList);
             return ListView(
               shrinkWrap: true,
               padding: EdgeInsets.fromLTRB(AppSizes.gutter, 0, AppSizes.gutter, AppSizes.s24),

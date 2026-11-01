@@ -10,8 +10,11 @@ abstract class INudgeRepository {
   /// Sends a nudge through the admin-only Apps Script action.
   Future<ApiResult<NudgeResult>> send({required String workerEmail, required int outstanding, String personalLine = ''});
 
-  /// Workers nudged in the last 24 hours: email -> when (Firestore mode; empty otherwise).
-  Stream<Map<String, DateTime>> recent();
+  /// Recent nudges on every channel, newest first (Firestore mode; empty otherwise).
+  Stream<NudgeHistory> history();
+
+  /// Logs a WhatsApp nudge the HOD just opened (Firestore mode).
+  Future<void> logWhatsApp({required String workerEmail, required String workerName, required int outstanding});
 }
 
 class NudgeRepository implements INudgeRepository {
@@ -53,27 +56,48 @@ class NudgeRepository implements INudgeRepository {
   }
 
   @override
-  Stream<Map<String, DateTime>> recent() {
+  Stream<NudgeHistory> history() {
     final db = _db;
-    if (db == null) return Stream.value(const {});
+    if (db == null) return Stream.value(NudgeHistory.empty);
     return db
         .collection('nudges')
-        .where('sentAt', isGreaterThan: Timestamp.fromDate(_clock().subtract(Nudge.every)))
+        .orderBy('sentAt', descending: true)
+        .limit(300)
         .snapshots()
-        .map((s) => fromDocs(s.docs.map((d) => d.data())))
+        .map((s) => fromDocs(s.docs.map((d) => d.data()), now: _clock()))
         .handleError((Object e) => logReadError('nudges', e));
   }
 
-  /// The latest nudge per worker.
-  static Map<String, DateTime> fromDocs(Iterable<Map<String, dynamic>> docs) {
-    final out = <String, DateTime>{};
+  @override
+  Future<void> logWhatsApp({required String workerEmail, required String workerName, required int outstanding}) async {
+    final db = _db;
+    if (db == null) return;
+    try {
+      await db.collection('nudges').add({
+        'worker': workerEmail,
+        'workerName': workerName,
+        'sentBy': (_auth.currentUser?.email ?? '').trim().toLowerCase(),
+        'sentAt': FieldValue.serverTimestamp(),
+        'channel': 'whatsapp',
+        'outstanding': outstanding,
+      }).timeout(const Duration(seconds: 10));
+    } catch (e) {
+      // Offline, the write waits and syncs; a refused one is only logged.
+      logReadError('nudge log', e);
+    }
+  }
+
+  /// Newest first; a WhatsApp nudge still waiting for its server time counts as now.
+  static NudgeHistory fromDocs(Iterable<Map<String, dynamic>> docs, {DateTime? now}) {
+    final out = <NudgeLog>[];
     for (final d in docs) {
       final at = d['sentAt'];
-      final when = at is Timestamp ? at.toDate() : (at is DateTime ? at : null);
+      final when = at is Timestamp ? at.toDate() : (at is DateTime ? at : (at == null ? now : null));
       final email = (d['worker'] ?? '').toString();
       if (when == null || email.isEmpty) continue;
-      if (out[email] == null || when.isAfter(out[email]!)) out[email] = when;
+      out.add(NudgeLog(worker: email, at: when, channel: (d['channel'] ?? 'app').toString()));
     }
-    return out;
+    out.sort((a, b) => b.at.compareTo(a.at));
+    return NudgeHistory(out);
   }
 }

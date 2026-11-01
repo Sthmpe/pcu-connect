@@ -18,6 +18,10 @@ abstract class ContactLauncher {
       MessageTemplates.whatsAppLink(guest, text), 'Could not open WhatsApp for ${guest.phone}.',
       guestId: guest.id);
 
+  /// WhatsApp to [international] (for example 2348031234567) with [text] typed in.
+  static Future<void> whatsAppTo(String international, String text) => _open(
+      'https://wa.me/$international?text=${Uri.encodeComponent(text)}', 'Could not open WhatsApp for +$international.');
+
   /// Long-press on a number: copy it and say so.
   static Future<void> copyPhone(GuestEntity guest) async {
     if (guest.phone.trim().isEmpty) return;

@@ -249,11 +249,12 @@ service cloud.firestore {
     }
 
     function validTemplates(d) {
-      return d.keys().hasOnly(['thanks', 'missedCall', 'checkIn', 'updatedAt', 'updatedBy'])
-        && d.keys().hasAll(['thanks', 'missedCall', 'checkIn', 'updatedAt', 'updatedBy'])
+      return d.keys().hasOnly(['thanks', 'missedCall', 'checkIn', 'nudge', 'updatedAt', 'updatedBy'])
+        && d.keys().hasAll(['thanks', 'missedCall', 'checkIn', 'nudge', 'updatedAt', 'updatedBy'])
         && templateText(d, 'thanks')
         && templateText(d, 'missedCall')
         && templateText(d, 'checkIn')
+        && templateText(d, 'nudge')
         && d.updatedAt == request.time
         && d.updatedBy == myEmail();
     }
@@ -263,7 +264,20 @@ service cloud.firestore {
     // writes them from the app.
     match /nudges/{id} {
       allow read: if isAdmin();
-      allow write: if false;
+      // The app logs a WhatsApp nudge (the friendly nudge is logged by Apps Script).
+      allow create: if isAdmin() && validWhatsAppNudge(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    function validWhatsAppNudge(d) {
+      return d.keys().hasOnly(['worker', 'workerName', 'sentBy', 'sentAt', 'channel', 'outstanding'])
+        && d.keys().hasAll(['worker', 'sentBy', 'sentAt', 'channel', 'outstanding'])
+        && d.channel == 'whatsapp'
+        && d.worker is string && exists(userPath(d.worker))
+        && (!('workerName' in d) || (d.workerName is string && d.workerName.size() <= 100))
+        && d.sentBy == myEmail()
+        && d.sentAt == request.time
+        && d.outstanding is int && d.outstanding >= 0 && d.outstanding <= 1000;
     }
 
     // Who moved which guest to whom, and when: written only by Apps Script

@@ -29,3 +29,37 @@ class NudgeResult {
     return '$firstName will see it $joined.';
   }
 }
+
+/// One logged nudge: the friendly one ('app': in-app, push, email) or WhatsApp.
+class NudgeLog {
+  final String worker;
+  final DateTime at;
+  final String channel;
+  const NudgeLog({required this.worker, required this.at, required this.channel});
+
+  bool get isWhatsApp => channel == 'whatsapp';
+}
+
+/// Recent nudges, newest first.
+class NudgeHistory {
+  final List<NudgeLog> logs;
+  const NudgeHistory(this.logs);
+
+  static const empty = NudgeHistory([]);
+
+  /// The latest nudge to [email] on any channel ("Last nudged").
+  NudgeLog? last(String email) {
+    for (final l in logs) {
+      if (l.worker == email) return l;
+    }
+    return null;
+  }
+
+  /// When [email] got the friendly nudge within the last 24 hours (one per 24 hours), else null.
+  DateTime? friendlyWithin24h(String email, DateTime now) {
+    for (final l in logs) {
+      if (l.worker == email && !l.isWhatsApp && now.difference(l.at) < Nudge.every) return l.at;
+    }
+    return null;
+  }
+}

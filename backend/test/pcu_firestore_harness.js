@@ -547,6 +547,7 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
   check('the result and the log say what went out', r.data.inApp === true && r.data.emailSent === true && r.data.pushSent === 0
     && n[0].emailSent === true && n[0].pushSent === 0 && /403|PERMISSION/.test(n[0].pushError), [r.data, n[0]]);
 
+  check('the friendly nudge is logged with its channel', n[0].channel === 'app', n[0]);
   const again = call({ action: 'nudge', idToken: 'tokAdmin', workerEmail: 'worker.a@x.com', outstanding: 4 });
   check('at most one nudge per worker per 24 hours', !again.ok && again.code === 'TOO_SOON' && /nudge again at/.test(again.error) && nudges().length === 1 && mails.length === 1, again);
 
@@ -557,7 +558,10 @@ const docs = (store, col) => Object.keys(store).filter(k => k.startsWith(col + '
   check('after 24 hours a new nudge goes out, with the push when allowed', later.ok && later.data.pushSent === 1 && pushes.length === before + 1
     && nudges().length === 2, later);
   check('one guest reads "1 guest"', nudges().some(x => x.body === 'You have 1 guest waiting for a call. A quick call today makes a big difference. We are cheering you on.'));
-  check('another worker has their own 24 hours', call({ action: 'nudge', idToken: 'tokAdmin', workerEmail: 'david@x.com', outstanding: 2 }).ok);
+  // A WhatsApp nudge logged by the app does not use up the 24 hours of the friendly nudge.
+  store['nudges/wa1'] = { worker: 'david@x.com', sentBy: 'boss@x.com', sentAt: new Date(), channel: 'whatsapp', outstanding: 2 };
+  check('another worker has their own 24 hours, and a WhatsApp nudge does not count', call({ action: 'nudge', idToken: 'tokAdmin', workerEmail: 'david@x.com', outstanding: 2 }).ok);
+  delete store['nudges/wa1'];
 
   // Email trouble never stops the in-app notice.
   ctx.MailApp.fail = true;

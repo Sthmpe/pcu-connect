@@ -10,7 +10,10 @@ import '../../../core/utils/lagos_time.dart';
 import '../../../core/widgets/app_display.dart';
 import '../../../core/widgets/app_surfaces.dart';
 import '../../../data/firestore/nudge_repository.dart';
+import '../../../data/firestore/message_templates_repository.dart';
 import '../../../domain/attention_rules.dart';
+import '../../../domain/nudge.dart';
+import '../../common/insights_cubits.dart';
 import '../../../domain/today_rules.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../guests/bloc/guests_bloc.dart';
@@ -31,7 +34,21 @@ class NeedsAttentionCard extends StatefulWidget {
 
 class _NeedsAttentionCardState extends State<NeedsAttentionCard> {
   late final INudgeRepository _nudges = context.read<INudgeRepository>();
-  late final Stream<Map<String, DateTime>> _recent = _nudges.recent();
+  late final Stream<NudgeHistory> _history = _nudges.history();
+
+  @override
+  void initState() {
+    super.initState();
+    // Phones for Nudge on WhatsApp come from the team (the Workers tab).
+    context.read<TeamCubit>().ensureLoaded();
+  }
+
+  String _phone(String email) {
+    for (final m in context.read<TeamCubit>().state.data ?? const []) {
+      if (m.email.trim().toLowerCase() == email) return m.phone;
+    }
+    return '';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,9 +70,9 @@ class _NeedsAttentionCardState extends State<NeedsAttentionCard> {
           }
           final list = AttentionRules.build(guests: state.guestsIn(months), since: AppConfig.chaseFrom, today: today);
           if (list.isEmpty) return const SizedBox.shrink();
-          return StreamBuilder<Map<String, DateTime>>(
-            stream: _recent,
-            builder: (context, recent) => Column(
+          return StreamBuilder<NudgeHistory>(
+            stream: _history,
+            builder: (context, history) => Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 SectionLabel('Needs attention'),
@@ -65,8 +82,11 @@ class _NeedsAttentionCardState extends State<NeedsAttentionCard> {
                     for (final w in list)
                       NeedsAttentionRow(
                         worker: w,
-                        nudgedAt: recent.data?[w.workerEmail],
-                        onNudge: w.workerEmail.isEmpty ? null : () => showNudgeSheet(context, w, _nudges),
+                        lastNudge: history.data?.last(w.workerEmail),
+                        onNudge: w.workerEmail.isEmpty
+                            ? null
+                            : () => showNudgeSheet(context, w, _nudges,
+                                phone: _phone(w.workerEmail), templates: context.read<IMessageTemplatesRepository>()),
                       ),
                   ],
                 ),
@@ -82,11 +102,11 @@ class _NeedsAttentionCardState extends State<NeedsAttentionCard> {
 class NeedsAttentionRow extends StatelessWidget {
   final WorkerAttention worker;
 
-  /// When they were last nudged, if in the last 24 hours.
-  final DateTime? nudgedAt;
+  /// The latest nudge on any channel ("Last nudged 2 h ago on WhatsApp").
+  final NudgeLog? lastNudge;
   final VoidCallback? onNudge;
 
-  const NeedsAttentionRow({super.key, required this.worker, this.nudgedAt, this.onNudge});
+  const NeedsAttentionRow({super.key, required this.worker, this.lastNudge, this.onNudge});
 
   @override
   Widget build(BuildContext context) {
@@ -110,14 +130,14 @@ class NeedsAttentionRow extends StatelessWidget {
                     worker.line,
                     style: AppTextStyles.body.copyWith(color: worker.urgent ? AppColors.redInk : null),
                   ),
-                  if (nudgedAt != null) ...[
+                  if (lastNudge != null) ...[
                     SizedBox(height: AppSizes.s4),
-                    Text(nudgedLine(nudgedAt!), style: AppTextStyles.caption),
+                    Text(lastNudgedLine(lastNudge!), style: AppTextStyles.caption),
                   ],
                 ],
               ),
             ),
-            if (onNudge != null && nudgedAt == null) ...[
+            if (onNudge != null) ...[
               SizedBox(width: AppSizes.s8),
               TextButton(
                 onPressed: onNudge,

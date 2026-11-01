@@ -40,7 +40,7 @@ class FirestoreMessageTemplatesRepository implements IMessageTemplatesRepository
   @override
   Future<ApiResult<void>> save(Map<String, String> texts) async {
     final data = <String, dynamic>{};
-    for (final id in MessageTemplates.ids) {
+    for (final id in MessageTemplates.allIds) {
       final text = (texts[id] ?? '').trim();
       if (text.isEmpty) return const ApiResult.failure(ValidationFailure('Every message needs some words.'));
       if (text.length > MessageTemplates.maxLength) {

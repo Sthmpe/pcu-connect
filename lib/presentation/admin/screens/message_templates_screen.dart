@@ -21,7 +21,7 @@ class MessageTemplatesScreen extends StatefulWidget {
 
 class _MessageTemplatesScreenState extends State<MessageTemplatesScreen> {
   final Map<String, TextEditingController> _controllers = {
-    for (final id in MessageTemplates.ids) id: TextEditingController(text: MessageTemplates.defaults[id]),
+    for (final id in MessageTemplates.allIds) id: TextEditingController(text: MessageTemplates.defaults[id]),
   };
   StreamSubscription<List<MessageTemplate>>? _sub;
   bool _edited = false;
@@ -80,8 +80,17 @@ class _MessageTemplatesScreenState extends State<MessageTemplatesScreen> {
                   'the worker\'s name, and {service} the day of their first visit, for example Sunday 25 October.',
                   style: AppTextStyles.bodyMuted,
                 ),
-                for (final id in MessageTemplates.ids) ...[
+                for (final id in MessageTemplates.allIds) ...[
                   SectionLabel(MessageTemplates.labels[id]!),
+                  if (id == MessageTemplates.nudgeId)
+                    Padding(
+                      padding: EdgeInsets.only(bottom: AppSizes.s8),
+                      child: Text(
+                        'Sent by the HOD on WhatsApp. {worker} becomes the worker\'s first name, {n} the guests waiting '
+                        'and {oldest} the longest wait, for example 9 days.',
+                        style: AppTextStyles.caption,
+                      ),
+                    ),
                   TextField(
                     controller: _controllers[id],
                     minLines: 4,

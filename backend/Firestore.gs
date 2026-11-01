@@ -1720,6 +1720,8 @@ function pcuNudgeBody_(n) {
 function pcuLastNudge_(email) {
   var last = null;
   pcuFsQueryEqual_('nudges', 'worker', email).forEach(function (d) {
+    // WhatsApp nudges (logged by the app) do not count toward the 24 hours.
+    if (d.data.channel === 'whatsapp') return;
     var sentAt = d.data.sentAt;
     var at = sentAt instanceof Date ? sentAt : sentAt ? new Date(sentAt) : null;
     if (at && (!last || at.getTime() > last.getTime())) last = at;
@@ -1769,6 +1771,7 @@ function pcuNudge_(user, req) {
         sentBy: pcuEmail_(user.email),
         sentByName: user.name || '',
         sentAt: now,
+        channel: 'app',
         outstanding: n,
         personalLine: line,
         title: PCU_NUDGE.TITLE,
