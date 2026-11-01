@@ -668,3 +668,20 @@ Then check with `node tool/web/render_check.mjs https://pcu-workflow.web.app`.
 ```
 firebase hosting:clone pcu-workflow:@876dfe9dc93285cf pcu-workflow:live --project pcu-workflow
 ```
+
+## 2026-11-01 Update: logo everywhere, live deploy, Android and iOS
+
+- Icons: every web icon renamed with -v2 (favicon 16/32/48, multi-size favicon.ico, web, maskable, apple-touch,
+  notification icon and badge) plus a share image with Open Graph tags. `node tool/web/icon_check.mjs <url>` checks
+  every icon URL a site can ask for is a real PCU PNG or ICO and none of the 23 Flutter template images: live passes.
+- Live site deployed and verified (see the section above; rollback to 876dfe9dc93285cf kept there).
+- Mobile: app name PCU Connect, launcher icons (flutter_launcher_icons, adaptive navy background, monochrome layer),
+  Android notification icon from the badge, INTERNET permission, navy Android launch background, iOS bundle id
+  com.pcu.workflow. Found and fixed: firebase_options.dart threw on Android (any APK would crash at start), and sign-in
+  used a web-only pop-up (native now uses signInWithProvider).
+- No Android SDK in the Codespace, so builds run on GitHub Actions:
+  - Android debug APK: https://github.com/Sthmpe/pcu-connect/actions/runs/41321819595 (success, artifact
+    pcu-connect-debug-apk, 79 MB, kept until 2026-12-01).
+  - iOS compile check: https://github.com/Sthmpe/pcu-connect/actions/runs/41321819609 (success, no signing).
+- docs/MOBILE.md lists what a store release needs from the owner (SHA-1/SHA-256, signing key, Play Console, Apple
+  Developer account, iOS Firebase registration, APNs key, native push work).
