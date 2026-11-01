@@ -122,7 +122,7 @@ class _RankingTabState extends State<RankingTab> {
             dividerIndent: AppSizes.s16 + AppSizes.s24 + AppSizes.s16 + AppSizes.avatarSm,
             children: [
               for (final e in ranking.entries)
-                _RankRow(
+                RankRow(
                   entry: e,
                   isMe: e.email == me?.email,
                   movement: view.movement(e),
@@ -282,17 +282,22 @@ class _MyPosition extends StatelessWidget {
   }
 }
 
-class _RankRow extends StatelessWidget {
+/// The signed-in worker's own row gets a soft gold highlight when they are
+/// outside the top three (the podium already shows the top three).
+bool rankRowHighlighted(RankingEntry entry, {required bool isMe}) => isMe && entry.rank > 3;
+
+class RankRow extends StatelessWidget {
   final RankingEntry entry;
   final bool isMe;
   final int? movement;
 
-  const _RankRow({required this.entry, required this.isMe, this.movement});
+  const RankRow({super.key, required this.entry, required this.isMe, this.movement});
 
   @override
   Widget build(BuildContext context) {
+    final highlight = rankRowHighlighted(entry, isMe: isMe);
     return Container(
-      color: isMe ? AppColors.goldSoft : null,
+      color: highlight ? AppColors.goldSoft : null,
       constraints: BoxConstraints(minHeight: AppSizes.touch + AppSizes.s8),
       padding: EdgeInsets.symmetric(horizontal: AppSizes.s16),
       child: Row(
@@ -300,7 +305,7 @@ class _RankRow extends StatelessWidget {
           SizedBox(
             width: AppSizes.s24,
             child: Text('${entry.rank}',
-                style: isMe ? AppTextStyles.captionStrong.copyWith(color: AppColors.goldInk) : AppTextStyles.caption),
+                style: highlight ? AppTextStyles.captionStrong.copyWith(color: AppColors.goldInk) : AppTextStyles.caption),
           ),
           SizedBox(width: AppSizes.s16),
           AppAvatar(name: entry.name, size: AppSizes.avatarSm),
