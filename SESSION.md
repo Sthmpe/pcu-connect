@@ -685,3 +685,12 @@ firebase hosting:clone pcu-workflow:@876dfe9dc93285cf pcu-workflow:live --projec
   - iOS compile check: https://github.com/Sthmpe/pcu-connect/actions/runs/41321819609 (success, no signing).
 - docs/MOBILE.md lists what a store release needs from the owner (SHA-1/SHA-256, signing key, Play Console, Apple
   Developer account, iOS Firebase registration, APNs key, native push work).
+
+## 2026-11-01 Before the live deploy of the 25-step work (steps 1-22)
+
+- Live **before** this deploy: version **67e0f6f810be26ff** (released 2026-11-01 15:28:03 UTC, Firestore mode).
+- Roll back to it at once if the live check fails:
+  `firebase hosting:clone pcu-workflow:@67e0f6f810be26ff pcu-workflow:live --project pcu-workflow`
+- The older API-mode build stays available too:
+  `firebase hosting:clone pcu-workflow:@876dfe9dc93285cf pcu-workflow:live --project pcu-workflow`
+- Preview checked first: firestore-test version 63e41d84fc3d7b93, render_check first frame 2.4 s, no page errors; icon_check OK.
