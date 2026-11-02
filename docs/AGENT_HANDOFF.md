@@ -131,6 +131,10 @@ print or copy them.
 
 ## 5. How to do everything
 
+Proved from a fresh clone of GitHub on 2 November 2026: `flutter pub get`, `flutter analyze` (no issues),
+`flutter test` (242 pass), the three backend harnesses (all pass), `firestore-tests` `npm ci && npm test` (68 pass),
+and `tool/web` `npm ci`, `npx playwright install chromium`, `node render_check.mjs` on the live site (no page errors).
+
 Toolchain used (verified): Flutter 3.47.9 (Dart 3.13.7), Node 22, OpenJDK 21 (rules emulator), Firebase CLI 15.34.2,
 clasp 3.4.1. In a Codespace, `.devcontainer/setup.sh` installs Flutter and the Firebase CLI.
 

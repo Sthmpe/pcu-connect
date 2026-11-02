@@ -796,3 +796,17 @@ Apps Script @29 on the existing deployment.
 - Live **before** this deploy: version **475580cbd5acff07** (released 2026-11-02 02:32:44 UTC).
 - Roll back: `firebase hosting:clone pcu-workflow:@475580cbd5acff07 pcu-workflow:live --project pcu-workflow`
 - `node tool/web/live_release.mjs` prints the newest live releases (version and time).
+
+## 2026-11-02 Outstanding badges plain, Today pill removed, chart back; go-live and handoff docs
+
+Live: **62471d389bc46c72** (released 2026-11-02 06:10:32 UTC); preview 2542e3bef6a1ceb2. Render and icon checks passed.
+Rollback: `firebase hosting:clone pcu-workflow:@475580cbd5acff07 pcu-workflow:live --project pcu-workflow`.
+
+- Today's Outstanding rows no longer show the red Outstanding pill (the heading says it); the outstanding lists had
+  already lost it. The red count badges (Guests and Team tabs, the outstanding icon) are plain, no ripple or wave.
+- The twelve-month chart is drawn from the Dashboard's own twelve months of guests (it had disappeared because its
+  separate count queries failed silently on the web).
+- New docs: `docs/GO_LIVE.md` (TEST to real church sheet plan) and `docs/AGENT_HANDOFF.md` (single source of truth for
+  any coding agent), with pointer files `AGENTS.md`, `GEMINI.md` and `CLAUDE.md`. The handoff guide was proved from a
+  fresh clone: install, analyze, 242 app tests, the three harnesses, 68 rules tests and the render check all pass.
+- `tool/web/live_release.mjs` prints the current live release (no token printed).
