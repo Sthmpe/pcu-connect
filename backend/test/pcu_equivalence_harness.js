@@ -6,6 +6,8 @@
 //   old defaults to commit 472bccc (before the speed work), new to backend/Api.gs.
 const fs = require('fs'); const vm = require('vm'); const path = require('path'); const { execSync } = require('child_process');
 const { makeSheet, makeCache } = require('./gas_mocks');
+// Local sign-in stub: token -> verified email (stands in for Google's token check).
+const TOKENS = { tokDavid: 'david@x.com', tokBoss: 'boss@x.com', tokWorkerA: 'worker.a@x.com' };
 const TZ = 'Africa/Lagos';
 
 const repo = path.join(__dirname, '..', '..');
@@ -125,9 +127,19 @@ function makeRuntime(source) {
       formatDate: fmt,
       parseDate: s => { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d, -1)); },
       getUuid: () => 'uuid' + String(++uuid).padStart(8, '0'),
+      computeDigest: (alg, v) => Array.from(require('crypto').createHash('sha256').update(String(v)).digest()).map(b => (b > 127 ? b - 256 : b)),
+      base64EncodeWebSafe: b => Buffer.from(b.map(x => x & 255)).toString('base64url') + '=',
+      DigestAlgorithm: { SHA_256: 'sha256' },
     },
     CacheService: { getScriptCache: () => cache },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k === 'ALLOW_MOCK_TOKENS' ? 'true' : null) }) },
+    // Sign-in is a local stub of Google's token check: the deployed code accepts only real Firebase ID tokens.
+    PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k === 'FIREBASE_WEB_API_KEY' ? 'KEY' : null) }) },
+    UrlFetchApp: {
+      fetch: (url, o) => {
+        const email = TOKENS[JSON.parse(o.payload).idToken];
+        return { getResponseCode: () => (email ? 200 : 400), getContentText: () => JSON.stringify(email ? { users: [{ email, emailVerified: true }] } : {}) };
+      },
+    },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
     ContentService: { createTextOutput: s => ({ text: s, setMimeType() { return this; } }), MimeType: { JSON: 'json' } },
   };
@@ -179,7 +191,7 @@ function sameSheets(label) {
   if (a !== b) { fails++; console.log('FAIL sheets ' + label); }
 }
 
-const D = 'mock_token_david@x.com'; const A = 'mock_token_boss@x.com'; const W = 'mock_token_worker.a@x.com';
+const D = 'tokDavid'; const A = 'tokBoss'; const W = 'tokWorkerA';
 const months = []; for (let y = 2022; y <= 2027; y++) for (let m = 1; m <= 12; m++) months.push(`${y}-${String(m).padStart(2, '0')}`);
 const recent = months.filter(m => m >= '2025-10' && m <= '2027-03');
 const guestIds = guests0.slice(1).map(r => r[C['GUEST ID']]).filter(Boolean);

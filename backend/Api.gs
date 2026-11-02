@@ -13,9 +13,8 @@
  *
  * Script Properties (Project Settings > Script properties):
  *   FIREBASE_WEB_API_KEY  The Firebase web API key (same as in firebase_options.dart).
- *   ALLOW_MOCK_TOKENS     Optional. Only the exact value "true" lets mock_token
- *                         logins through. Set it on the TEST sheet only, never
- *                         on the live church sheet.
+ *   (ALLOW_MOCK_TOKENS no longer has any effect: only real Firebase ID tokens
+ *   are accepted. Mock sign-in exists only in the local test harnesses.)
  *
  * Request:  POST body (text/plain) {"action": "...", "idToken": "<Firebase ID token>", ...}
  * Response: {"ok": true, "data": ...} or {"ok": false, "code": "...", "error": "..."}
@@ -117,7 +116,6 @@ function doPost(e) {
   try {
     var body = (e && e.postData && e.postData.contents) || '{}';
     var req = JSON.parse(body);
-    if (req.profile === true && pcuMockAllowed_()) pcuProf_ = { start: Date.now(), marks: [], formatCalls: 0 };
     var started = Date.now();
     var user = pcuVerifyUser_(req.idToken);
     pcuMark_('auth (total)', started);
@@ -152,7 +150,7 @@ function doPost(e) {
  */
 function pcuHandlers_() {
   return {
-    // Deprecated for the Firestore build: me (except debug mock logins), guests,
+    // Deprecated for the Firestore build: me, guests,
     // guest, logFollowUp, ranking, dashboard, team.
     me: pcuMe_,
     guests: pcuGuests_,
@@ -243,24 +241,8 @@ function pcuError_(code, message) {
  * repeat requests stay fast.
  */
 function pcuVerifyUser_(idToken) {
-  if (!idToken) throw pcuError_('UNAUTHENTICATED', 'Please sign in.');
-
-  // Dev mock tokens are only honoured when the Script Property
-  // ALLOW_MOCK_TOKENS is exactly "true". Set it on the TEST sheet only.
-  if (idToken.indexOf('mock_token_') === 0 || idToken === 'mock_token') {
-    if (!pcuMockAllowed_()) {
-      throw pcuError_('UNAUTHENTICATED', 'Please sign in.');
-    }
-    var mockEmail = idToken === 'mock_token' ? 'davidolanite0@gmail.com' : idToken.replace('mock_token_', '').trim().toLowerCase();
-    var mockWorker = pcuWorkers_().byEmail[mockEmail];
-    if (!mockWorker || !mockWorker.active) {
-      throw pcuError_(
-        'ACCESS_DENIED',
-        'This Google account is not an active member of the PCU team. Ask your HOD to add it.'
-      );
-    }
-    return { email: mockEmail, worker: mockWorker, isAdmin: mockWorker.isAdmin };
-  }
+  // Only a real Firebase ID token, checked by Google, ever signs anyone in.
+  if (!idToken || typeof idToken !== 'string') throw pcuError_('UNAUTHENTICATED', 'Please sign in.');
 
   var cache = CacheService.getScriptCache();
   var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, idToken);
@@ -301,10 +283,6 @@ function pcuVerifyUser_(idToken) {
     );
   }
   return { email: email, worker: worker, isAdmin: worker.isAdmin };
-}
-
-function pcuMockAllowed_() {
-  return PropertiesService.getScriptProperties().getProperty('ALLOW_MOCK_TOKENS') === 'true';
 }
 
 function pcuRequireAdmin_(user) {
@@ -1601,7 +1579,7 @@ function pcuSetWorkerActive_(user, req) {
 }
 
 // ---------------------------------------------------------------------------
-// Profiling (test sheet only: needs "profile": true and ALLOW_MOCK_TOKENS=true)
+// Profiling (local harnesses only: set pcuProf_ there; never on by request)
 // ---------------------------------------------------------------------------
 
 var pcuProf_ = null;
