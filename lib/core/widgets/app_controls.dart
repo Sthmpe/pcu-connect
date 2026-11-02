@@ -152,7 +152,11 @@ class AppIconButton extends StatelessWidget {
     final visual = size ?? AppSizes.iconButton;
     return Tooltip(
       message: tooltip,
-      child: SizedBox(
+      // The whole 48px box answers taps, not only the 40px circle.
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SizedBox(
         width: AppSizes.touch.clamp(visual, double.infinity),
         height: AppSizes.touch.clamp(visual, double.infinity),
         child: Center(
@@ -170,6 +174,7 @@ class AppIconButton extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

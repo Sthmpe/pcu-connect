@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_icons.dart';
-import '../../core/constants/app_sizes.dart';
+import '../../core/widgets/app_controls.dart';
 import '../../core/widgets/attention.dart';
 
 /// Next to the month filter: the outstanding icon with a red count that
-/// ripples gently, so a month change never hides waiting work.
+/// ripples gently, so a month change never hides waiting work. The same
+/// circle as every other top-bar icon button (AppIconButton), with the
+/// count laid over its corner.
 class OutstandingButton extends StatelessWidget {
   final int count;
   final VoidCallback onTap;
@@ -18,30 +20,18 @@ class OutstandingButton extends StatelessWidget {
       button: true,
       label: count == 0 ? 'Outstanding, none' : 'Outstanding, $count',
       child: ExcludeSemantics(
-        child: GestureDetector(
-          onTap: onTap,
-          behavior: HitTestBehavior.opaque,
-          child: SizedBox(
-            width: AppSizes.touch,
-            height: AppSizes.touch,
-            child: Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: AppSizes.iconButton,
-                  height: AppSizes.iconButton,
-                  decoration: BoxDecoration(
-                    color: count > 0 ? AppColors.redSoft : AppColors.sunken,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(AppIcons.outstanding,
-                      size: AppSizes.iconMd, color: count > 0 ? AppColors.redInk : AppColors.inkSoft),
-                ),
-                Positioned(right: -2, top: 0, child: RippleBadge(count: count)),
-              ],
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            AppIconButton(
+              icon: AppIcons.outstanding,
+              tooltip: 'Outstanding',
+              background: count > 0 ? AppColors.redSoft : AppColors.sunken,
+              foreground: count > 0 ? AppColors.redInk : AppColors.inkSoft,
+              onTap: onTap,
             ),
-          ),
+            Positioned(right: -2, top: 0, child: IgnorePointer(child: RippleBadge(count: count))),
+          ],
         ),
       ),
     );
