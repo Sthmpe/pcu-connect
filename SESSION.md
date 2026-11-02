@@ -790,3 +790,9 @@ Apps Script @29 on the existing deployment.
 - ALLOW_MOCK_TOKENS no longer has any effect: Api.gs has no mock-token path; mock tokens get UNAUTHENTICATED live.
   tool/web/api_call.mjs now needs a real Firebase ID token for anything but that check. Delete the property when
   convenient (pre-go-live checklist in docs/BACKEND_PLAN.md).
+
+## 2026-11-02 Before the live deploy of the chart and badge fixes
+
+- Live **before** this deploy: version **475580cbd5acff07** (released 2026-11-02 02:32:44 UTC).
+- Roll back: `firebase hosting:clone pcu-workflow:@475580cbd5acff07 pcu-workflow:live --project pcu-workflow`
+- `node tool/web/live_release.mjs` prints the newest live releases (version and time).
