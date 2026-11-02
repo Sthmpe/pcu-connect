@@ -257,3 +257,18 @@ missing from any document the migration, the 5-minute push or the app writes, an
 
 The empty lists after 1 November came from the month defaults (every screen opened on a new, still empty month), not
 from the data or the queries.
+
+## Assignment and HOD tools (2026-11-02)
+- Auto-assign is always on: ensureAssignTriggers_ re-installs assignOnSubmit (form), assignBackup (every 5 minutes:
+  guests on Form Responses 1 since GO_LIVE with no ASSIGNED TO) and dailyReminder; every scheduled run checks.
+- Every assignment run (form, backup, menu, test, app) sends one summary to the active admins: "5 guests assigned:
+  David 2, Worker A 1, Worker B 1" (in-app, push if registered, email); none when nothing was assigned.
+- Admin-only actions: assignPreview and assignRange {from, to} (HOD "Assign guests", shared lock, safe twice);
+  addTestGuest (one TEST guest through the real path; Remove test guests also clears Firestore); redistribute
+  {fromEmail, mode outstanding | uncalled | selected, guestIds, toEmails, preview} (the sheet's ASSIGNED TO first, then
+  Firestore, a Reassignments tab row and a reassignments document per guest, notices to the new and previous workers);
+  health (sheet against Firestore).
+- Collections: reassignments/{id} (guestId, guestName, from, to, by, mode, at; admins read, Apps Script writes);
+  nudges/{id} gains channel ('app' from Apps Script, 'whatsapp' logged by the app; only 'app' counts toward the
+  24 hours); config/messageTemplates gains nudge ({worker}, {n}, {oldest}).
+- users are copied from the Workers tab by the 5-minute job whenever the tab changes.

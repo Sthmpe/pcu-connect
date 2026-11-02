@@ -732,3 +732,31 @@ Notes for next time:
 - Roll back to it at once if the live check fails:
   `firebase hosting:clone pcu-workflow:@1b849c98077e028a pcu-workflow:live --project pcu-workflow`
 - Preview checked first: firestore-test version f8faf4b63adff05a, render_check first frame 2.2 s, no page errors; icon_check OK.
+
+## 2026-11-02 Parts A to E: empty lists, always-on assignment, redistribute, nudges, HOD tools, live
+
+Live: **0b54106017c26b91** (released 2026-11-02 01:10:33 UTC), render_check first frame 1.3 s, no page errors.
+Rollback: `firebase hosting:clone pcu-workflow:@1b849c98077e028a pcu-workflow:live --project pcu-workflow`.
+Apps Script: existing deployment `AKfycby0H6Sk...` now @28. Rules deployed (nudges WhatsApp create, reassignments,
+nudge template). Indexes unchanged (no new composite query).
+
+Root cause of the empty lists: since 1 November every screen opened on November, which had almost no guests, so
+October's guests and their follow-ups were out of view. The data, the queries, the indexes and the rules were all fine
+(docs/BACKEND_PLAN.md, Query audit). Fixes: the worker's Guests opens on All months; Ranking, the HOD's Guests and the
+Dashboard say "No ... yet this month" with last month one tap away; Today still ignores every month filter.
+
+Step 3 numbers (admin-only health action): sheet 9,218 guest rows; 27 real assignments then 31 after the backup,
+equal per worker in Firestore; 3 very old rows have text in ASSIGNED TO (not real assignments); 42 follow-ups in the
+sheet tab and 42 in Firestore, every one with its guest; 2 guests are assigned to the admin (G09200, G09203); W006 was
+missing from users (fixed, now there).
+
+Step 14 choices: the waiting time stays based on the service date (a moved guest keeps waiting from their visit, so
+the points rules are untouched); ASSIGNED DATE is updated to record the move; guests are dealt oldest visit first,
+evenly, to the chosen active workers.
+
+Backend actions added (all admin only): health, assignPreview, assignRange, addTestGuest, redistribute; nudge now logs
+channel "app". Triggers: assignBackup every 5 minutes, re-installed with assignOnSubmit and dailyReminder by every
+scheduled run. Users are copied from the Workers tab by the 5-minute job when it changes (USERS_KEY).
+
+Not run live on purpose: addTestGuest, Remove test guests, a real redistribute, a real nudge (they notify real people or
+change real data). W006's name in the Workers tab is "david".
