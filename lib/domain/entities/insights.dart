@@ -104,6 +104,18 @@ class TopWorker extends Equatable {
   List<Object?> get props => [email, name, members, points, calls];
 }
 
+/// One month on the twelve-month trend: guests who first came that month,
+/// and how many of them are members now (as the Dashboard counts them).
+class MonthCount extends Equatable {
+  final String month; // 'yyyy-MM'
+  final int guests;
+  final int members;
+  const MonthCount(this.month, this.guests, this.members);
+
+  @override
+  List<Object?> get props => [month, guests, members];
+}
+
 /// Church-wide numbers for one month (Apps Script `dashboard`).
 class DashboardSummary extends Equatable {
   final String month;
@@ -114,6 +126,9 @@ class DashboardSummary extends Equatable {
   final int followUps;
   final List<TopWorker> topWorkers;
 
+  /// The twelve months ending with [month], oldest first, for the chart.
+  final List<MonthCount> trend;
+
   const DashboardSummary({
     required this.month,
     required this.guests,
@@ -122,6 +137,7 @@ class DashboardSummary extends Equatable {
     required this.inTeam,
     required this.followUps,
     required this.topWorkers,
+    this.trend = const [],
   });
 
   int get notCalled => guests - called;
@@ -143,10 +159,13 @@ class DashboardSummary extends Equatable {
           .whereType<Map<String, dynamic>>()
           .map(TopWorker.fromJson)
           .toList(),
+      trend: [
+        for (final t in (json['trend'] as List? ?? const []).whereType<Map<String, dynamic>>())
+          MonthCount(t['month']?.toString() ?? '', _int(t['guests']), _int(t['members'])),
+      ],
     );
   }
 
   @override
-  List<Object?> get props =>
-      [month, guests, called, members, inTeam, followUps, topWorkers];
+  List<Object?> get props => [month, guests, called, members, inTeam, followUps, topWorkers, trend];
 }

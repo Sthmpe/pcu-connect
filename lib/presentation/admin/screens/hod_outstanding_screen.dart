@@ -14,7 +14,6 @@ import '../../../core/widgets/app_surfaces.dart';
 import '../../../core/widgets/attention.dart';
 import '../../../core/widgets/guest_row.dart';
 import '../../../core/widgets/state_views.dart';
-import '../../../core/widgets/status_tone.dart';
 import '../../../data/firestore/message_templates_repository.dart';
 import '../../../data/firestore/nudge_repository.dart';
 import '../../../data/repositories/redistribute_repository.dart';
@@ -35,8 +34,11 @@ import '../widgets/redistribute_sheet.dart';
 List<String> hodOutstandingMonths() => TodayRules.months(since: AppConfig.chaseFrom, today: LagosTime.today());
 
 /// Every worker with outstanding guests, from the guest cache (all months since go-live).
-List<WorkerAttention> hodOutstanding(GuestsState state) =>
-    AttentionRules.build(guests: state.guestsIn(hodOutstandingMonths()), since: AppConfig.chaseFrom, today: LagosTime.today());
+List<WorkerAttention> hodOutstanding(GuestsState state) => AttentionRules.build(
+  guests: state.guestsIn(hodOutstandingMonths()),
+  since: AppConfig.chaseFrom,
+  today: LagosTime.today(),
+);
 
 /// Watches the months the outstanding view needs, then builds with the list.
 class HodOutstandingBuilder extends StatelessWidget {
@@ -88,20 +90,29 @@ class _HodOutstandingScreenState extends State<HodOutstandingScreen> {
                 final months = hodOutstandingMonths();
                 final failure = state.failureFor(months);
                 if (failure != null) {
-                  return ErrorState(message: failure, onRetry: () => context.read<GuestsBloc>().add(WatchMonthsEvent(months)));
+                  return ErrorState(
+                    message: failure,
+                    onRetry: () => context.read<GuestsBloc>().add(WatchMonthsEvent(months)),
+                  );
                 }
                 if (state.waitingFor(months)) return const SkeletonPage(rows: 4);
                 if (workers.isEmpty) {
                   return const Center(
-                    child: EmptyState(icon: AppIcons.done, message: 'No guest is waiting for a first call. Lovely work.'),
+                    child: EmptyState(
+                      icon: AppIcons.done,
+                      message: 'No guest is waiting for a first call. Lovely work.',
+                    ),
                   );
                 }
                 return StreamBuilder<NudgeHistory>(
                   stream: _history,
                   builder: (context, history) => PageList(
                     children: [
-                      Text('Never called, and waiting more than 3 days since their visit. Tap a worker to nudge or '
-                          'redistribute.', style: AppTextStyles.bodyMuted),
+                      Text(
+                        'Never called, and waiting more than 3 days since their visit. Tap a worker to nudge or '
+                        'redistribute.',
+                        style: AppTextStyles.bodyMuted,
+                      ),
                       SizedBox(height: AppSizes.s16),
                       GroupedCard(
                         dividerIndent: AppSizes.s16 * 2 + AppSizes.avatarMd,
@@ -110,7 +121,10 @@ class _HodOutstandingScreenState extends State<HodOutstandingScreen> {
                             HodWorkerRow(
                               worker: w,
                               lastNudge: history.data?.last(w.workerEmail),
-                              onTap: () => WorkerOutstandingScreen.open(context, w.workerEmail.isEmpty ? w.workerName : w.workerEmail),
+                              onTap: () => WorkerOutstandingScreen.open(
+                                context,
+                                w.workerEmail.isEmpty ? w.workerName : w.workerEmail,
+                              ),
                             ),
                         ],
                       ),
@@ -154,9 +168,12 @@ class HodWorkerRow extends StatelessWidget {
                       Semantics(label: 'Outstanding', child: const PulseDot()),
                       SizedBox(width: AppSizes.s8),
                       Flexible(
-                        child: Text(worker.line,
-                            style: AppTextStyles.bodyStrong
-                                .copyWith(color: worker.urgent ? AppColors.redInk : AppColors.ink)),
+                        child: Text(
+                          worker.line,
+                          style: AppTextStyles.bodyStrong.copyWith(
+                            color: worker.urgent ? AppColors.redInk : AppColors.ink,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -226,9 +243,13 @@ class _WorkerOutstandingScreenState extends State<WorkerOutstandingScreen> {
               Expanded(
                 child: w == null
                     ? (state.waitingFor(hodOutstandingMonths())
-                        ? const SkeletonPage(rows: 3)
-                        : const Center(
-                            child: EmptyState(icon: AppIcons.done, message: 'Nothing outstanding here now. Lovely work.')))
+                          ? const SkeletonPage(rows: 3)
+                          : const Center(
+                              child: EmptyState(
+                                icon: AppIcons.done,
+                                message: 'Nothing outstanding here now. Lovely work.',
+                              ),
+                            ))
                     : StreamBuilder<NudgeHistory>(
                         stream: _history,
                         builder: (context, history) {
@@ -241,12 +262,17 @@ class _WorkerOutstandingScreenState extends State<WorkerOutstandingScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(w.line,
-                                        style: AppTextStyles.bodyStrong
-                                            .copyWith(color: w.urgent ? AppColors.redInk : AppColors.ink)),
+                                    Text(
+                                      w.line,
+                                      style: AppTextStyles.bodyStrong.copyWith(
+                                        color: w.urgent ? AppColors.redInk : AppColors.ink,
+                                      ),
+                                    ),
                                     SizedBox(height: AppSizes.s4),
-                                    Text(last == null ? 'Not nudged yet' : lastNudgedLine(last),
-                                        style: AppTextStyles.caption),
+                                    Text(
+                                      last == null ? 'Not nudged yet' : lastNudgedLine(last),
+                                      style: AppTextStyles.caption,
+                                    ),
                                     SizedBox(height: AppSizes.s16),
                                     Row(
                                       children: [
@@ -257,9 +283,13 @@ class _WorkerOutstandingScreenState extends State<WorkerOutstandingScreen> {
                                             variant: AppButtonVariant.navy,
                                             onPressed: w.workerEmail.isEmpty
                                                 ? null
-                                                : () => showNudgeSheet(context, w, _nudges,
+                                                : () => showNudgeSheet(
+                                                    context,
+                                                    w,
+                                                    _nudges,
                                                     phone: phoneFor(context, w.workerEmail),
-                                                    templates: context.read<IMessageTemplatesRepository>()),
+                                                    templates: context.read<IMessageTemplatesRepository>(),
+                                                  ),
                                           ),
                                         ),
                                         SizedBox(width: AppSizes.s8 + AppSizes.s4),
@@ -271,11 +301,11 @@ class _WorkerOutstandingScreenState extends State<WorkerOutstandingScreen> {
                                             onPressed: w.workerEmail.isEmpty
                                                 ? null
                                                 : () => nudgeOnWhatsApp(
-                                                      worker: w,
-                                                      phone: phoneFor(context, w.workerEmail),
-                                                      template: _template,
-                                                      repo: _nudges,
-                                                    ),
+                                                    worker: w,
+                                                    phone: phoneFor(context, w.workerEmail),
+                                                    template: _template,
+                                                    repo: _nudges,
+                                                  ),
                                           ),
                                         ),
                                       ],
@@ -291,10 +321,12 @@ class _WorkerOutstandingScreenState extends State<WorkerOutstandingScreen> {
                                         expand: false,
                                         onPressed: w.workerEmail.isEmpty
                                             ? null
-                                            : () => showRedistributeSheet(context,
+                                            : () => showRedistributeSheet(
+                                                context,
                                                 repo: context.read<IRedistributeRepository>(),
                                                 workerEmail: w.workerEmail,
-                                                workerName: w.workerName),
+                                                workerName: w.workerName,
+                                              ),
                                       ),
                                     ),
                                   ],
@@ -309,10 +341,11 @@ class _WorkerOutstandingScreenState extends State<WorkerOutstandingScreen> {
                                       guest: i.guest,
                                       outstanding: true,
                                       line: todayLine(i),
-                                      pill: todayPill(i.section),
-                                      pillTone: StatusTone.red,
-                                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.guestDetail,
-                                          arguments: GuestDetailArgs(i.guest.id, asAdmin: true)),
+                                      // Every guest here is outstanding: no pill, just the one dot.
+                                      onTap: () => Navigator.of(context).pushNamed(
+                                        AppRoutes.guestDetail,
+                                        arguments: GuestDetailArgs(i.guest.id, asAdmin: true),
+                                      ),
                                     ),
                                 ],
                               ),

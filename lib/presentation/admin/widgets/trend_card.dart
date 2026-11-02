@@ -1,69 +1,29 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../../core/network/api_result.dart';
 import '../../../core/utils/month_utils.dart';
 import '../../../core/widgets/app_surfaces.dart';
-import '../../../core/widgets/state_views.dart';
-import '../../../data/firestore/trend_repository.dart';
+import '../../../domain/entities/insights.dart';
 
-/// Dashboard: the last twelve months, a navy line for guests and a gold line
-/// for members. Hidden when there is no trend source (Apps Script mode) or no
-/// connection.
-class TrendCard extends StatefulWidget {
-  const TrendCard({super.key});
+/// Dashboard: the twelve months ending with the Dashboard's month, a navy
+/// line for guests and a gold line for members. Drawn from the figures the
+/// Dashboard already loaded, so it shows whenever the Dashboard does.
+class TrendCard extends StatelessWidget {
+  final List<MonthCount> months;
 
-  @override
-  State<TrendCard> createState() => _TrendCardState();
-}
-
-class _TrendCardState extends State<TrendCard> {
-  Future<ApiResult<List<MonthCount>>>? _load;
-  ITrendRepository? _repo;
-
-  @override
-  void initState() {
-    super.initState();
-    try {
-      _repo = context.read<ITrendRepository>();
-    } on ProviderNotFoundException {
-      _repo = null;
-    }
-    _load = _repo?.load(MonthUtils.recent(12).reversed.toList());
-  }
-
-  void _retry() => setState(() => _load = _repo?.load(MonthUtils.recent(12).reversed.toList()));
+  const TrendCard({super.key, required this.months});
 
   @override
   Widget build(BuildContext context) {
-    final load = _load;
-    if (load == null) return const SizedBox.shrink();
-    return FutureBuilder<ApiResult<List<MonthCount>>>(
-      future: load,
-      builder: (context, snap) {
-        final result = snap.data;
-        if (result != null && result.isFailure) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SectionLabel('Last 12 months'),
-              ErrorState(message: result.failure!.message, onRetry: _retry),
-            ],
-          );
-        }
-        final data = result?.data;
-        if (data == null || data.every((m) => m.guests == 0)) return const SizedBox.shrink();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionLabel('Last 12 months'),
-            AppCard(child: TrendChart(months: data)),
-          ],
-        );
-      },
+    if (months.isEmpty || months.every((m) => m.guests == 0)) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionLabel('Last 12 months'),
+        AppCard(child: TrendChart(months: months)),
+      ],
     );
   }
 }

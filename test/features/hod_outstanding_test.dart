@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:workflow/core/constants/app_sizes.dart';
 import 'package:workflow/core/network/api_result.dart';
 import 'package:workflow/core/widgets/app_controls.dart';
+import 'package:workflow/core/widgets/app_display.dart';
 import 'package:workflow/core/widgets/app_surfaces.dart';
 import 'package:workflow/core/widgets/attention.dart';
 import 'package:workflow/data/firestore/nudge_repository.dart';
@@ -99,6 +100,9 @@ void main() {
     expect(find.text("David's outstanding"), findsOneWidget);
     expect(find.text('Guest A'), findsOneWidget);
     expect(find.text('Guest B'), findsOneWidget);
+    // Every guest here is outstanding: no pill, only the one dot before the text.
+    expect(find.byType(AppPill), findsNothing);
+    expect(find.byType(PulseDot), findsNWidgets(2));
     expect(find.text('Nudge'), findsOneWidget);
     expect(find.text('WhatsApp'), findsOneWidget);
     expect(find.text('Redistribute'), findsOneWidget);

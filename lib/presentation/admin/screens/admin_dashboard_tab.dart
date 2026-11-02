@@ -108,7 +108,7 @@ class AdminDashboardTab extends StatelessWidget {
           ]),
           NeedsAttentionCard(month: data.month),
           _Journey(month: data.month),
-          const TrendCard(),
+          TrendCard(months: data.trend),
           SectionLabel('Top workers', actionLabel: 'See team', onAction: onOpenTeam),
           if (data.topWorkers.isEmpty)
             AppCard(

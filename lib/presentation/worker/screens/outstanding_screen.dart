@@ -9,7 +9,6 @@ import '../../../core/widgets/app_page.dart';
 import '../../../core/widgets/app_surfaces.dart';
 import '../../../core/widgets/guest_row.dart';
 import '../../../core/widgets/state_views.dart';
-import '../../../core/widgets/status_tone.dart';
 import '../../../domain/today_rules.dart';
 import '../bloc/today_cubit.dart';
 import 'today_tab.dart';
@@ -20,9 +19,11 @@ class OutstandingScreen extends StatelessWidget {
   const OutstandingScreen({super.key});
 
   /// Opened from the Guests screen; keeps the shell's live Today data.
-  static Future<void> open(BuildContext context) => Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => BlocProvider.value(value: context.read<TodayCubit>(), child: const OutstandingScreen()),
-      ));
+  static Future<void> open(BuildContext context) => Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => BlocProvider.value(value: context.read<TodayCubit>(), child: const OutstandingScreen()),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +46,10 @@ class OutstandingScreen extends StatelessWidget {
                 }
                 return PageList(
                   children: [
-                    Text('Never called, and waiting more than 3 days since their visit.', style: AppTextStyles.bodyMuted),
+                    Text(
+                      'Never called, and waiting more than 3 days since their visit.',
+                      style: AppTextStyles.bodyMuted,
+                    ),
                     for (final (month, items) in groups) ...[
                       SectionLabel('${MonthUtils.label(month)} · ${items.length}'),
                       GroupedCard(
@@ -56,10 +60,10 @@ class OutstandingScreen extends StatelessWidget {
                               guest: i.guest,
                               outstanding: true,
                               line: todayLine(i),
-                              pill: todayPill(i.section),
-                              pillTone: StatusTone.red,
-                              onTap: () => Navigator.of(context)
-                                  .pushNamed(AppRoutes.guestDetail, arguments: GuestDetailArgs(i.guest.id)),
+                              // Every guest here is outstanding: no pill, just the one dot.
+                              onTap: () => Navigator.of(
+                                context,
+                              ).pushNamed(AppRoutes.guestDetail, arguments: GuestDetailArgs(i.guest.id)),
                             ),
                         ],
                       ),

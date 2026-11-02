@@ -221,6 +221,23 @@ abstract class InsightRules {
       if (g.teamJoined.isNotEmpty || list.any((f) => f.team.isNotEmpty)) inTeam++;
       fus += list.length;
     }
+    // The chart: the twelve months ending with [month], from the same guests.
+    final trendMonths = <String>[];
+    var y = int.parse(month.substring(0, 4)), m = int.parse(month.substring(5, 7));
+    for (var i = 0; i < 12; i++) {
+      trendMonths.insert(0, '$y-${m.toString().padLeft(2, '0')}');
+      if (--m == 0) {
+        m = 12;
+        y--;
+      }
+    }
+    final perMonth = {for (final k in trendMonths) k: [0, 0]};
+    for (final g in guests) {
+      final c = perMonth[g.month];
+      if (c == null) continue;
+      c[0]++;
+      if (g.status == 'Member') c[1]++;
+    }
     final pts = points(month, guests, grouped);
     final top = [
       for (final u in users)
@@ -241,6 +258,7 @@ abstract class InsightRules {
       inTeam: inTeam,
       followUps: fus,
       topWorkers: top,
+      trend: [for (final k in trendMonths) MonthCount(k, perMonth[k]![0], perMonth[k]![1])],
     );
   }
 

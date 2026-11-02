@@ -1,42 +1,41 @@
-import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:workflow/core/constants/app_sizes.dart';
-import 'package:workflow/core/network/api_result.dart';
-import 'package:workflow/data/firestore/trend_repository.dart';
+import 'package:workflow/domain/entities/insights.dart';
+import 'package:workflow/domain/insight_rules.dart';
 import 'package:workflow/presentation/admin/widgets/trend_card.dart';
 
-class _Repo implements ITrendRepository {
-  List<String>? asked;
-  final List<MonthCount> data;
-  _Repo(this.data);
-
-  @override
-  Future<ApiResult<List<MonthCount>>> load(List<String> months) async {
-    asked = months;
-    return ApiResult.success(data);
-  }
-}
 
 void main() {
-  test('counts guests and members of each month from Firestore', () async {
-    final db = FakeFirebaseFirestore();
-    Future<void> add(String id, String month, String status) =>
-        db.collection('guests').doc(id).set({'month': month, 'membershipStatus': status});
-    await add('a', '2026-09', 'Member');
-    await add('b', '2026-09', 'Returning');
-    await add('c', '2026-10', 'New guest');
-    await add('d', '2026-10', 'Member');
-    await add('e', '2026-10', 'Member');
-    final r = await FirestoreTrendRepository(db).load(['2026-08', '2026-09', '2026-10']);
-    expect(r.data!.map((m) => [m.month, m.guests, m.members]), [
-      ['2026-08', 0, 0],
-      ['2026-09', 2, 1],
-      ['2026-10', 3, 2],
-    ]);
+  test('the Dashboard brings its own twelve months: guests and members per month, oldest first', () {
+    const users = [InsightUser(email: 'd@x.com', name: 'David', isAdmin: false, active: true)];
+    final guests = [
+      const InsightGuest(id: 'a', serviceDate: '2026-09-07', month: '2026-09', assignedTo: 'd@x.com', status: 'Member'),
+      const InsightGuest(id: 'b', serviceDate: '2026-09-14', month: '2026-09', assignedTo: 'd@x.com', status: 'Returning'),
+      const InsightGuest(id: 'c', serviceDate: '2026-10-04', month: '2026-10', assignedTo: 'd@x.com', status: 'Member'),
+      const InsightGuest(id: 'old', serviceDate: '2025-10-05', month: '2025-10', assignedTo: '', status: 'New guest'),
+    ];
+    final d = InsightRules.dashboard('2026-10', guests, const [], users);
+    expect(d.trend.length, 12);
+    expect(d.trend.first.month, '2025-11');
+    expect(d.trend.last, const MonthCount('2026-10', 1, 1));
+    expect(d.trend[d.trend.length - 2], const MonthCount('2026-09', 2, 1));
+    expect(d.trend.every((m) => m.month != '2025-10'), isTrue, reason: 'thirteen months back is outside the chart');
+  });
+
+  test('the Apps Script dashboard trend is read too', () {
+    final d = DashboardSummary.fromJson({
+      'month': '2026-10',
+      'totals': {'guests': 3},
+      'topWorkers': [],
+      'trend': [
+        {'month': '2026-09', 'guests': 2, 'called': 1, 'members': 1},
+        {'month': '2026-10', 'guests': 3, 'called': 2, 'members': 0},
+      ],
+    });
+    expect(d.trend, const [MonthCount('2026-09', 2, 1), MonthCount('2026-10', 3, 0)]);
   });
 
   test('both lines share one scale; months sit in their columns', () {
@@ -50,22 +49,12 @@ void main() {
     expect(p.pointFor(0, 10, size).dy, 54);
   });
 
-  testWidgets('the card asks for the last twelve months, oldest first, with a key and month letters', (tester) async {
+  testWidgets('the card draws the twelve months with a key and month letters', (tester) async {
     final data = [for (var i = 1; i <= 12; i++) MonthCount('2026-${i.toString().padLeft(2, '0')}', i * 3, i)];
-    final repo = _Repo(data);
     await tester.pumpWidget(ScreenUtilInit(
       designSize: AppSizes.designSize,
-      builder: (_, _) => MaterialApp(
-        home: Scaffold(
-          body: SingleChildScrollView(
-            child: RepositoryProvider<ITrendRepository>.value(value: repo, child: const TrendCard()),
-          ),
-        ),
-      ),
+      builder: (_, _) => MaterialApp(home: Scaffold(body: SingleChildScrollView(child: TrendCard(months: data)))),
     ));
-    await tester.pump();
-    expect(repo.asked!.length, 12);
-    expect(repo.asked!.first.compareTo(repo.asked!.last) < 0, isTrue);
     expect(find.text('Last 12 months'), findsOneWidget);
     expect(find.text('Guests'), findsOneWidget);
     expect(find.text('Members'), findsOneWidget);
@@ -73,10 +62,10 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('December: 36 guests, 12 members')), findsOneWidget);
   });
 
-  testWidgets('nothing without a trend source (Apps Script mode)', (tester) async {
+  testWidgets('nothing when there is nothing to draw', (tester) async {
     await tester.pumpWidget(ScreenUtilInit(
       designSize: AppSizes.designSize,
-      builder: (_, _) => const MaterialApp(home: Scaffold(body: TrendCard())),
+      builder: (_, _) => const MaterialApp(home: Scaffold(body: TrendCard(months: []))),
     ));
     expect(find.text('Last 12 months'), findsNothing);
   });
