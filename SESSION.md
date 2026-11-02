@@ -767,3 +767,9 @@ Apps Script @29 (existing deployment `AKfycby0H6Sk...`): Api.gs has no mock-toke
 idToken `mock_token_olaniteolanight@gmail.com`: `guests` and `me` both return `UNAUTHENTICATED`; so do the bare
 `mock_token` and the admin-only `health` action. The live Firestore app still loads (render_check: first frame 2.2 s,
 no page errors).
+
+## 2026-11-02 Before the live deploy of the UI fixes
+
+- Live **before** this deploy: version **0b54106017c26b91** (released 2026-11-02 01:10:33 UTC).
+- Roll back to it at once if the live check fails:
+  `firebase hosting:clone pcu-workflow:@0b54106017c26b91 pcu-workflow:live --project pcu-workflow`
