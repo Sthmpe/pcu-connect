@@ -111,9 +111,9 @@ class AppButton extends StatelessWidget {
             height: compact ? 36 : AppSizes.buttonHeight,
             width: expand ? double.infinity : null,
             padding: EdgeInsets.symmetric(horizontal: compact ? AppSizes.s16 : AppSizes.s24),
-            // A button that does not expand is only as wide as its label.
-            alignment: expand ? Alignment.center : null,
-            child: expand ? content : Center(widthFactor: 1, child: content),
+            // A compact button that does not expand is only as wide as its label.
+            alignment: compact && !expand ? null : Alignment.center,
+            child: compact && !expand ? Center(widthFactor: 1, child: content) : content,
           ),
         ),
       ),
