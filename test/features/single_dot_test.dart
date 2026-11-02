@@ -9,6 +9,7 @@ import 'package:workflow/core/widgets/status_tone.dart';
 import 'package:workflow/domain/attention_rules.dart';
 import 'package:workflow/domain/entities/guest_entity.dart';
 import 'package:workflow/presentation/admin/screens/hod_outstanding_screen.dart';
+import 'package:workflow/presentation/common/outstanding_button.dart';
 
 const guest = GuestEntity(
   id: 'G1', name: 'Ada Obi', phone: '0803', status: 'New guest', daysSinceVisit: 5, serviceDate: '2026-10-28',
@@ -25,8 +26,6 @@ Widget app(Widget child) => ScreenUtilInit(
     );
 
 void main() {
-  setUp(() {});
-
   testWidgets('an outstanding guest row has exactly one dot of its own: the one before "Waiting N days"', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -68,5 +67,33 @@ void main() {
   testWidgets('the pulsing dot takes no more room than a plain dot', (tester) async {
     await tester.pumpWidget(app(const Center(child: PulseDot())));
     expect(tester.getSize(find.byType(PulseDot)), const Size(8, 8));
+  });
+
+  testWidgets('reduced motion: an outstanding row, a worker row and the outstanding button hold still', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    const w = WorkerAttention(workerName: 'David Olanite', workerEmail: 'd@x.com', outstanding: 4, oldestDays: 9, oldestMonth: '2026-10');
+    Widget screen({required bool reduce}) => ScreenUtilInit(
+          designSize: AppSizes.designSize,
+          builder: (_, _) => MediaQuery(
+            data: MediaQueryData(disableAnimations: reduce),
+            child: MaterialApp(
+              home: Scaffold(
+                body: Column(children: [
+                  GuestRow(guest: guest, outstanding: true, line: 'Waiting 5 days for a call', onTap: () {}),
+                  HodWorkerRow(worker: w, onTap: () {}),
+                  OutstandingButton(count: 3, onTap: () {}),
+                ]),
+              ),
+            ),
+          ),
+        );
+    await tester.pumpWidget(screen(reduce: true));
+    await tester.pump();
+    expect(tester.hasRunningAnimations, isFalse);
+    await tester.pumpWidget(screen(reduce: false));
+    await tester.pump();
+    expect(tester.hasRunningAnimations, isTrue, reason: 'with motion allowed they pulse and ripple');
   });
 }
