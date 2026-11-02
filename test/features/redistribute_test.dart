@@ -113,4 +113,28 @@ void main() {
     expect(repo.previews.last.$2, ['G2']);
     expect(find.text('Redistribute 1 guest'), findsOneWidget);
   });
+
+  testWidgets('a double tap on Move runs the move once', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final repo = FakeRedistribute();
+    await tester.pumpWidget(ScreenUtilInit(
+      designSize: AppSizes.designSize,
+      builder: (_, _) => GetMaterialApp(
+        home: Scaffold(body: RedistributeSheet(repo: repo, workerEmail: 'd@x.com', workerName: 'David', onMoved: () {})),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Redistribute 2 guests'));
+    await tester.tap(find.text('Redistribute 2 guests'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(find.text('Move 2 guests?'), findsOneWidget, reason: 'one dialog, not two');
+    await tester.tap(find.text('Move'));
+    await tester.tap(find.text('Move'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(repo.runs.length, 1);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+  });
 }
