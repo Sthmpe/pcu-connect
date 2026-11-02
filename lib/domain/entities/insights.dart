@@ -75,12 +75,23 @@ class TopWorker extends Equatable {
   final int members;
   final int points;
 
+  /// Calls logged in the month; null where the source does not say (Apps Script).
+  final int? calls;
+
   const TopWorker({
     required this.email,
     required this.name,
     required this.members,
     required this.points,
+    this.calls,
   });
+
+  /// "40 pts · 5 calls · 1 member" (calls only when known).
+  String get record => [
+        '$points pts',
+        if (calls != null) '$calls ${calls == 1 ? 'call' : 'calls'}',
+        '$members ${members == 1 ? 'member' : 'members'}',
+      ].join(' · ');
 
   factory TopWorker.fromJson(Map<String, dynamic> json) => TopWorker(
         email: json['email']?.toString() ?? '',
@@ -90,7 +101,7 @@ class TopWorker extends Equatable {
       );
 
   @override
-  List<Object?> get props => [email, name, members, points];
+  List<Object?> get props => [email, name, members, points, calls];
 }
 
 /// Church-wide numbers for one month (Apps Script `dashboard`).

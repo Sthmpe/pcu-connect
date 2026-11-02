@@ -96,7 +96,7 @@ class AdminDashboardTab extends StatelessWidget {
             StatItem('${data.members}', 'Became members', onTap: () => onOpenGuests('mem')),
             StatItem('${data.inTeam}', 'Joined a team', onTap: () => onOpenGuests('team')),
           ]),
-          const NeedsAttentionCard(),
+          NeedsAttentionCard(month: data.month),
           _Journey(month: data.month),
           const TrendCard(),
           SectionLabel('Top workers', actionLabel: 'See team', onAction: onOpenTeam),
@@ -338,10 +338,7 @@ class _TopWorkerRow extends StatelessWidget {
           AppAvatar(name: worker.name, size: AppSizes.avatarSm),
           SizedBox(width: AppSizes.s16),
           Expanded(child: Text(worker.name, style: AppTextStyles.body)),
-          Text(
-            '${worker.members} ${worker.members == 1 ? 'member' : 'members'}',
-            style: AppTextStyles.caption,
-          ),
+          Text(worker.record, style: AppTextStyles.caption),
         ],
       ),
     );

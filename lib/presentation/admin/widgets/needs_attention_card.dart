@@ -14,7 +14,6 @@ import '../../../data/firestore/message_templates_repository.dart';
 import '../../../domain/attention_rules.dart';
 import '../../../domain/nudge.dart';
 import '../../common/insights_cubits.dart';
-import '../../../domain/today_rules.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
@@ -26,7 +25,10 @@ import 'nudge_sheet.dart';
 /// first. Read-only: a tap opens that worker's guests still to call. Nothing
 /// is ever reassigned from here.
 class NeedsAttentionCard extends StatefulWidget {
-  const NeedsAttentionCard({super.key});
+  /// The Dashboard's month: workers with outstanding guests who first visited then.
+  final String month;
+
+  const NeedsAttentionCard({super.key, required this.month});
 
   @override
   State<NeedsAttentionCard> createState() => _NeedsAttentionCardState();
@@ -53,7 +55,7 @@ class _NeedsAttentionCardState extends State<NeedsAttentionCard> {
   @override
   Widget build(BuildContext context) {
     final today = LagosTime.today();
-    final months = TodayRules.months(since: AppConfig.chaseFrom, today: today);
+    final months = [widget.month];
     return WatchMonths(
       months: months,
       child: BlocBuilder<GuestsBloc, GuestsState>(

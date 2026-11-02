@@ -202,7 +202,8 @@ abstract class InsightRules {
     ];
   }
 
-  /// The Dashboard for [month] (pcuDashboard_ totals and top three workers).
+  /// The Dashboard for [month] (pcuDashboard_ totals), with every worker who
+  /// has a record that month (points, calls and members), best first.
   static DashboardSummary dashboard(
     String month,
     Iterable<InsightGuest> guests,
@@ -224,7 +225,13 @@ abstract class InsightRules {
     final top = [
       for (final u in users)
         if (!u.isAdmin && pts[u.email] != null)
-          TopWorker(email: u.email, name: u.name, members: pts[u.email]!.members, points: pts[u.email]!.points),
+          TopWorker(
+            email: u.email,
+            name: u.name,
+            members: pts[u.email]!.members,
+            points: pts[u.email]!.points,
+            calls: pts[u.email]!.firstCalls + pts[u.email]!.followUps,
+          ),
     ]..sort((a, b) => b.members != a.members ? b.members - a.members : b.points - a.points);
     return DashboardSummary(
       month: month,
@@ -233,7 +240,7 @@ abstract class InsightRules {
       members: members,
       inTeam: inTeam,
       followUps: fus,
-      topWorkers: top.take(3).toList(),
+      topWorkers: top,
     );
   }
 
