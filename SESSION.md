@@ -760,3 +760,10 @@ scheduled run. Users are copied from the Workers tab by the 5-minute job when it
 
 Not run live on purpose: addTestGuest, Remove test guests, a real redistribute, a real nudge (they notify real people or
 change real data). W006's name in the Workers tab is "david".
+
+## 2026-11-02 Security: mock tokens removed from the deployed script
+
+Apps Script @29 (existing deployment `AKfycby0H6Sk...`): Api.gs has no mock-token path. Live proof, exec URL with
+idToken `mock_token_olaniteolanight@gmail.com`: `guests` and `me` both return `UNAUTHENTICATED`; so do the bare
+`mock_token` and the admin-only `health` action. The live Firestore app still loads (render_check: first frame 2.2 s,
+no page errors).
