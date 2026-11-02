@@ -8,12 +8,13 @@ import '../constants/app_text_styles.dart';
 bool reduceMotion(BuildContext context) => MediaQuery.maybeDisableAnimationsOf(context) ?? false;
 
 /// A small red dot that breathes gently (a soft pulse, never a flash): work
-/// is waiting on this row.
+/// is waiting on this row. It takes the space of a plain dot of [size]; the
+/// soft halo draws around it without moving anything.
 class PulseDot extends StatefulWidget {
   final double size;
   final Color color;
 
-  const PulseDot({super.key, this.size = 10, this.color = AppColors.red});
+  const PulseDot({super.key, this.size = 8, this.color = AppColors.red});
 
   @override
   State<PulseDot> createState() => _PulseDotState();
@@ -43,32 +44,36 @@ class _PulseDotState extends State<PulseDot> with SingleTickerProviderStateMixin
   Widget build(BuildContext context) {
     final s = widget.size;
     return SizedBox(
-      width: s * 2,
-      height: s * 2,
-      child: AnimatedBuilder(
-        animation: _c,
-        builder: (_, _) {
-          final t = Curves.easeInOut.transform(_c.value);
-          return Stack(
-            alignment: Alignment.center,
-            children: [
-              // Soft halo that swells and fades.
-              Container(
-                width: s * (1.2 + 0.7 * t),
-                height: s * (1.2 + 0.7 * t),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: widget.color.withValues(alpha: 0.22 * (1 - t) + 0.06),
+      width: s,
+      height: s,
+      child: OverflowBox(
+        maxWidth: s * 2,
+        maxHeight: s * 2,
+        child: AnimatedBuilder(
+          animation: _c,
+          builder: (_, _) {
+            final t = Curves.easeInOut.transform(_c.value);
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                // Soft halo that swells and fades.
+                Container(
+                  width: s * (1.2 + 0.7 * t),
+                  height: s * (1.2 + 0.7 * t),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: widget.color.withValues(alpha: 0.22 * (1 - t) + 0.06),
+                  ),
                 ),
-              ),
-              Container(
-                width: s,
-                height: s,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: widget.color),
-              ),
-            ],
-          );
-        },
+                Container(
+                  width: s,
+                  height: s,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: widget.color),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

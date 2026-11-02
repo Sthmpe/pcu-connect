@@ -142,24 +142,24 @@ class HodWorkerRow extends StatelessWidget {
         padding: EdgeInsets.symmetric(horizontal: AppSizes.s16, vertical: AppSizes.s8 + 4),
         child: Row(
           children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                AppAvatar(name: worker.workerName, size: AppSizes.avatarMd),
-                Positioned(
-                  right: -6,
-                  top: -6,
-                  child: Semantics(label: 'Outstanding', child: const PulseDot(size: 10)),
-                ),
-              ],
-            ),
+            AppAvatar(name: worker.workerName, size: AppSizes.avatarMd),
             SizedBox(width: AppSizes.s16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(worker.line,
-                      style: AppTextStyles.bodyStrong.copyWith(color: worker.urgent ? AppColors.redInk : AppColors.ink)),
+                  Row(
+                    children: [
+                      // The row's one dot, before the text (as on a guest row).
+                      Semantics(label: 'Outstanding', child: const PulseDot()),
+                      SizedBox(width: AppSizes.s8),
+                      Flexible(
+                        child: Text(worker.line,
+                            style: AppTextStyles.bodyStrong
+                                .copyWith(color: worker.urgent ? AppColors.redInk : AppColors.ink)),
+                      ),
+                    ],
+                  ),
                   SizedBox(height: AppSizes.s4),
                   Text(lastNudge == null ? 'Not nudged yet' : lastNudgedLine(lastNudge!), style: AppTextStyles.caption),
                 ],

@@ -29,7 +29,8 @@ class GuestRow extends StatelessWidget {
   /// Long-press; by default it copies the guest's number.
   final VoidCallback? onLongPress;
 
-  /// Never called and waiting more than 3 days: a gently pulsing red dot.
+  /// Never called and waiting more than 3 days: the dot before the line
+  /// pulses gently (the row's only dot besides the pill's own).
   final bool outstanding;
 
   const GuestRow({
@@ -61,18 +62,7 @@ class GuestRow extends StatelessWidget {
             AppSizes.s16, AppSizes.s8 + 4, AppSizes.s8, AppSizes.s8 + 4),
         child: Row(
           children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                AppAvatar(name: guest.name, size: AppSizes.avatarMd),
-                if (outstanding)
-                  Positioned(
-                    right: -6,
-                    top: -6,
-                    child: Semantics(label: 'Outstanding', child: const PulseDot(size: 10)),
-                  ),
-              ],
-            ),
+            AppAvatar(name: guest.name, size: AppSizes.avatarMd),
             SizedBox(width: AppSizes.s16),
             Expanded(
               child: Column(
@@ -88,7 +78,9 @@ class GuestRow extends StatelessWidget {
                     final narrow = pill != null && box.maxWidth < 230;
                     final lineRow = Row(
                       children: [
-                        StatusDot(tone.dot),
+                        outstanding
+                            ? Semantics(label: 'Outstanding', child: const PulseDot())
+                            : StatusDot(tone.dot),
                         SizedBox(width: AppSizes.s8),
                         Flexible(
                           child: Text(
