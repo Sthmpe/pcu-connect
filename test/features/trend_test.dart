@@ -1,4 +1,5 @@
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -78,5 +79,63 @@ void main() {
       builder: (_, _) => const MaterialApp(home: Scaffold(body: TrendCard())),
     ));
     expect(find.text('Last 12 months'), findsNothing);
+  });
+
+  group('Touch and hover', () {
+    final months = [for (var i = 1; i <= 12; i++) MonthCount('2026-${i.toString().padLeft(2, '0')}', i * 3, i)];
+    Future<void> show(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(ScreenUtilInit(
+        designSize: AppSizes.designSize,
+        builder: (_, _) => MaterialApp(home: Scaffold(body: Padding(padding: const EdgeInsets.all(40), child: TrendChart(months: months)))),
+      ));
+    }
+
+    test('the bubble text', () {
+      expect(trendBubbleText(const MonthCount('2026-10', 116, 2)), 'October 2026\n116 guests · 2 members');
+      expect(trendBubbleText(const MonthCount('2026-11', 1, 1)), 'November 2026\n1 guest · 1 member');
+    });
+
+    testWidgets('tapping a month shows its numbers; another month moves the bubble', (tester) async {
+      await show(tester);
+      expect(find.textContaining('guests ·'), findsNothing);
+      final box = tester.getRect(find.byType(CustomPaint).last);
+      final step = box.width / 12;
+      await tester.tapAt(Offset(box.left + step * 9.5, box.center.dy)); // October
+      await tester.pump();
+      expect(find.text('October 2026\n30 guests · 10 members'), findsOneWidget);
+      await tester.tapAt(Offset(box.left + step * 0.5, box.center.dy)); // January
+      await tester.pump();
+      expect(find.text('January 2026\n3 guests · 1 member'), findsOneWidget);
+      expect(find.textContaining('October 2026'), findsNothing);
+    });
+
+    testWidgets('hovering on a computer shows the bubble, leaving hides it', (tester) async {
+      await show(tester);
+      final box = tester.getRect(find.byType(CustomPaint).last);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(Offset(box.left + box.width / 12 * 11.5, box.center.dy)); // December
+      await tester.pump();
+      expect(find.text('December 2026\n36 guests · 12 members'), findsOneWidget);
+      await mouse.moveTo(const Offset(1, 1));
+      await tester.pump();
+      expect(find.textContaining('December 2026'), findsNothing);
+    });
+
+    testWidgets('dragging along the chart follows the finger', (tester) async {
+      await show(tester);
+      final box = tester.getRect(find.byType(CustomPaint).last);
+      final step = box.width / 12;
+      final gesture = await tester.startGesture(Offset(box.left + step * 2.5, box.center.dy));
+      await gesture.moveBy(Offset(step * 1.5, 0));
+      await gesture.moveBy(Offset(step * 1.5, 0));
+      await tester.pump();
+      expect(find.textContaining('June 2026'), findsOneWidget);
+      await gesture.up();
+    });
   });
 }
