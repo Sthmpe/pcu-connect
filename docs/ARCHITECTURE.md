@@ -12,7 +12,7 @@ Flutter Web (Firebase Hosting)
    v
 Google Apps Script Web App (backend/Api.gs)
    |
-   |  - Verifies token via Google Identity Toolkit (or mock token in debug)
+   |  - Verifies token via Google Identity Toolkit (real Firebase ID tokens only)
    |  - Enforces access: worker email must exist in "Workers" tab with Active = "Yes"
    |  - Evaluates business rules (Member rule, status transitions, points scoring)
    v

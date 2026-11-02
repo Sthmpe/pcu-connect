@@ -122,12 +122,14 @@ flutter run -d chrome
 
 ---
 
-## 7. Mock Tokens (TEST sheet only)
+## 7. Sign-in on the Apps Script API: real tokens only
 
-`backend/Api.gs` accepts dev `mock_token` logins only when the Apps Script
-Script Property `ALLOW_MOCK_TOKENS` is exactly `true` (lowercase, no spaces).
-Any other value, or no property at all, returns `UNAUTHENTICATED`.
+`backend/Api.gs` accepts only real Firebase ID tokens, checked by Google.
+There is no mock-token path in the deployed script any more, and the Script
+Property `ALLOW_MOCK_TOKENS` no longer has any effect (it can be deleted).
+Any `mock_token` request returns `UNAUTHENTICATED` (live check on 2 November 2026).
 
-- Set it on the **TEST sheet** project only (Project Settings > Script properties).
-- **Never** set it on the live church sheet.
+- Local tests sign in through a stub of Google's token check inside the harnesses.
 - Verified by the Node harness: `node backend/test/pcu_api_harness.js backend/Api.gs`
+  (mock tokens refused for every `ALLOW_MOCK_TOKENS` value, and no mock code in the pushed file).
+- The app's developer sign-in buttons exist only in debug builds and no longer work against the deployed script.

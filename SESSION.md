@@ -773,3 +773,20 @@ no page errors).
 - Live **before** this deploy: version **0b54106017c26b91** (released 2026-11-02 01:10:33 UTC).
 - Roll back to it at once if the live check fails:
   `firebase hosting:clone pcu-workflow:@0b54106017c26b91 pcu-workflow:live --project pcu-workflow`
+
+## 2026-11-02 UI fixes and mock-token removal, live
+
+Live: **475580cbd5acff07** (released 2026-11-02 02:32:44 UTC), render_check first frame 1.3 s, no page errors.
+Rollback: `firebase hosting:clone pcu-workflow:@0b54106017c26b91 pcu-workflow:live --project pcu-workflow`.
+Apps Script @29 on the existing deployment.
+
+- One dot per outstanding row: the dot on the initial (avatar) is gone from guest rows (Today, Guests, outstanding by
+  month, one worker's outstanding list) and from the HOD's outstanding-by-worker rows; the dot before the text pulses
+  gently instead; the red Outstanding pill is unchanged. No animation with reduced motion.
+- The worker screen's actions sit in a padded card (16 from the edges, 12 between buttons); Redistribute is a compact
+  red button with a 44 tall touch area.
+- The outstanding icon and Assign guests are the same AppIconButton (40 circle, 48 box); every AppIconButton answers
+  taps across its whole 48 box.
+- ALLOW_MOCK_TOKENS no longer has any effect: Api.gs has no mock-token path; mock tokens get UNAUTHENTICATED live.
+  tool/web/api_call.mjs now needs a real Firebase ID token for anything but that check. Delete the property when
+  convenient (pre-go-live checklist in docs/BACKEND_PLAN.md).

@@ -84,7 +84,7 @@ Already sound: every admin-only Apps Script action calls pcuRequireAdmin_ (dashb
 setWorkerActive, syncNow, pushCheck); users and meta have no client writes; tokens and notifications are owner only
 (not even admins); rankings move only with a new follow-up by exactly its points and never for admins; anything else
 is denied. Points inside the allowed range are still set by the app; the nightly rebuild recalculates the leaderboard
-from followUps with the server's rules. ALLOW_MOCK_TOKENS stays on the TEST sheet only; remove it before go-live.
+from followUps with the server's rules. ALLOW_MOCK_TOKENS no longer has any effect: since 2 November 2026 (@29) the deployed script accepts only real Firebase ID tokens; mock sign-in exists only in the local test harnesses.
 
 ## Business rules
 Member = 4 distinct Sundays, or 3 Sundays and 2 Wednesdays, in one calendar month. Points: +10 first call within 3 days (else +5), +5 per follow-up, +10 per attendance, +20 team join, +30 member. Attendance on any past date, never future. Services: Sunday and Wednesday. Status order: Member > Not interested > Returning > Contacted > Unreachable > unchanged.
@@ -203,6 +203,15 @@ The live site still runs the API build, so every action stays until it moves to 
 
 ### 4. Tidy up and go live
 Backend: retire the old API actions, tests everywhere, security review (including editors and the key), then go live on the church sheet only with the owner's approval.
+
+Pre-go-live checklist:
+- [x] Mock sign-in removed from the deployed script; ALLOW_MOCK_TOKENS has no effect (2 November 2026, @29)
+- [ ] Delete the ALLOW_MOCK_TOKENS Script Property (harmless now, but tidy)
+- [ ] Review who can edit the Apps Script project and the sheet; remove anyone who should not
+- [ ] Review the service account key holders; rotate only with the owner's approval
+- [ ] Separate Firebase project for the live church data, then point the app and the script at it
+- [ ] Retire the old API actions once no build uses them
+- [ ] Owner's approval before switching to the church sheet
 
 UI checklist:
 - [ ] Remove any screen paths that still call the old API

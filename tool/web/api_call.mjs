@@ -1,6 +1,7 @@
 // Calls the test Apps Script API and prints the time and the response.
-// Usage: node tool/web/api_call.mjs '{"action":"me","idToken":"mock_token_<email>"}'
-// Mock tokens only work while the TEST sheet has ALLOW_MOCK_TOKENS=true.
+// Usage: node tool/web/api_call.mjs '{"action":"me","idToken":"<Firebase ID token>"}'
+// The deployed script accepts only real Firebase ID tokens: a mock_token gets
+// UNAUTHENTICATED (that is how to check the security live).
 const EXEC = process.env.PCU_EXEC_URL ||
   'https://script.google.com/macros/s/AKfycby0H6Sk-V1mCGJNtst4KzvraWplYqMn6exWDlLCybiINoGlXnSCUNdkNaJ8D4o0tC3u/exec';
 const started = Date.now();
