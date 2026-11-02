@@ -235,54 +235,70 @@ class _WorkerOutstandingScreenState extends State<WorkerOutstandingScreen> {
                           final last = history.data?.last(w.workerEmail);
                           return PageList(
                             children: [
-                              Text(w.line,
-                                  style: AppTextStyles.bodyStrong.copyWith(color: w.urgent ? AppColors.redInk : AppColors.ink)),
-                              SizedBox(height: AppSizes.s4),
-                              Text(last == null ? 'Not nudged yet' : lastNudgedLine(last), style: AppTextStyles.caption),
-                              SizedBox(height: AppSizes.s16),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: AppButton(
-                                      label: 'Nudge',
-                                      icon: AppIcons.bellRing,
-                                      variant: AppButtonVariant.navy,
-                                      onPressed: w.workerEmail.isEmpty
-                                          ? null
-                                          : () => showNudgeSheet(context, w, _nudges,
-                                              phone: phoneFor(context, w.workerEmail),
-                                              templates: context.read<IMessageTemplatesRepository>()),
+                              // The worker and the three actions, with room between them and from the edges.
+                              AppCard(
+                                padding: EdgeInsets.all(AppSizes.s16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(w.line,
+                                        style: AppTextStyles.bodyStrong
+                                            .copyWith(color: w.urgent ? AppColors.redInk : AppColors.ink)),
+                                    SizedBox(height: AppSizes.s4),
+                                    Text(last == null ? 'Not nudged yet' : lastNudgedLine(last),
+                                        style: AppTextStyles.caption),
+                                    SizedBox(height: AppSizes.s16),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: AppButton(
+                                            label: 'Nudge',
+                                            icon: AppIcons.bellRing,
+                                            variant: AppButtonVariant.navy,
+                                            onPressed: w.workerEmail.isEmpty
+                                                ? null
+                                                : () => showNudgeSheet(context, w, _nudges,
+                                                    phone: phoneFor(context, w.workerEmail),
+                                                    templates: context.read<IMessageTemplatesRepository>()),
+                                          ),
+                                        ),
+                                        SizedBox(width: AppSizes.s8 + AppSizes.s4),
+                                        Expanded(
+                                          child: AppButton(
+                                            label: 'WhatsApp',
+                                            icon: AppIcons.whatsapp,
+                                            variant: AppButtonVariant.outline,
+                                            onPressed: w.workerEmail.isEmpty
+                                                ? null
+                                                : () => nudgeOnWhatsApp(
+                                                      worker: w,
+                                                      phone: phoneFor(context, w.workerEmail),
+                                                      template: _template,
+                                                      repo: _nudges,
+                                                    ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                  SizedBox(width: AppSizes.s8),
-                                  Expanded(
-                                    child: AppButton(
-                                      label: 'WhatsApp',
-                                      icon: AppIcons.whatsapp,
-                                      variant: AppButtonVariant.outline,
-                                      onPressed: w.workerEmail.isEmpty
-                                          ? null
-                                          : () => nudgeOnWhatsApp(
-                                                worker: w,
-                                                phone: phoneFor(context, w.workerEmail),
-                                                template: _template,
-                                                repo: _nudges,
-                                              ),
+                                    SizedBox(height: AppSizes.s8 + AppSizes.s4),
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: AppButton(
+                                        label: 'Redistribute',
+                                        icon: AppIcons.team,
+                                        variant: AppButtonVariant.danger,
+                                        compact: true,
+                                        expand: false,
+                                        onPressed: w.workerEmail.isEmpty
+                                            ? null
+                                            : () => showRedistributeSheet(context,
+                                                repo: context.read<IRedistributeRepository>(),
+                                                workerEmail: w.workerEmail,
+                                                workerName: w.workerName),
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: AppSizes.s8),
-                              AppButton(
-                                label: 'Redistribute',
-                                icon: AppIcons.team,
-                                variant: AppButtonVariant.secondary,
-                                onPressed: w.workerEmail.isEmpty
-                                    ? null
-                                    : () => showRedistributeSheet(context,
-                                        repo: context.read<IRedistributeRepository>(),
-                                        workerEmail: w.workerEmail,
-                                        workerName: w.workerName),
+                                  ],
+                                ),
                               ),
                               SectionLabel('Waiting for a first call · ${w.outstanding}'),
                               GroupedCard(

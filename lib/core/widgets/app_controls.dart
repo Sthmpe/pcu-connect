@@ -32,6 +32,9 @@ class AppButton extends StatelessWidget {
   final bool isLoading;
   final bool expand;
 
+  /// A small button: 36px tall inside a 44px touch target, smaller text.
+  final bool compact;
+
   const AppButton({
     super.key,
     required this.label,
@@ -41,6 +44,7 @@ class AppButton extends StatelessWidget {
     this.variant = AppButtonVariant.primary,
     this.isLoading = false,
     this.expand = true,
+    this.compact = false,
   });
 
   ({Color bg, Color fg, Color? border}) get _colors {
@@ -77,20 +81,21 @@ class AppButton extends StatelessWidget {
                 leading!,
                 SizedBox(width: AppSizes.s8),
               ] else if (icon != null) ...[
-                Icon(icon, size: AppSizes.iconMd, color: c.fg),
-                SizedBox(width: AppSizes.s8),
+                Icon(icon, size: compact ? AppSizes.iconSm : AppSizes.iconMd, color: c.fg),
+                SizedBox(width: compact ? AppSizes.s4 + 2 : AppSizes.s8),
               ],
               Flexible(
                 child: Text(label,
                     textAlign: TextAlign.center,
-                    style: AppTextStyles.centered(AppTextStyles.button).copyWith(color: c.fg),
+                    style: AppTextStyles.centered(compact ? AppTextStyles.captionStrong : AppTextStyles.button)
+                        .copyWith(color: c.fg),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis),
               ),
             ],
           );
 
-    return AnimatedOpacity(
+    final button = AnimatedOpacity(
       duration: AppDurations.fast,
       opacity: enabled || isLoading ? 1 : 0.45,
       child: Material(
@@ -103,14 +108,22 @@ class AppButton extends StatelessWidget {
           onTap: enabled ? onPressed : null,
           borderRadius: radius,
           child: Container(
-            height: AppSizes.buttonHeight,
+            height: compact ? 36 : AppSizes.buttonHeight,
             width: expand ? double.infinity : null,
-            padding: EdgeInsets.symmetric(horizontal: AppSizes.s24),
-            alignment: Alignment.center,
-            child: content,
+            padding: EdgeInsets.symmetric(horizontal: compact ? AppSizes.s16 : AppSizes.s24),
+            // A button that does not expand is only as wide as its label.
+            alignment: expand ? Alignment.center : null,
+            child: expand ? content : Center(widthFactor: 1, child: content),
           ),
         ),
       ),
+    );
+    if (!compact) return button;
+    // The small button still answers taps across a 44px tall area.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: enabled ? onPressed : null,
+      child: SizedBox(height: 44, child: Center(widthFactor: 1, child: button)),
     );
   }
 }

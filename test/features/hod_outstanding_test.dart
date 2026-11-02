@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:workflow/core/constants/app_sizes.dart';
 import 'package:workflow/core/network/api_result.dart';
+import 'package:workflow/core/widgets/app_controls.dart';
+import 'package:workflow/core/widgets/app_surfaces.dart';
 import 'package:workflow/core/widgets/attention.dart';
 import 'package:workflow/data/firestore/nudge_repository.dart';
 import 'package:workflow/domain/attention_rules.dart';
@@ -100,6 +102,20 @@ void main() {
     expect(find.text('Nudge'), findsOneWidget);
     expect(find.text('WhatsApp'), findsOneWidget);
     expect(find.text('Redistribute'), findsOneWidget);
+    // Room between the buttons and from the card's edges.
+    final nudge = tester.getRect(find.ancestor(of: find.text('Nudge'), matching: find.byType(AppButton)));
+    final wa = tester.getRect(find.ancestor(of: find.text('WhatsApp'), matching: find.byType(AppButton)));
+    final card = tester.getRect(find.ancestor(of: find.text('Nudge'), matching: find.byType(AppCard)));
+    expect(wa.left - nudge.right, greaterThanOrEqualTo(12));
+    expect(nudge.left - card.left, greaterThanOrEqualTo(16));
+    expect(card.right - wa.right, greaterThanOrEqualTo(16));
+    // Redistribute: small, compact and red, with a 44px touch target.
+    final redistribute = find.ancestor(of: find.text('Redistribute'), matching: find.byType(AppButton));
+    expect(tester.widget<AppButton>(redistribute).compact, isTrue);
+    expect(tester.widget<AppButton>(redistribute).variant, AppButtonVariant.danger);
+    expect(tester.getSize(find.descendant(of: redistribute, matching: find.byType(Material)).first).height, 36);
+    expect(tester.getSize(redistribute).height, 44);
+    expect(tester.getSize(redistribute).width, lessThan(nudge.width * 2));
     await tester.tap(find.text('WhatsApp'));
     await tester.pump();
     expect(nudges.logged, isEmpty, reason: 'no phone saved: nothing opened, nothing logged');
