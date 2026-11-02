@@ -725,3 +725,10 @@ Notes for next time:
   when assigned; to fill them all now run pcuMigrateRestart then pcuMigrate in the Apps Script editor.
 - No real nudge was sent during testing (it would email a real person); the live action was checked for FORBIDDEN
   (worker) and VALIDATION (unknown worker).
+
+## 2026-11-02 Before the live deploy of Parts A to D
+
+- Live **before** this deploy: version **1b849c98077e028a** (released 2026-11-01 21:11:59 UTC).
+- Roll back to it at once if the live check fails:
+  `firebase hosting:clone pcu-workflow:@1b849c98077e028a pcu-workflow:live --project pcu-workflow`
+- Preview checked first: firestore-test version f8faf4b63adff05a, render_check first frame 2.2 s, no page errors; icon_check OK.
