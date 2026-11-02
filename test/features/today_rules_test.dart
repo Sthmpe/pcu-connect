@@ -255,7 +255,7 @@ void main() {
   });
 
   test('row lines and pills', () {
-    expect(todayPill(TodaySection.outstanding), 'Outstanding');
+    expect(todayPill(TodaySection.outstanding), isNull, reason: 'the Outstanding heading says it');
     expect(todayPill(TodaySection.retry), 'Retry');
     expect(todayPill(TodaySection.followUpDue), 'Follow-up due');
     expect(todayPill(TodaySection.fresh), isNull);

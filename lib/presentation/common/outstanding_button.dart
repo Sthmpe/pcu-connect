@@ -4,8 +4,8 @@ import '../../core/constants/app_icons.dart';
 import '../../core/widgets/app_controls.dart';
 import '../../core/widgets/attention.dart';
 
-/// Next to the month filter: the outstanding icon with a red count that
-/// ripples gently, so a month change never hides waiting work. The same
+/// Next to the month filter: the outstanding icon with a plain red count,
+/// so a month change never hides waiting work. The same
 /// circle as every other top-bar icon button (AppIconButton), with the
 /// count laid over its corner.
 class OutstandingButton extends StatelessWidget {
@@ -30,7 +30,7 @@ class OutstandingButton extends StatelessWidget {
               foreground: count > 0 ? AppColors.redInk : AppColors.inkSoft,
               onTap: onTap,
             ),
-            Positioned(right: -2, top: 0, child: IgnorePointer(child: RippleBadge(count: count))),
+            Positioned(right: -2, top: 0, child: IgnorePointer(child: CountBadge(count: count))),
           ],
         ),
       ),

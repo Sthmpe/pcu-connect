@@ -132,7 +132,7 @@ class TodayTab extends StatelessWidget {
                 guest: i.guest,
                 line: todayLine(i),
                 pill: todayPill(i.section),
-                pillTone: i.section == TodaySection.outstanding ? StatusTone.red : StatusTone.neutral,
+                pillTone: StatusTone.neutral,
                 outstanding: i.section == TodaySection.outstanding,
                 onTap: () => _open(context, i),
               ),
@@ -157,10 +157,11 @@ String todayLine(TodayItem i) => switch (i.section) {
       TodaySection.followUpDue => 'Last call ${_days(i.days)} ago',
     };
 
-/// The pill on a Today row: red for Outstanding, quiet for Retry and Follow-up due.
+/// The pill on a Today row: quiet for Retry and Follow-up due. Outstanding
+/// rows have none: their section heading says it, and the dot before the line.
 String? todayPill(TodaySection s) => switch (s) {
       TodaySection.fresh => null,
-      TodaySection.outstanding => 'Outstanding',
+      TodaySection.outstanding => null,
       TodaySection.retry => 'Retry',
       TodaySection.followUpDue => 'Follow-up due',
     };

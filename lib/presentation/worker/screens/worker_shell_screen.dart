@@ -102,7 +102,7 @@ class _WorkerShellScreenState extends State<WorkerShellScreen> {
               builder: (context, today) => AppBottomNav(
                 items: [
                   AppNavItem(_items[0].icon, _items[0].label, badge: today.loading ? 0 : today.view.total),
-                  // Guests: outstanding guests, a red count with soft ripples.
+                  // Guests: outstanding guests, a plain red count.
               AppNavItem(_items[1].icon, _items[1].label, alert: today.loading ? 0 : today.view.outstanding.length),
               ..._items.skip(2),
                 ],

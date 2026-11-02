@@ -11,7 +11,7 @@ class AppNavItem {
   /// A small gold count on the icon (0 hides it), for example guests to call.
   final int badge;
 
-  /// A red count with soft ripples (0 hides it): outstanding guests waiting.
+  /// A plain red count (0 hides it): outstanding guests waiting.
   final int alert;
 
   const AppNavItem(this.icon, this.label, {this.badge = 0, this.alert = 0});
@@ -82,7 +82,7 @@ class _NavButton extends StatelessWidget {
                     Positioned(
                       right: -10,
                       top: -6,
-                      child: ExcludeSemantics(child: RippleBadge(count: item.alert)),
+                      child: ExcludeSemantics(child: CountBadge(count: item.alert)),
                     )
                   else if (item.badge > 0)
                     Positioned(

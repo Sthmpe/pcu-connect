@@ -85,7 +85,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
             const MeTab(),
           ],
         ),
-        // Team: the team's outstanding guests, a red count with soft ripples.
+        // Team: the team's outstanding guests, a plain red count.
         bottomNavigationBar: HodOutstandingBuilder(
           builder: (context, _, workers) => AppBottomNav(
             items: [

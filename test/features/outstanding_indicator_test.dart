@@ -8,6 +8,7 @@ import 'package:workflow/core/widgets/attention.dart';
 import 'package:workflow/domain/entities/guest_entity.dart';
 import 'package:workflow/domain/today_rules.dart';
 import 'package:workflow/presentation/common/outstanding_button.dart';
+import 'package:workflow/presentation/worker/screens/today_tab.dart';
 
 GuestEntity g(String id, String visit) => GuestEntity(
       id: id, name: 'Guest $id', phone: '', status: 'New guest', daysSinceVisit: 0, serviceDate: visit, callCount: 0,
@@ -35,17 +36,12 @@ void main() {
     expect(groups.first.$2.map((i) => i.guest.id), ['c', 'b']);
   });
 
-  testWidgets('the red count ripples, and holds still when the device asks for less motion', (tester) async {
-    await tester.pumpWidget(app(const RippleBadge(count: 4)));
-    expect(find.text('4'), findsOneWidget);
-    expect(tester.hasRunningAnimations, isTrue);
-
-    await tester.pumpWidget(app(const RippleBadge(count: 4), reduce: true));
-    await tester.pump();
+  testWidgets('the red count is plain: no ripple or wave, with or without reduced motion', (tester) async {
+    await tester.pumpWidget(app(const CountBadge(count: 4)));
     expect(find.text('4'), findsOneWidget);
     expect(tester.hasRunningAnimations, isFalse);
-
-    await tester.pumpWidget(app(const RippleBadge(count: 0)));
+    expect(find.descendant(of: find.byType(CountBadge), matching: find.byType(CustomPaint)), findsNothing);
+    await tester.pumpWidget(app(const CountBadge(count: 0)));
     expect(find.text('0'), findsNothing);
   });
 
@@ -79,6 +75,12 @@ void main() {
     expect(find.text('3'), findsOneWidget);
     expect(find.bySemanticsLabel('Guests, 3 outstanding'), findsOneWidget);
     expect(find.bySemanticsLabel('Today, 5 to do'), findsOneWidget);
+  });
+
+  test('Today: Outstanding rows carry no pill (the heading says it); Retry and Follow-up due keep theirs', () {
+    expect(todayPill(TodaySection.outstanding), isNull);
+    expect(todayPill(TodaySection.retry), 'Retry');
+    expect(todayPill(TodaySection.followUpDue), 'Follow-up due');
   });
 
   testWidgets('the button next to the month filter shows the count and opens the list', (tester) async {

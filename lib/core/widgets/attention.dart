@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
@@ -79,96 +78,29 @@ class _PulseDotState extends State<PulseDot> with SingleTickerProviderStateMixin
   }
 }
 
-/// A red count badge with soft rings that ripple out from it, to catch the
-/// eye without flashing. With [count] 0 it shows nothing.
-class RippleBadge extends StatefulWidget {
+/// A plain red count badge (no ripple or wave). With [count] 0 it shows nothing.
+class CountBadge extends StatelessWidget {
   final int count;
   final double size;
 
-  const RippleBadge({super.key, required this.count, this.size = 18});
-
-  @override
-  State<RippleBadge> createState() => _RippleBadgeState();
-}
-
-class _RippleBadgeState extends State<RippleBadge> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400));
-
-  void _sync() {
-    if (widget.count == 0 || reduceMotion(context)) {
-      _c.stop();
-      _c.value = 0;
-    } else if (!_c.isAnimating) {
-      _c.repeat();
-    }
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _sync();
-  }
-
-  @override
-  void didUpdateWidget(RippleBadge old) {
-    super.didUpdateWidget(old);
-    _sync();
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
+  const CountBadge({super.key, required this.count, this.size = 18});
 
   @override
   Widget build(BuildContext context) {
-    if (widget.count == 0) return const SizedBox.shrink();
-    final s = widget.size;
-    final still = reduceMotion(context);
-    final badge = Container(
-      constraints: BoxConstraints(minWidth: s, minHeight: s),
+    if (count == 0) return const SizedBox.shrink();
+    return Container(
+      constraints: BoxConstraints(minWidth: size, minHeight: size),
       padding: const EdgeInsets.symmetric(horizontal: 5),
       decoration: BoxDecoration(
         color: AppColors.red,
-        borderRadius: BorderRadius.circular(s / 2),
+        borderRadius: BorderRadius.circular(size / 2),
         border: Border.all(color: AppColors.surface, width: 2),
       ),
       alignment: Alignment.center,
       child: Text(
-        widget.count > 99 ? '99+' : '${widget.count}',
+        count > 99 ? '99+' : '$count',
         style: AppTextStyles.centered(AppTextStyles.captionStrong).copyWith(color: AppColors.surface, fontSize: 10),
       ),
     );
-    if (still) return badge;
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (_, child) => CustomPaint(painter: _RipplePainter(_c.value, s), child: child),
-      child: badge,
-    );
   }
-}
-
-/// Two rings, half a cycle apart, growing from the badge and fading out.
-class _RipplePainter extends CustomPainter {
-  final double t;
-  final double base;
-  _RipplePainter(this.t, this.base);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    for (final phase in [0.0, 0.5]) {
-      final p = (t + phase) % 1.0;
-      final radius = base / 2 + p * base * 0.9;
-      final paint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2 * (1 - p) + 0.5
-        ..color = AppColors.red.withValues(alpha: math.max(0, 0.45 * (1 - p)));
-      canvas.drawCircle(center, radius, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_RipplePainter old) => old.t != t;
 }

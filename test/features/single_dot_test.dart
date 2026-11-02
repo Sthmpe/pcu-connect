@@ -94,6 +94,6 @@ void main() {
     expect(tester.hasRunningAnimations, isFalse);
     await tester.pumpWidget(screen(reduce: false));
     await tester.pump();
-    expect(tester.hasRunningAnimations, isTrue, reason: 'with motion allowed they pulse and ripple');
+    expect(tester.hasRunningAnimations, isTrue, reason: 'with motion allowed the row dots pulse (the count badge never moves)');
   });
 }
