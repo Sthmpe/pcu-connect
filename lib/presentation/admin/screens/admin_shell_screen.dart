@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_icons.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/widgets/app_bottom_nav.dart';
+import '../../../domain/attention_rules.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../auth/bloc/auth_state.dart';
 import '../../common/insights_cubits.dart';
@@ -14,6 +15,7 @@ import '../../guests/bloc/guests_filter_cubit.dart';
 import '../../worker/screens/me_tab.dart';
 import 'admin_dashboard_tab.dart';
 import 'admin_team_tab.dart';
+import 'hod_outstanding_screen.dart';
 import 'admin_guests_tab.dart';
 
 class AdminShellScreen extends StatefulWidget {
@@ -83,10 +85,17 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
             const MeTab(),
           ],
         ),
-        bottomNavigationBar: AppBottomNav(
-          items: _items,
-          currentIndex: _index,
-          onTap: _select,
+        // Team: the team's outstanding guests, a red count with soft ripples.
+        bottomNavigationBar: HodOutstandingBuilder(
+          builder: (context, _, workers) => AppBottomNav(
+            items: [
+              _items[0],
+              AppNavItem(_items[1].icon, _items[1].label, alert: AttentionRules.total(workers)),
+              ..._items.skip(2),
+            ],
+            currentIndex: _index,
+            onTap: _select,
+          ),
         ),
       ),
       ),

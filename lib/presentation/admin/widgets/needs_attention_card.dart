@@ -5,7 +5,6 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_icons.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../../core/routing/app_routes.dart';
 import '../../../core/utils/lagos_time.dart';
 import '../../../core/widgets/app_display.dart';
 import '../../../core/widgets/app_surfaces.dart';
@@ -19,6 +18,7 @@ import '../../guests/bloc/guests_bloc.dart';
 import '../../guests/bloc/guests_event.dart';
 import '../../guests/bloc/guests_state.dart';
 import '../../guests/widgets/watch_months.dart';
+import '../screens/hod_outstanding_screen.dart';
 import 'nudge_sheet.dart';
 
 /// Dashboard: workers with outstanding guests (Today's rule), longest wait
@@ -45,12 +45,6 @@ class _NeedsAttentionCardState extends State<NeedsAttentionCard> {
     context.read<TeamCubit>().ensureLoaded();
   }
 
-  String _phone(String email) {
-    for (final m in context.read<TeamCubit>().state.data ?? const []) {
-      if (m.email.trim().toLowerCase() == email) return m.phone;
-    }
-    return '';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +82,7 @@ class _NeedsAttentionCardState extends State<NeedsAttentionCard> {
                         onNudge: w.workerEmail.isEmpty
                             ? null
                             : () => showNudgeSheet(context, w, _nudges,
-                                phone: _phone(w.workerEmail), templates: context.read<IMessageTemplatesRepository>()),
+                                phone: phoneFor(context, w.workerEmail), templates: context.read<IMessageTemplatesRepository>()),
                       ),
                   ],
                 ),
@@ -113,10 +107,8 @@ class NeedsAttentionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => Navigator.of(context).pushNamed(
-        AppRoutes.workerGuests,
-        arguments: WorkerGuestsArgs(worker.workerName, month: worker.oldestMonth),
-      ),
+      // One place for this worker: their outstanding guests, Nudge, WhatsApp and Redistribute.
+      onTap: () => WorkerOutstandingScreen.open(context, worker.workerEmail.isEmpty ? worker.workerName : worker.workerEmail),
       child: Container(
         constraints: BoxConstraints(minHeight: AppSizes.touch + AppSizes.s8),
         padding: EdgeInsets.symmetric(horizontal: AppSizes.s16, vertical: AppSizes.s8),

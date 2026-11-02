@@ -17,8 +17,11 @@ import '../../guests/bloc/guests_event.dart';
 import '../../guests/bloc/guests_filter_cubit.dart';
 import '../../guests/bloc/guests_state.dart';
 import '../../../data/repositories/assign_repository.dart';
+import '../../../domain/attention_rules.dart';
+import '../../common/outstanding_button.dart';
 import '../../guests/widgets/guest_search_field.dart';
 import '../widgets/assign_guests_sheet.dart';
+import 'hod_outstanding_screen.dart';
 import '../../guests/widgets/watch_months.dart';
 
 /// All church guests for admins. With [workerFilter] it is pushed as its own
@@ -108,6 +111,13 @@ class _AdminGuestsTabState extends State<AdminGuestsTab> {
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      HodOutstandingBuilder(
+                        builder: (context, _, workers) => OutstandingButton(
+                          count: AttentionRules.total(workers),
+                          onTap: () => HodOutstandingScreen.open(context),
+                        ),
+                      ),
+                      SizedBox(width: AppSizes.s4),
                       AppIconButton(
                         icon: AppIcons.addPerson,
                         tooltip: 'Assign guests',

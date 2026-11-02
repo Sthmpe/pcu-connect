@@ -16,12 +16,16 @@ class WorkerAttention {
   /// Month ('yyyy-MM') of that guest, to open the worker's list there.
   final String oldestMonth;
 
+  /// The outstanding guests, longest wait first.
+  final List<TodayItem> items;
+
   const WorkerAttention({
     required this.workerName,
     this.workerEmail = '',
     required this.outstanding,
     required this.oldestDays,
     required this.oldestMonth,
+    this.items = const [],
   });
 
   /// The oldest has waited ATTENTION_AFTER_DAYS or more: shown in red.
@@ -62,6 +66,7 @@ abstract class AttentionRules {
         outstanding: outstanding.length,
         oldestDays: outstanding.first.days,
         oldestMonth: outstanding.first.guest.serviceDate.substring(0, 7),
+        items: outstanding,
       ));
     });
     out.sort((a, b) => b.oldestDays != a.oldestDays
@@ -69,6 +74,9 @@ abstract class AttentionRules {
         : (b.outstanding != a.outstanding ? b.outstanding - a.outstanding : a.workerName.compareTo(b.workerName)));
     return out;
   }
+
+  /// Every outstanding guest of the team.
+  static int total(List<WorkerAttention> list) => list.fold(0, (n, w) => n + w.outstanding);
 
   /// Outstanding count per worker, keyed by email and by lowercase name (for the Team screen).
   static Map<String, int> counts(List<WorkerAttention> list) => {

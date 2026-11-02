@@ -3,7 +3,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:workflow/core/constants/app_colors.dart';
 import 'package:workflow/core/constants/app_sizes.dart';
-import 'package:workflow/core/routing/app_routes.dart';
 import 'package:workflow/domain/attention_rules.dart';
 import 'package:workflow/domain/entities/guest_entity.dart';
 import 'package:workflow/presentation/admin/widgets/needs_attention_card.dart';
@@ -59,24 +58,15 @@ void main() {
     expect(counts, {'david olanite': 4, 'ada bello': 1});
   });
 
-  testWidgets('a row is red when urgent and opens that worker\'s guests to call', (tester) async {
-    Object? pushed;
+  testWidgets('a row is red when urgent', (tester) async {
     final w = AttentionRules.build(guests: guests, since: since, today: '2026-11-06').first;
     await tester.pumpWidget(ScreenUtilInit(
       designSize: AppSizes.designSize,
-      builder: (_, _) => MaterialApp(
-        onGenerateRoute: (s) {
-          pushed = s.arguments;
-          return MaterialPageRoute(builder: (_) => const SizedBox());
-        },
-        home: Scaffold(body: NeedsAttentionRow(worker: w)),
-      ),
+      builder: (_, _) => MaterialApp(home: Scaffold(body: NeedsAttentionRow(worker: w))),
     ));
     final text = tester.widget<Text>(find.text('David, 4 outstanding, oldest 9 days'));
     expect(text.style?.color, AppColors.redInk);
-    await tester.tap(find.byType(NeedsAttentionRow));
-    await tester.pumpAndSettle();
-    final args = pushed as WorkerGuestsArgs;
-    expect([args.workerName, args.month, args.chip], ['David Olanite', '2026-10', 'call']);
+    expect(w.items.length, 4);
+    expect(AttentionRules.total(AttentionRules.build(guests: guests, since: since, today: '2026-11-06')), 5);
   });
 }

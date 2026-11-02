@@ -83,24 +83,37 @@ class GuestRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
                   SizedBox(height: AppSizes.s4),
-                  Row(
-                    children: [
-                      StatusDot(tone.dot),
-                      SizedBox(width: AppSizes.s8),
-                      Flexible(
-                        child: Text(
-                          adminView ? '${guest.status} · $line' : line,
-                          style: AppTextStyles.caption,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (pill != null) ...[
+                  // A narrow row puts the pill under the line instead of squeezing it.
+                  LayoutBuilder(builder: (context, box) {
+                    final narrow = pill != null && box.maxWidth < 230;
+                    final lineRow = Row(
+                      children: [
+                        StatusDot(tone.dot),
                         SizedBox(width: AppSizes.s8),
+                        Flexible(
+                          child: Text(
+                            adminView ? '${guest.status} · $line' : line,
+                            style: AppTextStyles.caption,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (pill != null && !narrow) ...[
+                          SizedBox(width: AppSizes.s8),
+                          AppPill(label: pill!, tone: pillTone ?? StatusTone.neutral),
+                        ],
+                      ],
+                    );
+                    if (!narrow) return lineRow;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        lineRow,
+                        SizedBox(height: AppSizes.s4),
                         AppPill(label: pill!, tone: pillTone ?? StatusTone.neutral),
                       ],
-                    ],
-                  ),
+                    );
+                  }),
                 ],
               ),
             ),

@@ -24,7 +24,10 @@ import '../bloc/sheet_sync_cubit.dart';
 import '../../common/notification_bell.dart';
 import '../../../data/repositories/assign_repository.dart';
 import '../widgets/assign_guests_sheet.dart';
+import '../../../domain/attention_rules.dart';
+import '../../common/outstanding_button.dart';
 import '../widgets/needs_attention_card.dart';
+import 'hod_outstanding_screen.dart';
 import '../widgets/trend_card.dart';
 import '../../common/push_prompt_card.dart';
 
@@ -49,7 +52,14 @@ class AdminDashboardTab extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const NotificationBell(),
-              SizedBox(width: AppSizes.s8),
+              // Outstanding of every month, by worker: a month change never hides waiting work.
+              HodOutstandingBuilder(
+                builder: (context, _, workers) => OutstandingButton(
+                  count: AttentionRules.total(workers),
+                  onTap: () => HodOutstandingScreen.open(context),
+                ),
+              ),
+              SizedBox(width: AppSizes.s4),
               // The Dashboard's own month: it never moves the Guests tab.
               MonthPill(month: state.month, onChanged: cubit.load),
             ],

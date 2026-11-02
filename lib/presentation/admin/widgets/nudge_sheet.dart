@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_icons.dart';
@@ -15,6 +16,7 @@ import '../../../data/firestore/nudge_repository.dart';
 import '../../../domain/attention_rules.dart';
 import '../../../domain/message_templates.dart';
 import '../../../domain/nudge.dart';
+import '../../common/insights_cubits.dart';
 import '../../common/notifications_screen.dart';
 
 /// "Nudged at 10:42. You can nudge again at 10:42 on Tuesday." (Lagos time).
@@ -28,6 +30,36 @@ String nudgedLine(DateTime at) {
 /// "Last nudged 2 h ago on WhatsApp".
 String lastNudgedLine(NudgeLog log, [DateTime? clock]) =>
     'Last nudged ${timeAgo(log.at, clock).toLowerCase()} ${log.isWhatsApp ? 'on WhatsApp' : 'in the app'}';
+
+/// The worker's phone from the team (the Workers tab); '' when not known.
+String phoneFor(BuildContext context, String email) {
+  for (final m in context.read<TeamCubit>().state.data ?? const []) {
+    if (m.email.trim().toLowerCase() == email) return m.phone;
+  }
+  return '';
+}
+
+/// Opens WhatsApp to [worker] with the nudge message filled in, and logs it.
+/// False (with a plain message) when there is no phone saved.
+Future<bool> nudgeOnWhatsApp({
+  required WorkerAttention worker,
+  required String phone,
+  required String template,
+  required INudgeRepository repo,
+}) async {
+  final international = nigerianInternational(phone);
+  final first = worker.workerName.trim().replaceFirst(RegExp(r'^TEST\s+'), '').split(RegExp(r'\s+')).first;
+  if (international == null) {
+    AppFeedback.error('No phone saved', 'Add a phone number for $first in the Workers tab.');
+    return false;
+  }
+  await ContactLauncher.whatsAppTo(
+    international,
+    MessageTemplates.fillNudge(template, workerName: worker.workerName, waiting: worker.outstanding, oldestDays: worker.oldestDays),
+  );
+  await repo.logWhatsApp(workerEmail: worker.workerEmail, workerName: worker.workerName, outstanding: worker.outstanding);
+  return true;
+}
 
 /// The friendly nudge and Nudge on WhatsApp for one worker.
 Future<void> showNudgeSheet(
@@ -116,20 +148,10 @@ class _NudgeSheetState extends State<NudgeSheet> {
     }
   }
 
-  Future<void> _whatsApp(String international) async {
-    final text = MessageTemplates.fillNudge(
-      _nudgeText,
-      workerName: widget.worker.workerName,
-      waiting: widget.worker.outstanding,
-      oldestDays: widget.worker.oldestDays,
-    );
-    await ContactLauncher.whatsAppTo(international, text);
-    await widget.repo.logWhatsApp(
-      workerEmail: widget.worker.workerEmail,
-      workerName: widget.worker.workerName,
-      outstanding: widget.worker.outstanding,
-    );
-    widget.onSent();
+  Future<void> _whatsApp() async {
+    if (await nudgeOnWhatsApp(worker: widget.worker, phone: widget.phone, template: _nudgeText, repo: widget.repo)) {
+      widget.onSent();
+    }
   }
 
   @override
@@ -204,7 +226,7 @@ class _NudgeSheetState extends State<NudgeSheet> {
                 label: 'Nudge on WhatsApp',
                 icon: AppIcons.whatsapp,
                 variant: AppButtonVariant.outline,
-                onPressed: international == null || widget.worker.workerEmail.isEmpty ? null : () => _whatsApp(international),
+                onPressed: international == null || widget.worker.workerEmail.isEmpty ? null : _whatsApp,
               ),
             ],
           );
